@@ -509,6 +509,9 @@ export const enUS = {
     no_events: 'No security events found',
   },
   overview: {
+    organization_quota_title: 'Organization Quota Summary',
+    organization_quota_failed: 'Quota summary unavailable. Refresh to retry.',
+
     traffic_window:
       'Rolling 5-minute window · current gateway instance · refreshed every 30 seconds',
     title: 'Operations overview',
@@ -1117,6 +1120,21 @@ export const enUS = {
     use_custom_model: '+ Use "{model}"',
   },
   ratelimits: {
+    org_quota_hint:
+      'Token quotas use millions (1M = 1,000,000 tokens). Blank means unlimited. A quota of 0 blocks requests; QPS of 0 means unlimited.',
+    org_invalid_quota:
+      'Token quotas allow up to six decimal places in millions and must resolve to non-negative safe integers; amount quotas must be finite non-negative numbers.',
+    org_blocked: '0 (blocked)',
+    org_usage_unavailable: 'Unavailable',
+    org_tokens_usage_limit: 'Tokens used / limit',
+    org_amount_usage_limit: 'Amount used / limit (USD)',
+    org_reset_at: 'Resets at (UTC+8)',
+    org_calendar_hint:
+      'Usage resets at midnight UTC+8: daily, Monday weekly, and the first day of each month. A zero quota stays blocked until changed.',
+    org_limits_link: 'Limits',
+    org_view_limits_link: 'View organization limits',
+    save_failed: 'Failed to save rate limits. Please retry.',
+
     title: 'Rate Limits & Rolling Quotas',
     subtitle:
       'Configure hierarchical QPS limits (Global → Organization → API Key) and 5h / 1d / 7d rolling token windows',
@@ -1144,10 +1162,21 @@ export const enUS = {
     enter_global_qps: 'Enter global QPS',
     qps_range: 'QPS must be an integer between 0 and 1,000,000 (0 = unlimited)',
     save_global_btn: 'Save Global Limit',
-    org_card_title: 'Organization QPS',
+    org_card_title: 'Organization QPS & Period Quotas',
     select_org_label: 'Select Target Organization',
     select_org_placeholder: 'Select organization to inspect/edit',
     org_qps_label: 'Organization QPS Limit',
+    org_usage_title: 'Current Usage',
+    org_daily_usage: 'Daily Usage',
+    org_weekly_usage: 'Weekly Usage',
+    org_monthly_usage: 'Monthly Usage',
+    org_daily_tokens_label: 'Daily Token Quota',
+    org_weekly_tokens_label: 'Weekly Token Quota',
+    org_monthly_tokens_label: 'Monthly Token Quota',
+    org_daily_amount_label: 'Daily Amount Quota USD',
+    org_weekly_amount_label: 'Weekly Amount Quota USD',
+    org_monthly_amount_label: 'Monthly Amount Quota USD',
+    org_readonly_hint: 'Organization limits can be modified only by super administrators.',
     enter_org_qps: 'Enter organization QPS',
     save_org_btn: 'Save Organization Limit',
     key_card_title: 'API Key QPS & Token Quotas',

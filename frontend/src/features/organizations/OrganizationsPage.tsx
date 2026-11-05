@@ -5,7 +5,7 @@ import { ListSummary } from '../common/ListSummary';
 import { LoadError, StatusTag } from '../common/ConsoleUX';
 import { SearchInput } from '../common/SearchInput';
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useFirstKeyAction } from '../onboarding/useFirstKeyAction';
 import { invalidateFirstKeySetup, loadSetupPages } from '../onboarding/setupQueries';
 import {
@@ -705,7 +705,7 @@ export const OrganizationsPage: React.FC = () => {
     {
       title: t('common.actions', 'Actions'),
       key: 'actions',
-      width: isPlatformAdmin ? 206 : 80,
+      width: isPlatformAdmin ? 286 : 140,
       fixed: 'right' as const,
       onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
       onCell: () => ({ style: { whiteSpace: 'nowrap' } }),
@@ -714,6 +714,16 @@ export const OrganizationsPage: React.FC = () => {
 
         return (
           <Space size={4} wrap={false} style={{ whiteSpace: 'nowrap' }}>
+            {(isPlatformAdmin ||
+              (currentUser?.role === 'org_admin' && currentUser.organization_id === record.id)) && (
+              <Link to={`/admin/rate-limits?organization_id=${record.id}`}>
+                {t(
+                  isPlatformAdmin
+                    ? 'ratelimits.org_limits_link'
+                    : 'ratelimits.org_view_limits_link',
+                )}
+              </Link>
+            )}
             {isPlatformAdmin && (
               <TableAction
                 size="small"

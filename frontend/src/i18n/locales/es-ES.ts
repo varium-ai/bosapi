@@ -1075,6 +1075,9 @@ export const esES: typeof enUS = {
     no_events: 'No se encontraron eventos de seguridad',
   },
   overview: {
+    organization_quota_title: 'Organization Quota Summary',
+    organization_quota_failed: 'Quota summary unavailable. Refresh to retry.',
+
     traffic_window:
       'Ventana móvil de 5 minutos · instancia actual · actualización cada 30 segundos',
     title: 'Resumen operativo',
@@ -1675,6 +1678,21 @@ export const esES: typeof enUS = {
     use_custom_model: '+ Usar «{model}»',
   },
   ratelimits: {
+    org_quota_hint:
+      'Token quotas use millions (1M = 1,000,000 tokens). Blank means unlimited. A quota of 0 blocks requests; QPS of 0 means unlimited.',
+    org_invalid_quota:
+      'Token quotas allow up to six decimal places in millions and must resolve to non-negative safe integers; amount quotas must be finite non-negative numbers.',
+    org_blocked: '0 (blocked)',
+    org_usage_unavailable: 'Unavailable',
+    org_tokens_usage_limit: 'Tokens used / limit',
+    org_amount_usage_limit: 'Amount used / limit (USD)',
+    org_reset_at: 'Resets at (UTC+8)',
+    org_calendar_hint:
+      'Usage resets at midnight UTC+8: daily, Monday weekly, and the first day of each month. A zero quota stays blocked until changed.',
+    org_limits_link: 'Limits',
+    org_view_limits_link: 'View organization limits',
+    save_failed: 'Failed to save rate limits. Please retry.',
+
     title: 'Límites de frecuencia y cuotas móviles',
     subtitle:
       'Límites QPS jerárquicos (global → organización → clave) y ventanas de tokens de 5 h / 1 d / 7 d',
@@ -1702,10 +1720,22 @@ export const esES: typeof enUS = {
     enter_global_qps: 'Introduce el QPS global',
     qps_range: 'QPS debe ser un entero entre 0 y 1.000.000 (0 = sin límite)',
     save_global_btn: 'Guardar límite global',
-    org_card_title: 'QPS de organización',
+    org_card_title: 'QPS de organización y cuotas por período',
     select_org_label: 'Seleccionar organización',
     select_org_placeholder: 'Selecciona la organización que quieres revisar o editar',
     org_qps_label: 'Límite QPS de organización',
+    org_usage_title: 'Uso actual',
+    org_daily_usage: 'Uso diario',
+    org_weekly_usage: 'Uso semanal',
+    org_monthly_usage: 'Uso mensual',
+    org_daily_tokens_label: 'Límite diario de tokens',
+    org_weekly_tokens_label: 'Límite semanal de tokens',
+    org_monthly_tokens_label: 'Límite mensual de tokens',
+    org_daily_amount_label: 'Límite diario de importe (USD)',
+    org_weekly_amount_label: 'Límite semanal de importe (USD)',
+    org_monthly_amount_label: 'Límite mensual de importe (USD)',
+    org_readonly_hint:
+      'Solo los superadministradores pueden modificar los límites de organización.',
     enter_org_qps: 'Introduce el QPS de organización',
     save_org_btn: 'Guardar límite de organización',
     key_card_title: 'QPS y cuotas de tokens de clave API',

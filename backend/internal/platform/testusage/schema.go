@@ -21,7 +21,7 @@ func Install(t *testing.T, db *gorm.DB) {
 	if err := db.Exec(schema[start:end]).Error; err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"004_usage_error_code.sql", "015_usage_first_token.sql", "017_usage_daily_rollups.sql", "020_key_usage_covering_index.sql", "023_usage_log_transition.sql","024_cache_usage.sql", "025_setup_usage_indexes.sql"} {
+	for _, name := range []string{"004_usage_error_code.sql", "015_usage_first_token.sql", "017_usage_daily_rollups.sql", "020_key_usage_covering_index.sql", "023_usage_log_transition.sql", "024_cache_usage.sql", "025_setup_usage_indexes.sql", "026_organization_quota_indexes.sql"} {
 		script, err := migrations.Files.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)

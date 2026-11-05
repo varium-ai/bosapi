@@ -5,22 +5,26 @@ import (
 	"net/http"
 	"time"
 
+	adminDomain "bosapi/backend/internal/admin/domain"
 	analyticsapp "bosapi/backend/internal/analytics/application"
 	"bosapi/backend/internal/platform/httpapi"
 	"bosapi/backend/internal/platform/telemetry"
+	userinfra "bosapi/backend/internal/user/infrastructure"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 type RuntimeStatus struct {
-	SnapshotRedis  redis.UniversalClient
-	UsageReporting *analyticsapp.Service
-	Redis          func(context.Context) error
-	RedisInfo      func(context.Context) (string, error)
-	Queue          func() string
-	QueueDetails   func() telemetry.Fields
-	RateLimit      func(context.Context) (bool, string)
+	OrganizationQuotaUsage    func(context.Context, uint64, time.Time) (userinfra.OrganizationPeriodicUsage, error)
+	SnapshotRedis             redis.UniversalClient
+	UsageReporting            *analyticsapp.Service
+	Redis                     func(context.Context) error
+	RedisInfo                 func(context.Context) (string, error)
+	Queue                     func() string
+	QueueDetails              func() telemetry.Fields
+	RateLimit                 func(context.Context) (bool, string)
+	RateLimitCacheInvalidator func(context.Context, adminDomain.RateLimitUpdate)
 }
 
 type StatusHandler struct{ Monitor *telemetry.Monitor }

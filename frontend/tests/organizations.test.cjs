@@ -163,3 +163,33 @@ test('known channel names survive refresh errors; genuinely missing names use th
     'organizations.provider_names_load_error',
   ]);
 });
+
+test('organization limits link targets the selected organization and is tenant-scoped', () => {
+  const link = find(
+    tree,
+    node =>
+      ts.isJsxElement(node) &&
+      node.openingElement.tagName.getText(tree) === 'Link' &&
+      node.getText(tree).includes('/admin/rate-limits?organization_id='),
+  );
+  let condition = link.parent;
+  while (!ts.isBinaryExpression(condition)) condition = condition.parent;
+  const render = (currentUser, record) =>
+    evaluate(`(${condition.getText(tree)});`, {
+      currentUser,
+      record,
+      isPlatformAdmin: currentUser?.role === 'super_admin',
+      Link: 'Link',
+      t: key => key,
+      React: { createElement: (type, props, ...children) => ({ type, props, children }) },
+    });
+  const admin = render({ role: 'super_admin' }, { id: 25 });
+  assert.equal(admin.props.to, '/admin/rate-limits?organization_id=25');
+  assert.deepEqual(Array.from(admin.children), ['ratelimits.org_limits_link']);
+  const tenant = { role: 'org_admin', organization_id: 10 };
+  const own = render(tenant, { id: 10 });
+  assert.equal(own.props.to, '/admin/rate-limits?organization_id=10');
+  assert.deepEqual(Array.from(own.children), ['ratelimits.org_view_limits_link']);
+  assert.equal(render(tenant, { id: 25 }), false);
+  assert.equal(render({ role: 'key_viewer' }, { id: 10 }), false);
+});
