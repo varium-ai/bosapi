@@ -1,0 +1,730 @@
+[
+  {
+    "href": "/docs/quickstart",
+    "name": ["Get started with BOS API", "Get started with BOS API"],
+    "description": [
+      "Connect an upstream service, configure organization access, and make a gateway request.",
+      "Connect an upstream service, configure organization access, and make a gateway request."
+    ]
+  },
+  {
+    "href": "/docs/quickstart#first-login",
+    "name": ["Sign in and enroll MFA", "Sign in and enroll MFA"],
+    "description": ["Get started with BOS API", "Get started with BOS API"]
+  },
+  {
+    "href": "/docs/quickstart#first-key-setup",
+    "name": ["Configure your first request", "Configure your first request"],
+    "description": ["Get started with BOS API", "Get started with BOS API"]
+  },
+  {
+    "href": "/docs/quickstart#capacity",
+    "name": ["Community capacity", "Community capacity"],
+    "description": ["Get started with BOS API", "Get started with BOS API"]
+  },
+  {
+    "href": "/docs/quickstart#support",
+    "name": ["Get help", "Get help"],
+    "description": ["Get started with BOS API", "Get started with BOS API"]
+  },
+  {
+    "href": "/docs/concepts",
+    "name": ["How BOS API works", "How BOS API works"],
+    "description": [
+      "Understand providers, organizations, keys, and gateway policies.",
+      "Understand providers, organizations, keys, and gateway policies."
+    ]
+  },
+  {
+    "href": "/docs/concepts#architecture",
+    "name": ["Request flow", "Request flow"],
+    "description": ["How BOS API works", "How BOS API works"]
+  },
+  {
+    "href": "/docs/concepts#roles",
+    "name": ["Administration", "Administration"],
+    "description": ["How BOS API works", "How BOS API works"]
+  },
+  {
+    "href": "/docs/concepts#credentials",
+    "name": ["Separate credentials", "Separate credentials"],
+    "description": ["How BOS API works", "How BOS API works"]
+  },
+  {
+    "href": "/docs/console-overview",
+    "name": ["Console overview", "Console overview"],
+    "description": [
+      "Find access management, usage, diagnostics and security events.",
+      "Find access management, usage, diagnostics and security events."
+    ]
+  },
+  {
+    "href": "/docs/console-overview#resources",
+    "name": ["Configure access", "Configure access"],
+    "description": ["Console overview", "Console overview"]
+  },
+  {
+    "href": "/docs/console-overview#visibility",
+    "name": ["Inspect activity", "Inspect activity"],
+    "description": ["Console overview", "Console overview"]
+  },
+  {
+    "href": "/docs/console-overview#settings",
+    "name": ["Administration settings", "Administration settings"],
+    "description": ["Console overview", "Console overview"]
+  },
+  {
+    "href": "/docs/organizations",
+    "name": ["Organizations & access", "Organizations & access"],
+    "description": [
+      "Isolate team access and assign providers and models.",
+      "Isolate team access and assign providers and models."
+    ]
+  },
+  {
+    "href": "/docs/organizations#create",
+    "name": ["Create an organization", "Create an organization"],
+    "description": ["Organizations & access", "Organizations & access"]
+  },
+  {
+    "href": "/docs/organizations#bindings",
+    "name": ["Provider bindings", "Provider bindings"],
+    "description": ["Organizations & access", "Organizations & access"]
+  },
+  {
+    "href": "/docs/organizations#administrators",
+    "name": ["Organization administrators", "Organization administrators"],
+    "description": ["Organizations & access", "Organizations & access"]
+  },
+  {
+    "href": "/docs/providers-models",
+    "name": ["Providers & models", "Providers & models"],
+    "description": [
+      "Connect model services and verify model configuration.",
+      "Connect model services and verify model configuration."
+    ]
+  },
+  {
+    "href": "/docs/providers-models#credentials",
+    "name": ["Configure a provider", "Configure a provider"],
+    "description": ["Providers & models", "Providers & models"]
+  },
+  {
+    "href": "/docs/providers-models#models",
+    "name": ["Discover models", "Discover models"],
+    "description": ["Providers & models", "Providers & models"]
+  },
+  {
+    "href": "/docs/providers-models#pricing",
+    "name": ["Usage cost metadata", "Usage cost metadata"],
+    "description": ["Providers & models", "Providers & models"]
+  },
+  {
+    "href": "/docs/providers-models#access",
+    "name": ["Assign access", "Assign access"],
+    "description": ["Providers & models", "Providers & models"]
+  },
+  {
+    "href": "/docs/api-keys",
+    "name": ["Manage API Keys", "Manage API Keys"],
+    "description": [
+      "Create credentials, set access policies, and inspect Key activity.",
+      "Create credentials, set access policies, and inspect Key activity."
+    ]
+  },
+  {
+    "href": "/docs/api-keys#create",
+    "name": ["Create and store a Key", "Create and store a Key"],
+    "description": ["Manage API Keys", "Manage API Keys"]
+  },
+  {
+    "href": "/docs/api-keys#limits",
+    "name": ["Capacity and lifecycle", "Capacity and lifecycle"],
+    "description": ["Manage API Keys", "Manage API Keys"]
+  },
+  {
+    "href": "/docs/api-keys#policy",
+    "name": ["Key access and budgets", "Key access and budgets"],
+    "description": ["Manage API Keys", "Manage API Keys"]
+  },
+  {
+    "href": "/docs/api-keys#inspection",
+    "name": ["Inspection controls", "Inspection controls"],
+    "description": ["Manage API Keys", "Manage API Keys"]
+  },
+  {
+    "href": "/docs/routing-limits",
+    "name": ["Limits & quotas", "Limits & quotas"],
+    "description": [
+      "Apply basic access, request-rate and usage budgets.",
+      "Apply basic access, request-rate and usage budgets."
+    ]
+  },
+  {
+    "href": "/docs/routing-limits#rate-limits",
+    "name": ["Rate limits", "Rate limits"],
+    "description": ["Limits & quotas", "Limits & quotas"]
+  },
+  {
+    "href": "/docs/routing-limits#quotas",
+    "name": ["Usage budgets", "Usage budgets"],
+    "description": ["Limits & quotas", "Limits & quotas"]
+  },
+  {
+    "href": "/docs/routing-limits#models",
+    "name": ["Model selection", "Model selection"],
+    "description": ["Limits & quotas", "Limits & quotas"]
+  },
+  {
+    "href": "/docs/usage-logs",
+    "name": ["Usage & request logs", "Usage & request logs"],
+    "description": [
+      "Review requests, token accounting, errors and sanitized traces.",
+      "Review requests, token accounting, errors and sanitized traces."
+    ]
+  },
+  {
+    "href": "/docs/usage-logs#usage",
+    "name": ["Usage accounting", "Usage accounting"],
+    "description": ["Usage & request logs", "Usage & request logs"]
+  },
+  {
+    "href": "/docs/usage-logs#logs",
+    "name": ["Request diagnosis", "Request diagnosis"],
+    "description": ["Usage & request logs", "Usage & request logs"]
+  },
+  {
+    "href": "/docs/usage-logs#retention",
+    "name": ["Retention", "Retention"],
+    "description": ["Usage & request logs", "Usage & request logs"]
+  },
+  {
+    "href": "/docs/security-admin",
+    "name": ["Security & administration", "Security & administration"],
+    "description": [
+      "Inspect security events and configure core account protection.",
+      "Inspect security events and configure core account protection."
+    ]
+  },
+  {
+    "href": "/docs/security-admin#events",
+    "name": ["Security events", "Security events"],
+    "description": ["Security & administration", "Security & administration"]
+  },
+  {
+    "href": "/docs/security-admin#inspection",
+    "name": ["Security profile status", "Security profile status"],
+    "description": ["Security & administration", "Security & administration"]
+  },
+  {
+    "href": "/docs/security-admin#accounts",
+    "name": ["Account protection", "Account protection"],
+    "description": ["Security & administration", "Security & administration"]
+  },
+  {
+    "href": "/docs/security-admin#disclosure",
+    "name": ["Report a vulnerability", "Report a vulnerability"],
+    "description": ["Security & administration", "Security & administration"]
+  },
+  {
+    "href": "/docs/api-integration",
+    "name": ["API integration", "API integration"],
+    "description": [
+      "Use your existing SDK with BOS API. Configure a gateway address, authenticate with your Key, and choose the protocol your model supports.",
+      "Use your existing SDK with BOS API. Configure a gateway address, authenticate with your Key, and choose the protocol your model supports."
+    ]
+  },
+  {
+    "href": "/docs/api-integration#connection",
+    "name": ["Base URL & authentication", "Base URL & authentication"],
+    "description": ["API integration", "API integration"]
+  },
+  {
+    "href": "/docs/api-integration#environment",
+    "name": ["Prepare your environment", "Prepare your environment"],
+    "description": ["API integration", "API integration"]
+  },
+  {
+    "href": "/docs/api-integration#chat-completions",
+    "name": ["Chat Completions", "Chat Completions"],
+    "description": ["API integration", "API integration"]
+  },
+  {
+    "href": "/docs/api-integration#responses",
+    "name": ["Responses API", "Responses API"],
+    "description": ["API integration", "API integration"]
+  },
+  {
+    "href": "/docs/api-integration#messages",
+    "name": ["Anthropic Messages", "Anthropic Messages"],
+    "description": ["API integration", "API integration"]
+  },
+  {
+    "href": "/docs/api-integration#next",
+    "name": ["Build on your first request", "Build on your first request"],
+    "description": ["API integration", "API integration"]
+  },
+  {
+    "href": "/docs/models",
+    "name": ["Model configuration & capabilities", "Model configuration & capabilities"],
+    "description": [
+      "Learn how to specify your own model ID and verify its protocol and capabilities. BOS API does not include preconfigured models or model services.",
+      "Learn how to specify your own model ID and verify its protocol and capabilities. BOS API does not include preconfigured models or model services."
+    ]
+  },
+  {
+    "href": "/docs/models#catalog",
+    "name": ["Use your own model configuration", "Use your own model configuration"],
+    "description": ["Model configuration & capabilities", "Model configuration & capabilities"]
+  },
+  {
+    "href": "/docs/models#authenticated-list",
+    "name": ["Query with your Key", "Query with your Key"],
+    "description": ["Model configuration & capabilities", "Model configuration & capabilities"]
+  },
+  {
+    "href": "/docs/models#choose",
+    "name": ["Choose by capability, not by name", "Choose by capability, not by name"],
+    "description": ["Model configuration & capabilities", "Model configuration & capabilities"]
+  },
+  {
+    "href": "/docs/streaming-tools",
+    "name": ["Streaming & tool calls", "Streaming & tool calls"],
+    "description": [
+      "Add incremental output and understand the model-to-client tool loop used by coding agents.",
+      "Add incremental output and understand the model-to-client tool loop used by coding agents."
+    ]
+  },
+  {
+    "href": "/docs/streaming-tools#streaming",
+    "name": ["Stream a chat response", "Stream a chat response"],
+    "description": ["Streaming & tool calls", "Streaming & tool calls"]
+  },
+  {
+    "href": "/docs/streaming-tools#stream-errors",
+    "name": ["Handle stream completion and errors", "Handle stream completion and errors"],
+    "description": ["Streaming & tool calls", "Streaming & tool calls"]
+  },
+  {
+    "href": "/docs/streaming-tools#tool-cycle",
+    "name": ["Understand the tool-call cycle", "Understand the tool-call cycle"],
+    "description": ["Streaming & tool calls", "Streaming & tool calls"]
+  },
+  {
+    "href": "/docs/streaming-tools#verify-tools",
+    "name": ["Verify an agent-ready model", "Verify an agent-ready model"],
+    "description": ["Streaming & tool calls", "Streaming & tool calls"]
+  },
+  {
+    "href": "/docs/coding-agents",
+    "name": ["Connect your tools", "Connect your tools"],
+    "description": [
+      "Choose a client, then follow its installation, configuration and verification steps.",
+      "Choose a client, then follow its installation, configuration and verification steps."
+    ]
+  },
+  {
+    "href": "/docs/coding-agents#choose-client",
+    "name": ["Choose your tool", "Choose your tool"],
+    "description": ["Connect your tools", "Connect your tools"]
+  },
+  {
+    "href": "/docs/coding-agents#requirements",
+    "name": ["Prepare three values", "Prepare three values"],
+    "description": ["Connect your tools", "Connect your tools"]
+  },
+  {
+    "href": "/docs/coding-agents#boundaries",
+    "name": ["Choose the protocol, not a brand name", "Choose the protocol, not a brand name"],
+    "description": ["Connect your tools", "Connect your tools"]
+  },
+  {
+    "href": "/docs/coding-agents#verify",
+    "name": ["Verify the connection", "Verify the connection"],
+    "description": ["Connect your tools", "Connect your tools"]
+  },
+  {
+    "href": "/docs/codex-desktop",
+    "name": ["Codex Desktop", "Codex Desktop"],
+    "description": [
+      "Install the desktop app, edit its user configuration, and make the gateway Key available to the app.",
+      "Install the desktop app, edit its user configuration, and make the gateway Key available to the app."
+    ]
+  },
+  {
+    "href": "/docs/codex-desktop#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["Codex Desktop", "Codex Desktop"]
+  },
+  {
+    "href": "/docs/codex-desktop#install",
+    "name": ["2. Install the desktop app", "2. Install the desktop app"],
+    "description": ["Codex Desktop", "Codex Desktop"]
+  },
+  {
+    "href": "/docs/codex-desktop#configure",
+    "name": ["3. Open and edit config.toml", "3. Open and edit config.toml"],
+    "description": ["Codex Desktop", "Codex Desktop"]
+  },
+  {
+    "href": "/docs/codex-desktop#launch",
+    "name": ["4. Supply the Key and restart the app", "4. Supply the Key and restart the app"],
+    "description": ["Codex Desktop", "Codex Desktop"]
+  },
+  {
+    "href": "/docs/codex-desktop#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["Codex Desktop", "Codex Desktop"]
+  },
+  {
+    "href": "/docs/codex-desktop#troubleshoot",
+    "name": ["6. Common problems and switching back", "6. Common problems and switching back"],
+    "description": ["Codex Desktop", "Codex Desktop"]
+  },
+  {
+    "href": "/docs/claude-code",
+    "name": ["Claude Code CLI", "Claude Code CLI"],
+    "description": [
+      "Install Claude Code, configure the current terminal, then start it inside your project.",
+      "Install Claude Code, configure the current terminal, then start it inside your project."
+    ]
+  },
+  {
+    "href": "/docs/claude-code#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["Claude Code CLI", "Claude Code CLI"]
+  },
+  {
+    "href": "/docs/claude-code#install",
+    "name": ["2. Install Claude Code", "2. Install Claude Code"],
+    "description": ["Claude Code CLI", "Claude Code CLI"]
+  },
+  {
+    "href": "/docs/claude-code#configure",
+    "name": ["3. Set the endpoint, Key and model", "3. Set the endpoint, Key and model"],
+    "description": ["Claude Code CLI", "Claude Code CLI"]
+  },
+  {
+    "href": "/docs/claude-code#launch",
+    "name": ["4. Open your project and launch", "4. Open your project and launch"],
+    "description": ["Claude Code CLI", "Claude Code CLI"]
+  },
+  {
+    "href": "/docs/claude-code#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["Claude Code CLI", "Claude Code CLI"]
+  },
+  {
+    "href": "/docs/claude-code#troubleshoot",
+    "name": ["6. Common problems and switching back", "6. Common problems and switching back"],
+    "description": ["Claude Code CLI", "Claude Code CLI"]
+  },
+  {
+    "href": "/docs/claude-desktop",
+    "name": ["Claude Desktop", "Claude Desktop"],
+    "description": [
+      "Configure a gateway in Claude’s own third-party inference window, without a separate switching tool.",
+      "Configure a gateway in Claude’s own third-party inference window, without a separate switching tool."
+    ]
+  },
+  {
+    "href": "/docs/claude-desktop#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["Claude Desktop", "Claude Desktop"]
+  },
+  {
+    "href": "/docs/claude-desktop#install",
+    "name": [
+      "2. Install and open the configuration window",
+      "2. Install and open the configuration window"
+    ],
+    "description": ["Claude Desktop", "Claude Desktop"]
+  },
+  {
+    "href": "/docs/claude-desktop#configure",
+    "name": ["3. Fill in Connection", "3. Fill in Connection"],
+    "description": ["Claude Desktop", "Claude Desktop"]
+  },
+  {
+    "href": "/docs/claude-desktop#launch",
+    "name": ["4. Apply locally and start a new task", "4. Apply locally and start a new task"],
+    "description": ["Claude Desktop", "Claude Desktop"]
+  },
+  {
+    "href": "/docs/claude-desktop#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["Claude Desktop", "Claude Desktop"]
+  },
+  {
+    "href": "/docs/claude-desktop#undo",
+    "name": ["6. Troubleshooting and switching back", "6. Troubleshooting and switching back"],
+    "description": ["Claude Desktop", "Claude Desktop"]
+  },
+  {
+    "href": "/docs/codex",
+    "name": ["Codex CLI", "Codex CLI"],
+    "description": [
+      "Install the command-line client and connect it with an explicit Responses provider.",
+      "Install the command-line client and connect it with an explicit Responses provider."
+    ]
+  },
+  {
+    "href": "/docs/codex#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["Codex CLI", "Codex CLI"]
+  },
+  {
+    "href": "/docs/codex#install",
+    "name": ["2. Install Codex CLI", "2. Install Codex CLI"],
+    "description": ["Codex CLI", "Codex CLI"]
+  },
+  {
+    "href": "/docs/codex#configure",
+    "name": ["3. Open and edit config.toml", "3. Open and edit config.toml"],
+    "description": ["Codex CLI", "Codex CLI"]
+  },
+  {
+    "href": "/docs/codex#launch",
+    "name": ["4. Set the Key and start Codex", "4. Set the Key and start Codex"],
+    "description": ["Codex CLI", "Codex CLI"]
+  },
+  {
+    "href": "/docs/codex#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["Codex CLI", "Codex CLI"]
+  },
+  {
+    "href": "/docs/codex#troubleshoot",
+    "name": ["6. Common problems and switching back", "6. Common problems and switching back"],
+    "description": ["Codex CLI", "Codex CLI"]
+  },
+  {
+    "href": "/docs/cline-roo",
+    "name": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"],
+    "description": [
+      "Install the extension, choose OpenAI Compatible, and configure each task mode.",
+      "Install the extension, choose OpenAI Compatible, and configure each task mode."
+    ]
+  },
+  {
+    "href": "/docs/cline-roo#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"]
+  },
+  {
+    "href": "/docs/cline-roo#install",
+    "name": ["2. Install the extension", "2. Install the extension"],
+    "description": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"]
+  },
+  {
+    "href": "/docs/cline-roo#configure",
+    "name": ["3. Fill in the provider settings", "3. Fill in the provider settings"],
+    "description": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"]
+  },
+  {
+    "href": "/docs/cline-roo#select",
+    "name": ["4. Save and choose the active profile", "4. Save and choose the active profile"],
+    "description": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"]
+  },
+  {
+    "href": "/docs/cline-roo#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"]
+  },
+  {
+    "href": "/docs/cline-roo#undo",
+    "name": ["6. Troubleshooting and undo", "6. Troubleshooting and undo"],
+    "description": ["VS Code + Cline / Roo Code", "VS Code + Cline / Roo Code"]
+  },
+  {
+    "href": "/docs/openclaw",
+    "name": ["OpenClaw", "OpenClaw"],
+    "description": [
+      "Use the onboarding wizard to configure a custom endpoint and model.",
+      "Use the onboarding wizard to configure a custom endpoint and model."
+    ]
+  },
+  {
+    "href": "/docs/openclaw#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["OpenClaw", "OpenClaw"]
+  },
+  {
+    "href": "/docs/openclaw#install",
+    "name": ["2. Install and open the wizard", "2. Install and open the wizard"],
+    "description": ["OpenClaw", "OpenClaw"]
+  },
+  {
+    "href": "/docs/openclaw#configure",
+    "name": ["3. Answer the connection prompts", "3. Answer the connection prompts"],
+    "description": ["OpenClaw", "OpenClaw"]
+  },
+  {
+    "href": "/docs/openclaw#launch",
+    "name": ["4. Open the chat interface", "4. Open the chat interface"],
+    "description": ["OpenClaw", "OpenClaw"]
+  },
+  {
+    "href": "/docs/openclaw#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["OpenClaw", "OpenClaw"]
+  },
+  {
+    "href": "/docs/openclaw#undo",
+    "name": ["6. Troubleshooting and undo", "6. Troubleshooting and undo"],
+    "description": ["OpenClaw", "OpenClaw"]
+  },
+  {
+    "href": "/docs/opencode",
+    "name": ["OpenCode", "OpenCode"],
+    "description": [
+      "Install OpenCode, save a user-level provider configuration, and select the model.",
+      "Install OpenCode, save a user-level provider configuration, and select the model."
+    ]
+  },
+  {
+    "href": "/docs/opencode#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["OpenCode", "OpenCode"]
+  },
+  {
+    "href": "/docs/opencode#install",
+    "name": ["2. Install OpenCode", "2. Install OpenCode"],
+    "description": ["OpenCode", "OpenCode"]
+  },
+  {
+    "href": "/docs/opencode#configure",
+    "name": ["3. Edit the user configuration", "3. Edit the user configuration"],
+    "description": ["OpenCode", "OpenCode"]
+  },
+  {
+    "href": "/docs/opencode#select",
+    "name": ["4. Supply the Key and choose the model", "4. Supply the Key and choose the model"],
+    "description": ["OpenCode", "OpenCode"]
+  },
+  {
+    "href": "/docs/opencode#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["OpenCode", "OpenCode"]
+  },
+  {
+    "href": "/docs/opencode#undo",
+    "name": ["6. Troubleshooting and undo", "6. Troubleshooting and undo"],
+    "description": ["OpenCode", "OpenCode"]
+  },
+  {
+    "href": "/docs/cursor",
+    "name": ["Cursor", "Cursor"],
+    "description": [
+      "Use a custom OpenAI Base URL only if your Cursor version exposes that control.",
+      "Use a custom OpenAI Base URL only if your Cursor version exposes that control."
+    ]
+  },
+  {
+    "href": "/docs/cursor#requirements",
+    "name": ["1. Prepare your connection details", "1. Prepare your connection details"],
+    "description": ["Cursor", "Cursor"]
+  },
+  {
+    "href": "/docs/cursor#install",
+    "name": ["2. Install and open model settings", "2. Install and open model settings"],
+    "description": ["Cursor", "Cursor"]
+  },
+  {
+    "href": "/docs/cursor#configure",
+    "name": ["3. Set the custom endpoint first", "3. Set the custom endpoint first"],
+    "description": ["Cursor", "Cursor"]
+  },
+  {
+    "href": "/docs/cursor#select",
+    "name": ["4. Select the model in chat", "4. Select the model in chat"],
+    "description": ["Cursor", "Cursor"]
+  },
+  {
+    "href": "/docs/cursor#verify",
+    "name": [
+      "5. Check that the request reached BOS API",
+      "5. Check that the request reached BOS API"
+    ],
+    "description": ["Cursor", "Cursor"]
+  },
+  {
+    "href": "/docs/cursor#undo",
+    "name": ["6. Restore the previous setup", "6. Restore the previous setup"],
+    "description": ["Cursor", "Cursor"]
+  },
+  {
+    "href": "/docs/troubleshooting",
+    "name": ["Errors & troubleshooting", "Errors & troubleshooting"],
+    "description": [
+      "Find the earliest failing step, collect a Request ID, and fix the cause instead of retrying blindly.",
+      "Find the earliest failing step, collect a Request ID, and fix the cause instead of retrying blindly."
+    ]
+  },
+  {
+    "href": "/docs/troubleshooting#setup-problems",
+    "name": ["Stuck before your first request?", "Stuck before your first request?"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#subscription-problems",
+    "name": ["Subscription authorization problems", "Subscription authorization problems"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#google-project-errors",
+    "name": ["Google project and permission errors", "Google project and permission errors"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#client-import-problems",
+    "name": ["CC Switch / Vary AI import problems", "CC Switch / Vary AI import problems"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#checklist",
+    "name": ["Start with four checks", "Start with four checks"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#errors",
+    "name": ["Common errors", "Common errors"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#agents",
+    "name": ["The agent chats but cannot use tools", "The agent chats but cannot use tools"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#retry-after",
+    "name": ["Understand a 429 response", "Understand a 429 response"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  },
+  {
+    "href": "/docs/troubleshooting#support",
+    "name": ["What to send to your administrator", "What to send to your administrator"],
+    "description": ["Errors & troubleshooting", "Errors & troubleshooting"]
+  }
+]

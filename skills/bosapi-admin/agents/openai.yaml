@@ -1,0 +1,7 @@
+interface:
+  display_name: "BOS API Admin"
+  short_description: "Manage BOS API admin accounts and settings"
+  default_prompt: "Use $bosapi-admin to inspect and manage BOS API backend accounts safely."
+
+policy:
+  allow_implicit_invocation: true

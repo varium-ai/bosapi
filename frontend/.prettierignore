@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+public/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+vite.config.js
+vite.config.d.ts

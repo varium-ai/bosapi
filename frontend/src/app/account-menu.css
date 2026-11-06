@@ -1,0 +1,168 @@
+.account-trigger.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  max-width: 280px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.account-trigger.ant-btn:hover,
+.account-trigger.ant-btn.is-open {
+  background: #f7f7f7;
+  border-color: #e5e5e5;
+}
+
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #404040;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.account-avatar-large {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+.account-trigger-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+.account-trigger-chevron {
+  color: #737373;
+  font-size: 10px;
+}
+.account-menu-panel {
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  padding: 6px;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow:
+    0 12px 40px #00000014,
+    0 2px 8px #00000008;
+}
+.account-menu-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.account-profile-details {
+  min-width: 0;
+}
+.account-profile-email {
+  overflow-wrap: anywhere;
+  margin-bottom: 5px;
+  color: #171717;
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-role.ant-tag {
+  margin: 0;
+  color: #616161;
+  background: #fafafa;
+  font-size: 11px;
+  line-height: 18px;
+}
+.account-dropdown .ant-dropdown-menu {
+  box-shadow: none;
+  padding: 4px 0 0;
+  background: transparent;
+}
+.account-dropdown .ant-dropdown-menu-item-group-title {
+  padding: 12px 10px 4px;
+  color: #8c8c8c;
+  font-size: 11px;
+}
+.account-dropdown .ant-dropdown-menu-item {
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.account-dropdown .ant-dropdown-menu-item-icon {
+  color: #737373;
+}
+.account-dropdown .ant-dropdown-menu-item-danger .ant-dropdown-menu-item-icon {
+  color: inherit;
+}
+.account-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.account-documentation-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: inherit;
+}
+.account-menu-hint {
+  color: #8c8c8c;
+  font-size: 11px;
+}
+.account-mfa-status {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #737373;
+  font-size: 11px;
+}
+.account-mfa-status.is-enabled {
+  background: #f0fdf4;
+  color: #15803d;
+}
+.account-modal-description {
+  margin: 12px 0 24px;
+  color: #737373;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.account-preferences-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #737373;
+  font-size: 12px;
+}
+.console-page-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .account-trigger-email {
+    display: none;
+  }
+  .account-trigger.ant-btn {
+    gap: 6px;
+  }
+  .console-header.ant-layout-header {
+    padding: 0 16px !important;
+    gap: 12px;
+  }
+}

@@ -1,0 +1,29 @@
+services:
+  caddy:
+    image: ${BOS_CADDY_IMAGE:-caddy:2-alpine}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      BOS_INSTALL_DOMAIN: ${BOS_INSTALL_DOMAIN:?Set BOS_INSTALL_DOMAIN in deploy/stack.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+volumes:
+  caddy_data:
+  caddy_config:

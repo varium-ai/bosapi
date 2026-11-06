@@ -1,0 +1,1102 @@
+THIRD-PARTY NOTICES
+
+Production npm and Go dependencies selected by the lockfiles retain their own
+copyright and license. Original texts are under third_party/licenses. BOS API original source code is licensed under MIT; see LICENSE. Brand asset provenance and license files
+are under frontend/public/docs/brands. No GeoLite2 database is distributed.
+Container base images and system packages have separate distribution terms.
+
+Go: github.com/bsm/ginkgo/v2@v2.12.0
+Declared license: See original license text
+License/notice: third_party/licenses/3da40f6328f42cbc9706.txt
+
+Go: github.com/bsm/gomega@v1.27.10
+Declared license: See original license text
+License/notice: third_party/licenses/3da40f6328f42cbc9706.txt
+
+Go: github.com/bytedance/sonic/loader@v0.1.1
+Declared license: See original license text
+License/notice: third_party/licenses/c71d239df91726fc519c.txt
+
+Go: github.com/bytedance/sonic@v1.11.6
+Declared license: See original license text
+License/notice: third_party/licenses/c71d239df91726fc519c.txt
+
+Go: github.com/cespare/xxhash/v2@v2.3.0
+Declared license: See original license text
+License/notice: third_party/licenses/f566a9f97bacdaf00d9f.txt
+
+Go: github.com/cloudwego/base64x@v0.1.4
+Declared license: See original license text
+License/notice: third_party/licenses/69849221bfb90053de21.txt
+License/notice: third_party/licenses/c71d239df91726fc519c.txt
+
+Go: github.com/cloudwego/iasm@v0.2.0
+Declared license: See original license text
+License/notice: third_party/licenses/69849221bfb90053de21.txt
+
+Go: github.com/coder/websocket@v1.8.14
+Declared license: See original license text
+License/notice: third_party/licenses/cc0975a5f6305145bdd7.txt
+
+Go: github.com/DATA-DOG/go-sqlmock@v1.5.2
+Declared license: See original license text
+License/notice: third_party/licenses/e3a6ae97f6eef8ce17e4.txt
+
+Go: github.com/davecgh/go-spew@v1.1.1
+Declared license: See original license text
+License/notice: third_party/licenses/1b93a317849ee09d3d7e.txt
+
+Go: github.com/dlclark/regexp2/v2@v2.5.1
+Declared license: See original license text
+License/notice: third_party/licenses/9be5d04bb4d706914d5b.txt
+
+Go: github.com/dlclark/regexp2cg@v0.9.1
+Declared license: See original license text
+License/notice: third_party/licenses/9be5d04bb4d706914d5b.txt
+
+Go: github.com/gabriel-vasile/mimetype@v1.4.3
+Declared license: See original license text
+License/notice: third_party/licenses/4335e2ceb33d8d7e7512.txt
+
+Go: github.com/gin-contrib/sse@v0.1.0
+Declared license: See original license text
+License/notice: third_party/licenses/03458b6d5828e1be1127.txt
+
+Go: github.com/gin-gonic/gin@v1.10.0
+Declared license: See original license text
+License/notice: third_party/licenses/03458b6d5828e1be1127.txt
+
+Go: github.com/go-playground/assert/v2@v2.2.0
+Declared license: See original license text
+License/notice: third_party/licenses/9e321f6a1db81616a6c3.txt
+
+Go: github.com/go-playground/locales@v0.14.1
+Declared license: See original license text
+License/notice: third_party/licenses/a1a5ca382f9e8c646fa0.txt
+
+Go: github.com/go-playground/universal-translator@v0.18.1
+Declared license: See original license text
+License/notice: third_party/licenses/a55d0c6e1a35ee6cf13a.txt
+
+Go: github.com/go-playground/validator/v10@v10.20.0
+Declared license: See original license text
+License/notice: third_party/licenses/9e321f6a1db81616a6c3.txt
+
+Go: github.com/go-sql-driver/mysql@v1.7.0
+Declared license: See original license text
+License/notice: third_party/licenses/fab3dd6bdab226f1c086.txt
+
+Go: github.com/goccy/go-json@v0.10.2
+Declared license: See original license text
+License/notice: third_party/licenses/a707cd425201945d5750.txt
+
+Go: github.com/golang-jwt/jwt/v5@v5.2.1
+Declared license: See original license text
+License/notice: third_party/licenses/fe26ca41577b9b2b4448.txt
+
+Go: github.com/golang/protobuf@v1.5.0
+Declared license: See original license text
+License/notice: third_party/licenses/8778a9fc1eaffb03ab87.txt
+
+Go: github.com/google/go-cmp@v0.5.5
+Declared license: See original license text
+License/notice: third_party/licenses/17b5d209ba8f9684257e.txt
+
+Go: github.com/google/gofuzz@v1.0.0
+Declared license: See original license text
+License/notice: third_party/licenses/cfc7749b96f63bd31c3c.txt
+
+Go: github.com/jinzhu/inflection@v1.0.0
+Declared license: See original license text
+License/notice: third_party/licenses/a2e27d9b06edb292d37f.txt
+
+Go: github.com/jinzhu/now@v1.1.5
+Declared license: See original license text
+License/notice: third_party/licenses/59f62caa972078dc1664.txt
+
+Go: github.com/json-iterator/go@v1.1.12
+Declared license: See original license text
+License/notice: third_party/licenses/3247931083f058b00760.txt
+
+Go: github.com/kisielk/sqlstruct@v0.0.0-20201105191214-5f3e10d3ab46
+Declared license: See original license text
+License/notice: third_party/licenses/be4a90e50ab2dd70fe53.txt
+
+Go: github.com/klauspost/cpuid/v2@v2.2.10
+Declared license: See original license text
+License/notice: third_party/licenses/5d966570d7a442d4e969.txt
+
+Go: github.com/knz/go-libedit@v1.10.1
+Declared license: See original license text
+License/notice: third_party/licenses/a6cba85bc92e0cff7a45.txt
+
+Go: github.com/leodido/go-urn@v1.4.0
+Declared license: See original license text
+License/notice: third_party/licenses/fe81a9072afbfe0fe32b.txt
+
+Go: github.com/mattn/go-isatty@v0.0.20
+Declared license: See original license text
+License/notice: third_party/licenses/08eab1118c80885fa1fa.txt
+
+Go: github.com/modern-go/concurrent@v0.0.0-20180306012644-bacd9c7ef1dd
+Declared license: See original license text
+License/notice: third_party/licenses/c71d239df91726fc519c.txt
+
+Go: github.com/modern-go/reflect2@v1.0.2
+Declared license: See original license text
+License/notice: third_party/licenses/c71d239df91726fc519c.txt
+
+Go: github.com/oschwald/geoip2-golang@v1.13.0
+Declared license: See original license text
+License/notice: third_party/licenses/cb89cb8d744d4890187e.txt
+
+Go: github.com/oschwald/maxminddb-golang@v1.13.0
+Declared license: See original license text
+License/notice: third_party/licenses/cb89cb8d744d4890187e.txt
+
+Go: github.com/pelletier/go-toml/v2@v2.2.2
+Declared license: See original license text
+License/notice: third_party/licenses/26844e4b53c5adec04e5.txt
+
+Go: github.com/pkg/errors@v0.9.1
+Declared license: See original license text
+License/notice: third_party/licenses/8d427fd87bc9579ea368.txt
+
+Go: github.com/pmezard/go-difflib@v1.0.0
+Declared license: See original license text
+License/notice: third_party/licenses/2eb550be6801c1ea434f.txt
+
+Go: github.com/redis/go-redis/v9@v9.22.0
+Declared license: See original license text
+License/notice: third_party/licenses/a3a7dff87da3927db65c.txt
+
+Go: github.com/stretchr/objx@v0.5.2
+Declared license: See original license text
+License/notice: third_party/licenses/b2663894033a05fd8026.txt
+
+Go: github.com/stretchr/testify@v1.9.0
+Declared license: See original license text
+License/notice: third_party/licenses/f8e536c1c7b695810427.txt
+
+Go: github.com/tiktoken-go/tokenizer@v0.8.1
+Declared license: See original license text
+License/notice: third_party/licenses/84b1679fd28b98c8e02f.txt
+
+Go: github.com/twitchyliquid64/golang-asm@v0.15.1
+Declared license: See original license text
+License/notice: third_party/licenses/2d36597f7117c38b0068.txt
+
+Go: github.com/ugorji/go/codec@v1.2.12
+Declared license: See original license text
+License/notice: third_party/licenses/c8a84b926246b4ac76e3.txt
+
+Go: github.com/zeebo/xxh3@v1.1.0
+Declared license: See original license text
+License/notice: third_party/licenses/f19854b341534d1f2314.txt
+
+Go: go.uber.org/atomic@v1.11.0
+Declared license: See original license text
+License/notice: third_party/licenses/edbb5a4d165ac69376c7.txt
+
+Go: golang.org/x/arch@v0.8.0
+Declared license: See original license text
+License/notice: third_party/licenses/b73277f7730993ef8e7f.txt
+
+Go: golang.org/x/crypto@v0.31.0
+Declared license: See original license text
+License/notice: third_party/licenses/911f8f5782931320f5b8.txt
+
+Go: golang.org/x/mod@v0.17.0
+Declared license: See original license text
+License/notice: third_party/licenses/2d36597f7117c38b0068.txt
+
+Go: golang.org/x/net@v0.25.0
+Declared license: See original license text
+License/notice: third_party/licenses/2d36597f7117c38b0068.txt
+
+Go: golang.org/x/sync@v0.10.0
+Declared license: See original license text
+License/notice: third_party/licenses/911f8f5782931320f5b8.txt
+
+Go: golang.org/x/sys@v0.30.0
+Declared license: See original license text
+License/notice: third_party/licenses/911f8f5782931320f5b8.txt
+
+Go: golang.org/x/term@v0.27.0
+Declared license: See original license text
+License/notice: third_party/licenses/911f8f5782931320f5b8.txt
+
+Go: golang.org/x/text@v0.21.0
+Declared license: See original license text
+License/notice: third_party/licenses/911f8f5782931320f5b8.txt
+
+Go: golang.org/x/tools@v0.21.1-0.20240508182429-e35e4ccd0d2d
+Declared license: See original license text
+License/notice: third_party/licenses/2d36597f7117c38b0068.txt
+
+Go: golang.org/x/xerrors@v0.0.0-20191204190536-9bdfabe68543
+Declared license: See original license text
+License/notice: third_party/licenses/84d554e7a5d139b7c7b5.txt
+
+Go: google.golang.org/protobuf@v1.34.1
+Declared license: See original license text
+License/notice: third_party/licenses/4835612df0098ca95f8e.txt
+
+Go: gopkg.in/check.v1@v0.0.0-20161208181325-20d25e280405
+Declared license: See original license text
+License/notice: third_party/licenses/69ce77f2b1c9c608d27f.txt
+
+Go: gopkg.in/yaml.v3@v3.0.1
+Declared license: See original license text
+License/notice: third_party/licenses/d18f6323b71b0b768bb5.txt
+License/notice: third_party/licenses/f6c2dd3a67b576eafb89.txt
+
+Go: gorm.io/driver/mysql@v1.5.7
+Declared license: See original license text
+License/notice: third_party/licenses/59f62caa972078dc1664.txt
+
+Go: gorm.io/gorm@v1.25.12
+Declared license: See original license text
+License/notice: third_party/licenses/59f62caa972078dc1664.txt
+
+Go: nullprogram.com/x/optparse@v1.0.0
+Declared license: See original license text
+License/notice: third_party/licenses/7e12e5df4bae12cb2158.txt
+
+Go: rsc.io/pdf@v0.1.1
+Declared license: See original license text
+License/notice: third_party/licenses/2d36597f7117c38b0068.txt
+
+npm: @ant-design/colors@7.2.1
+Declared license: MIT
+License/notice: third_party/licenses/5d367fb0a07340571542.txt
+
+npm: @ant-design/cssinjs-utils@1.1.3
+Declared license: MIT
+License/notice: third_party/licenses/4973f756e858531bdae4.txt
+
+npm: @ant-design/cssinjs@1.24.0
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: @ant-design/fast-color@2.0.6
+Declared license: MIT
+License/notice: third_party/licenses/4973f756e858531bdae4.txt
+
+npm: @ant-design/icons-svg@4.4.2
+Declared license: MIT
+License/notice: third_party/licenses/5d367fb0a07340571542.txt
+Original license source: https://raw.githubusercontent.com/ant-design/ant-design-icons/038764e4e46499212751a452704f64231fa756ba/LICENSE
+
+npm: @ant-design/icons@5.6.1
+Declared license: MIT
+License/notice: third_party/licenses/5d367fb0a07340571542.txt
+
+npm: @ant-design/react-slick@1.1.2
+Declared license: MIT
+License/notice: third_party/licenses/95d848d55392bb8239b5.txt
+
+npm: @babel/runtime@7.29.2
+Declared license: MIT
+License/notice: third_party/licenses/117da2af0d4ce0fe1c8e.txt
+
+npm: @emotion/hash@0.8.0
+Declared license: MIT
+License/notice: third_party/licenses/6e8d23763cf7cb707ad8.txt
+
+npm: @emotion/unitless@0.7.5
+Declared license: MIT
+License/notice: third_party/licenses/6e8d23763cf7cb707ad8.txt
+
+npm: @rc-component/async-validator@5.1.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: @rc-component/color-picker@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/8a894af015d320e0d534.txt
+
+npm: @rc-component/context@1.4.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: @rc-component/mini-decimal@1.1.3
+Declared license: MIT
+License/notice: third_party/licenses/8781f0ca192057330d7f.txt
+
+npm: @rc-component/mutate-observer@1.1.0
+Declared license: MIT
+License/notice: third_party/licenses/8781f0ca192057330d7f.txt
+
+npm: @rc-component/portal@1.1.2
+Declared license: MIT
+License/notice: third_party/licenses/8781f0ca192057330d7f.txt
+
+npm: @rc-component/qrcode@1.1.1
+Declared license: MIT
+License/notice: third_party/licenses/4973f756e858531bdae4.txt
+
+npm: @rc-component/tour@1.15.1
+Declared license: MIT
+License/notice: third_party/licenses/8781f0ca192057330d7f.txt
+
+npm: @rc-component/trigger@2.3.1
+Declared license: MIT
+License/notice: third_party/licenses/4973f756e858531bdae4.txt
+
+npm: @remix-run/router@1.23.4
+Declared license: MIT
+License/notice: third_party/licenses/77c9ee6a9c5d5782fb0c.txt
+
+npm: @tanstack/query-core@5.103.1
+Declared license: MIT
+License/notice: third_party/licenses/a405ee70c632bb938acb.txt
+
+npm: @tanstack/react-query@5.103.1
+Declared license: MIT
+License/notice: third_party/licenses/a405ee70c632bb938acb.txt
+
+npm: @types/debug@4.1.13
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/estree-jsx@1.0.5
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/estree@1.0.8
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/hast@3.0.5
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/mdast@4.0.4
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/ms@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/prop-types@15.7.15
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/react@18.3.31
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @types/unist@2.0.11,3.0.3
+Declared license: MIT
+License/notice: third_party/licenses/c2cfccb812fe482101a8.txt
+
+npm: @ungap/structured-clone@1.4.0
+Declared license: ISC
+License/notice: third_party/licenses/dc6d4961d8b6ee747231.txt
+
+npm: agent-base@6.0.2
+Declared license: MIT
+License/notice: third_party/licenses/9392da8d1d2ccb224d60.txt
+Original license source: License section of the published package README.md
+
+npm: antd@5.29.3
+Declared license: MIT
+License/notice: third_party/licenses/3c82654bb472ebbcacc4.txt
+
+npm: asynckit@0.4.0
+Declared license: MIT
+License/notice: third_party/licenses/1953150d5d4b10c7542c.txt
+
+npm: axios@1.18.1
+Declared license: MIT
+License/notice: third_party/licenses/82761059eaedacb33568.txt
+
+npm: bail@2.0.2
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: call-bind-apply-helpers@1.0.2
+Declared license: MIT
+License/notice: third_party/licenses/5e325595b4ea8cfec380.txt
+
+npm: ccount@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: character-entities-html4@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: character-entities-legacy@3.0.0
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: character-entities@2.0.2
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: character-reference-invalid@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: classnames@2.5.1
+Declared license: MIT
+License/notice: third_party/licenses/0c1c24dcc129cb0c02ee.txt
+
+npm: combined-stream@1.0.8
+Declared license: MIT
+License/notice: third_party/licenses/47eb8ca82c7982467749.txt
+
+npm: comma-separated-tokens@2.0.3
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: compute-scroll-into-view@3.1.1
+Declared license: MIT
+License/notice: third_party/licenses/dfe2b2d612c7c1de1f32.txt
+
+npm: copy-to-clipboard@3.3.3
+Declared license: MIT
+License/notice: third_party/licenses/771e50e27b2426992363.txt
+
+npm: csstype@3.2.3
+Declared license: MIT
+License/notice: third_party/licenses/11d55bd4541c75ee7879.txt
+
+npm: dayjs@1.11.20
+Declared license: MIT
+License/notice: third_party/licenses/5faab7526d055651be3a.txt
+
+npm: debug@4.4.3
+Declared license: MIT
+License/notice: third_party/licenses/3a61c6c96caf5c1d9b62.txt
+
+npm: decode-named-character-reference@1.3.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: delayed-stream@1.0.0
+Declared license: MIT
+License/notice: third_party/licenses/47eb8ca82c7982467749.txt
+
+npm: dequal@2.0.3
+Declared license: MIT
+License/notice: third_party/licenses/306fa513e39b23a6e874.txt
+
+npm: devlop@1.1.0
+Declared license: MIT
+License/notice: third_party/licenses/6f296a5eccc1dc96714b.txt
+
+npm: dunder-proto@1.0.1
+Declared license: MIT
+License/notice: third_party/licenses/2b770a704c15de238c3f.txt
+
+npm: es-define-property@1.0.1
+Declared license: MIT
+License/notice: third_party/licenses/5e325595b4ea8cfec380.txt
+
+npm: es-errors@1.3.0
+Declared license: MIT
+License/notice: third_party/licenses/5e325595b4ea8cfec380.txt
+
+npm: es-object-atoms@1.1.1
+Declared license: MIT
+License/notice: third_party/licenses/5e325595b4ea8cfec380.txt
+
+npm: es-set-tostringtag@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/1a3aeb1f1398bd697d57.txt
+
+npm: escape-string-regexp@5.0.0
+Declared license: MIT
+License/notice: third_party/licenses/5c932d88256b4ab958f6.txt
+
+npm: estree-util-is-identifier-name@3.0.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: extend@3.0.2
+Declared license: MIT
+License/notice: third_party/licenses/97af7428f93afbab9bf7.txt
+
+npm: follow-redirects@1.16.0
+Declared license: MIT
+License/notice: third_party/licenses/bfa8a54bb952ccda79f0.txt
+
+npm: form-data@4.0.6
+Declared license: MIT
+License/notice: third_party/licenses/e5b780d4f38d1d3328e3.txt
+
+npm: function-bind@1.1.2
+Declared license: MIT
+License/notice: third_party/licenses/773e131a7684726005a7.txt
+
+npm: get-intrinsic@1.3.0
+Declared license: MIT
+License/notice: third_party/licenses/39c5ec504cf6bd5cd782.txt
+
+npm: get-proto@1.0.1
+Declared license: MIT
+License/notice: third_party/licenses/be46ce1e3b0479af9ce8.txt
+
+npm: gopd@1.2.0
+Declared license: MIT
+License/notice: third_party/licenses/d90bf0a089da4cf43d64.txt
+
+npm: has-flag@4.0.0
+Declared license: MIT
+License/notice: third_party/licenses/48da2f39e100d4085767.txt
+
+npm: has-symbols@1.1.0
+Declared license: MIT
+License/notice: third_party/licenses/206c1adcf206dc0031b1.txt
+
+npm: has-tostringtag@1.0.2
+Declared license: MIT
+License/notice: third_party/licenses/e2560e002e13281578c7.txt
+
+npm: hasown@2.0.4
+Declared license: MIT
+License/notice: third_party/licenses/bf9b0d665be2a689851e.txt
+
+npm: hast-util-to-jsx-runtime@2.3.6
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: hast-util-whitespace@3.0.0
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: html-url-attributes@3.0.1
+Declared license: MIT
+License/notice: third_party/licenses/e18cf5173e928f808f0c.txt
+
+npm: https-proxy-agent@5.0.1
+Declared license: MIT
+License/notice: third_party/licenses/58f4074efa400c8397ad.txt
+Original license source: License section of the published package README.md
+
+npm: inline-style-parser@0.2.7
+Declared license: MIT
+License/notice: third_party/licenses/395c95f20598da653ff1.txt
+
+npm: is-alphabetical@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: is-alphanumerical@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: is-decimal@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: is-hexadecimal@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: is-plain-obj@4.1.0
+Declared license: MIT
+License/notice: third_party/licenses/5c932d88256b4ab958f6.txt
+
+npm: js-tokens@4.0.0
+Declared license: MIT
+License/notice: third_party/licenses/2213d91c606205c71eb0.txt
+
+npm: json2mq@0.2.0
+Declared license: MIT
+License/notice: third_party/licenses/95d848d55392bb8239b5.txt
+
+npm: longest-streak@3.1.0
+Declared license: MIT
+License/notice: third_party/licenses/9f084fac69d8cf1e6ce9.txt
+
+npm: loose-envify@1.4.0
+Declared license: MIT
+License/notice: third_party/licenses/4eb7543b08d955a6d23f.txt
+
+npm: markdown-table@3.0.4
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: math-intrinsics@1.1.0
+Declared license: MIT
+License/notice: third_party/licenses/2b770a704c15de238c3f.txt
+
+npm: mdast-util-find-and-replace@3.0.4
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mdast-util-from-markdown@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mdast-util-gfm-autolink-literal@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: mdast-util-gfm-footnote@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mdast-util-gfm-strikethrough@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mdast-util-gfm-table@2.0.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: mdast-util-gfm-task-list-item@2.0.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: mdast-util-gfm@3.1.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mdast-util-mdx-expression@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: mdast-util-mdx-jsx@3.2.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: mdast-util-mdxjs-esm@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: mdast-util-phrasing@4.1.0
+Declared license: MIT
+License/notice: third_party/licenses/b6d1a4e1831b177acc96.txt
+
+npm: mdast-util-to-hast@13.2.1
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: mdast-util-to-markdown@2.2.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mdast-util-to-string@4.0.0
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: micromark-core-commonmark@2.0.4
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-extension-gfm-autolink-literal@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: micromark-extension-gfm-footnote@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/807a88522a850092aece.txt
+
+npm: micromark-extension-gfm-strikethrough@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: micromark-extension-gfm-table@2.1.2
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-extension-gfm-tagfilter@2.0.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: micromark-extension-gfm-task-list-item@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: micromark-extension-gfm@3.0.0
+Declared license: MIT
+License/notice: third_party/licenses/536804b3adbff17dbbb9.txt
+
+npm: micromark-factory-destination@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-factory-label@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-factory-space@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-factory-title@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-factory-whitespace@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-character@2.1.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-chunked@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-classify-character@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-combine-extensions@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-decode-numeric-character-reference@2.0.2
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-decode-string@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-edit-map@1.0.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-encode@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-html-tag-name@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-normalize-identifier@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-resolve-all@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-sanitize-uri@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-subtokenize@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-symbol@2.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark-util-types@2.0.3
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: micromark@4.0.3
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: mime-db@1.52.0
+Declared license: MIT
+License/notice: third_party/licenses/cc1dfd4dafa27271e821.txt
+
+npm: mime-types@2.1.35
+Declared license: MIT
+License/notice: third_party/licenses/71f83c4c0621102a56d9.txt
+
+npm: ms@2.1.3
+Declared license: MIT
+License/notice: third_party/licenses/1662fae9b5314d11cf51.txt
+
+npm: parse-entities@4.0.2
+Declared license: MIT
+License/notice: third_party/licenses/5d0698266086f217bb11.txt
+
+npm: property-information@7.2.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0698266086f217bb11.txt
+
+npm: proxy-from-env@2.1.0
+Declared license: MIT
+License/notice: third_party/licenses/f55828df4b8752c48e76.txt
+
+npm: rc-cascader@3.34.0
+Declared license: MIT
+License/notice: third_party/licenses/4b34f19e8c9e5c66aaf2.txt
+
+npm: rc-checkbox@3.5.0
+Declared license: MIT
+License/notice: third_party/licenses/212a6f81849cae76de28.txt
+
+npm: rc-collapse@3.9.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-dialog@9.6.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-drawer@7.3.0
+Declared license: MIT
+License/notice: third_party/licenses/6db0a962e5898831124a.txt
+
+npm: rc-dropdown@4.2.1
+Declared license: MIT
+License/notice: third_party/licenses/4973f756e858531bdae4.txt
+
+npm: rc-field-form@2.7.1
+Declared license: MIT
+License/notice: third_party/licenses/8781f0ca192057330d7f.txt
+
+npm: rc-image@7.12.0
+Declared license: MIT
+License/notice: third_party/licenses/416bff691c8396d61bc1.txt
+
+npm: rc-input-number@9.5.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-input@1.8.0
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-mentions@2.20.0
+Declared license: MIT
+License/notice: third_party/licenses/8a894af015d320e0d534.txt
+
+npm: rc-menu@9.16.1
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-motion@2.9.5
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-notification@5.6.4
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-overflow@1.5.0
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-pagination@5.1.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-picker@4.11.3
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-progress@4.0.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-rate@2.13.1
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-resize-observer@1.4.3
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-segmented@2.7.1
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-select@14.16.8
+Declared license: MIT
+License/notice: third_party/licenses/4b34f19e8c9e5c66aaf2.txt
+
+npm: rc-slider@11.1.9
+Declared license: MIT
+License/notice: third_party/licenses/4973f756e858531bdae4.txt
+
+npm: rc-steps@6.0.1
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-switch@4.1.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-table@7.54.0
+Declared license: MIT
+License/notice: third_party/licenses/416bff691c8396d61bc1.txt
+
+npm: rc-tabs@15.7.0
+Declared license: MIT
+License/notice: third_party/licenses/5d0427088e37071c4b94.txt
+
+npm: rc-textarea@1.10.2
+Declared license: MIT
+License/notice: third_party/licenses/2481b61123d4f8be84e1.txt
+
+npm: rc-tooltip@6.4.0
+Declared license: MIT
+License/notice: third_party/licenses/59d606be3d687e4dfcae.txt
+
+npm: rc-tree-select@5.27.0
+Declared license: MIT
+License/notice: third_party/licenses/6db0a962e5898831124a.txt
+
+npm: rc-tree@5.13.1
+Declared license: MIT
+License/notice: third_party/licenses/6db0a962e5898831124a.txt
+
+npm: rc-upload@4.11.0
+Declared license: MIT
+License/notice: third_party/licenses/883dc1623d6382c603f2.txt
+
+npm: rc-util@5.44.4
+Declared license: MIT
+License/notice: third_party/licenses/f3ae1f96cf22ff7028a4.txt
+
+npm: rc-virtual-list@3.19.2
+Declared license: MIT
+License/notice: third_party/licenses/59d606be3d687e4dfcae.txt
+
+npm: react-dom@18.3.1
+Declared license: MIT
+License/notice: third_party/licenses/52412d7bc7ce4157ea62.txt
+
+npm: react-is@18.3.1
+Declared license: MIT
+License/notice: third_party/licenses/52412d7bc7ce4157ea62.txt
+
+npm: react-markdown@10.1.0
+Declared license: MIT
+License/notice: third_party/licenses/f6196c64e144f9a6fa91.txt
+
+npm: react-router-dom@6.30.6
+Declared license: MIT
+License/notice: third_party/licenses/77c9ee6a9c5d5782fb0c.txt
+
+npm: react-router@6.30.6
+Declared license: MIT
+License/notice: third_party/licenses/77c9ee6a9c5d5782fb0c.txt
+
+npm: react@18.3.1
+Declared license: MIT
+License/notice: third_party/licenses/52412d7bc7ce4157ea62.txt
+
+npm: remark-gfm@4.0.1
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: remark-parse@11.0.0
+Declared license: MIT
+License/notice: third_party/licenses/413654b0a78b98661dce.txt
+
+npm: remark-rehype@11.1.2
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: remark-stringify@11.0.0
+Declared license: MIT
+License/notice: third_party/licenses/413654b0a78b98661dce.txt
+
+npm: resize-observer-polyfill@1.5.1
+Declared license: MIT
+License/notice: third_party/licenses/d4a3c7b4df459e01283f.txt
+
+npm: scheduler@0.23.2
+Declared license: MIT
+License/notice: third_party/licenses/52412d7bc7ce4157ea62.txt
+
+npm: scroll-into-view-if-needed@3.1.0
+Declared license: MIT
+License/notice: third_party/licenses/62b9f69bb4ccf131e7e4.txt
+
+npm: space-separated-tokens@2.0.2
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: string-convert@0.2.1
+Declared license: MIT
+License/notice: third_party/licenses/8e7a0e17a14c91d325c2.txt
+
+npm: stringify-entities@4.0.4
+Declared license: MIT
+License/notice: third_party/licenses/9f084fac69d8cf1e6ce9.txt
+
+npm: style-to-js@1.1.21
+Declared license: MIT
+License/notice: third_party/licenses/bbb380e5c1a717079378.txt
+
+npm: style-to-object@1.0.14
+Declared license: MIT
+License/notice: third_party/licenses/896c9fd6b5fc48ac3180.txt
+
+npm: stylis@4.3.6
+Declared license: MIT
+License/notice: third_party/licenses/88c579c6ee44b41137a2.txt
+
+npm: supports-color@7.2.0
+Declared license: MIT
+License/notice: third_party/licenses/48da2f39e100d4085767.txt
+
+npm: throttle-debounce@5.0.2
+Declared license: MIT
+License/notice: third_party/licenses/b07649c798231a321f90.txt
+
+npm: toggle-selection@1.0.6
+Declared license: MIT
+License/notice: third_party/licenses/771e50e27b2426992363.txt
+License source: https://raw.githubusercontent.com/sudodoki/toggle-selection/888650b271ee4937e2baff6a43bee744635601e3/LICENSE
+Source comparison: third_party/source-verification.json
+License text pending review.
+
+npm: trim-lines@3.0.1
+Declared license: MIT
+License/notice: third_party/licenses/9f084fac69d8cf1e6ce9.txt
+
+npm: trough@2.2.0
+Declared license: MIT
+License/notice: third_party/licenses/6c03fd41cfd7c92d8aa8.txt
+
+npm: unified@11.0.5
+Declared license: MIT
+License/notice: third_party/licenses/05811400116ed61f1a76.txt
+
+npm: unist-util-is@6.0.1
+Declared license: MIT
+License/notice: third_party/licenses/82974dbf2639d13edab9.txt
+
+npm: unist-util-position@5.0.0
+Declared license: MIT
+License/notice: third_party/licenses/63cb98b3f6abfb3c3592.txt
+
+npm: unist-util-stringify-position@4.0.0
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt
+
+npm: unist-util-visit-parents@6.1.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: unist-util-visit@5.2.0
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: vfile-message@4.0.3
+Declared license: MIT
+License/notice: third_party/licenses/dd1081884a92952802f4.txt
+
+npm: vfile@6.0.3
+Declared license: MIT
+License/notice: third_party/licenses/05811400116ed61f1a76.txt
+
+npm: xlsx@0.20.3
+Declared license: Apache-2.0
+License/notice: third_party/licenses/4d2a38ac35cda06a555c.txt
+
+npm: zwitch@2.0.4
+Declared license: MIT
+License/notice: third_party/licenses/ca4662cb5d1b738fbe53.txt

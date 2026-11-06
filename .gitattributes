@@ -1,0 +1,25 @@
+# Keep SQL migrations on LF line endings.
+backend/migrations/*.sql text eol=lf
+
+# Go source files
+*.go text eol=lf
+
+# Frontend source files
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.vue text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# YAML configuration files
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Dockerfile
+Dockerfile text eol=lf
+
+# Preserve upstream license text verbatim, including its original whitespace.
+third_party/licenses/*.txt -text -whitespace

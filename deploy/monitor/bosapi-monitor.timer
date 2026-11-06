@@ -1,0 +1,12 @@
+[Unit]
+Description=Sample BOS API node every 30 seconds
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=1s
+RandomizedDelaySec=2s
+Unit=bosapi-monitor.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,7 @@
+{$BOS_INSTALL_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy app:8081 {
+        # Send streaming API responses immediately.
+        flush_interval -1
+    }
+}

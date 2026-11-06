@@ -1,0 +1,13 @@
+# Optional: install the host collector first. No Docker socket or host /proc mount.
+services:
+  app:
+    environment:
+      BOS_MONITOR_NODE_DIR: /app/monitor
+      BOS_MONITOR_TLS_TARGETS: ${BOS_MONITOR_TLS_TARGETS:-}
+    volumes:
+      - type: bind
+        source: /var/lib/bosapi-monitor
+        target: /app/monitor
+        read_only: true
+        bind:
+          create_host_path: false

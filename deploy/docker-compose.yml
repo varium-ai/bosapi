@@ -1,0 +1,125 @@
+name: bosapi-stack
+
+services:
+  mysql:
+    image: ${BOS_MYSQL_IMAGE:-mysql:8.4}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:13306:3306"
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in deploy/stack.env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in deploy/stack.env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in deploy/stack.env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in deploy/stack.env}
+      TZ: ${TZ:-Asia/Shanghai}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=256M
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql -h 127.0.0.1 -u \"$${MYSQL_USER}\" -D \"$${MYSQL_DATABASE}\" -Nse 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    volumes:
+      - ${BOS_MYSQL_DATA_MOUNT:-mysql_data}:/var/lib/mysql
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "10"
+    networks:
+      - backend
+
+  redis:
+    image: ${BOS_REDIS_IMAGE:-redis:7.4-alpine}
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in deploy/stack.env}
+      TZ: ${TZ:-Asia/Shanghai}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in deploy/stack.env}"]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - ${BOS_REDIS_DATA_MOUNT:-redis_data}:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "10"
+    networks:
+      - backend
+
+  app:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      args:
+        BASE_IMAGE_REGISTRY: ${BOS_BASE_IMAGE_REGISTRY:-docker.io/library}
+        GOPROXY: ${BOS_GOPROXY:-https://proxy.golang.org}
+    restart: unless-stopped
+    stop_grace_period: ${BOS_STOP_GRACE_PERIOD:-360s}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/health/ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    ports:
+      - "${BOSAPI_BIND_IP:-127.0.0.1}:${BOSAPI_PORT:-18080}:8081"
+    environment:
+      BOS_LISTEN: 0.0.0.0:8081
+      BOS_GATEWAY_TIMEOUT_SECONDS: ${BOS_GATEWAY_TIMEOUT_SECONDS:-300}
+      BOS_MAX_REQUEST_BODY_MB: ${BOS_MAX_REQUEST_BODY_MB:-128}
+      BOS_LOGIN_FAILURE_THRESHOLD: ${BOS_LOGIN_FAILURE_THRESHOLD:-5}
+      BOS_LOGIN_FAILURE_WINDOW_SECONDS: ${BOS_LOGIN_FAILURE_WINDOW_SECONDS:-600}
+      BOS_LOGIN_LOCK_SECONDS: ${BOS_LOGIN_LOCK_SECONDS:-900}
+      BOS_USAGE_REPORTING_FORCE_DISABLED: ${BOS_USAGE_REPORTING_FORCE_DISABLED:-false}
+      BOS_USAGE_REPORTING_HTTP_TIMEOUT: ${BOS_USAGE_REPORTING_HTTP_TIMEOUT:-5s}
+      BOS_CALLBACK_LISTEN: 127.0.0.1:1455
+      BOS_DATA_FILE: /app/data/gateway.enc
+      BOS_DATABASE_DSN: "${MYSQL_USER:?Set MYSQL_USER in deploy/stack.env}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in deploy/stack.env}@tcp(mysql:3306)/${MYSQL_DATABASE:?Set MYSQL_DATABASE in deploy/stack.env}?charset=utf8mb4&parseTime=true&loc=UTC"
+      BOS_REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in deploy/stack.env}@redis:6379/0"
+      BOS_JWT_SIGNING_KEY: ${BOS_JWT_SIGNING_KEY:?Set BOS_JWT_SIGNING_KEY in deploy/stack.env}
+      BOS_ENCRYPTION_KEY: ${BOS_ENCRYPTION_KEY:?Set BOS_ENCRYPTION_KEY in deploy/stack.env}
+      BOS_ADMIN_EMAIL: ${BOS_ADMIN_EMAIL:-}
+      BOS_ADMIN_PASSWORD: ${BOS_ADMIN_PASSWORD:-}
+      BOS_ALLOWED_UPSTREAM_HOSTS: ${BOS_ALLOWED_UPSTREAM_HOSTS:-}
+      BOS_GEMINI_OAUTH_CLIENT_ID: ${BOS_GEMINI_OAUTH_CLIENT_ID:-}
+      BOS_GEMINI_OAUTH_CLIENT_SECRET: ${BOS_GEMINI_OAUTH_CLIENT_SECRET:-}
+      BOS_ANTIGRAVITY_OAUTH_CLIENT_ID: ${BOS_ANTIGRAVITY_OAUTH_CLIENT_ID:-}
+      BOS_ANTIGRAVITY_OAUTH_CLIENT_SECRET: ${BOS_ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
+      BOS_FEISHU_WEBHOOK_URL: ${BOS_FEISHU_WEBHOOK_URL:-}
+      BOS_PRIMARY_DOMAIN: ${BOS_PRIMARY_DOMAIN:-}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ${BOS_GATEWAY_DATA_MOUNT:-gateway_data}:/app/data
+    networks:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+networks:
+  backend:
+
+volumes:
+  mysql_data:
+  redis_data:
+  gateway_data:

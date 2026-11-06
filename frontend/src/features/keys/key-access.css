@@ -1,0 +1,23 @@
+.key-model-field {
+  position: relative;
+}
+
+.key-model-field .ant-form-item-label {
+  padding-inline-end: 112px;
+}
+
+.key-model-actions {
+  position: absolute;
+  inset-block-start: -3px;
+  inset-inline-end: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.key-model-actions .ant-btn {
+  height: 24px;
+  padding: 0 2px;
+  font-size: 12px;
+}

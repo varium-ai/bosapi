@@ -1,0 +1,53 @@
+.console-search-trigger {
+  color: #737373;
+  background: #fafafa;
+  margin: 0 16px;
+}
+.console-search-trigger kbd {
+  margin-left: 18px;
+  font-size: 11px;
+  color: #999;
+}
+.console-search-hint,
+.console-search-group {
+  font-size: 12px;
+  color: #888;
+}
+.console-search-group {
+  padding: 12px 10px 6px;
+}
+.console-search-results {
+  max-height: min(55vh, 480px);
+  overflow-y: auto;
+  margin-top: 12px;
+}
+.console-search-result {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.console-search-result.is-active {
+  background: #f3f4f5;
+  outline: 1px solid #dedede;
+  outline-offset: -1px;
+}
+.console-search-result strong {
+  font-size: 14px;
+}
+.console-search-result > span {
+  float: right;
+  font-size: 12px;
+  color: #888;
+}
+.console-search-result p {
+  margin: 5px 0 0;
+  color: #777;
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 1000px) {
+  .console-search-trigger .console-search-label,
+  .console-search-trigger kbd {
+    display: none;
+  }
+}

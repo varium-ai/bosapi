@@ -1,0 +1,28 @@
+# =============================================================================
+# BOS API Deploy Directory - Git Ignore
+# =============================================================================
+
+# Local data directories; the current Compose stack uses named Docker volumes.
+data/
+mysql_data/
+postgres_data/
+redis_data/
+caddy_data/
+caddy_config/
+gateway_data/
+
+# Environment configuration (contains sensitive information)
+.env
+*.env
+!.env.example
+
+# Backup files
+*.backup
+*.bak
+*.dump
+database.sql
+
+# Temporary files
+*.tmp
+*.log
+*.jsonl

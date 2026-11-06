@@ -1,0 +1,87 @@
+.user-token-ranking {
+  margin-bottom: 20px;
+}
+.user-token-ranking-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 16px;
+  color: var(--gray);
+  font-size: 12px;
+}
+.user-token-ranking-list {
+  list-style: none;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+}
+.user-token-ranking-row {
+  display: grid;
+  grid-template-columns: 24px minmax(140px, 230px) minmax(40px, 1fr) 110px 60px;
+  align-items: center;
+  gap: 12px;
+  min-height: 26px;
+  font-size: 13px;
+}
+.user-token-ranking-position {
+  color: var(--gray);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.user-token-ranking-person {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-token-ranking-track {
+  height: 16px;
+  background: var(--fill);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.user-token-ranking-fill {
+  height: 100%;
+  background: var(--gray);
+  border-radius: 3px;
+}
+.user-token-ranking-row:nth-child(-n + 3) .user-token-ranking-fill {
+  background: var(--primary-hover);
+}
+.user-token-ranking-value,
+.user-token-ranking-share {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.user-token-ranking-value:focus-visible {
+  outline: none;
+  background: var(--fill);
+  border-radius: 3px;
+}
+.user-token-ranking-share {
+  color: var(--gray);
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .user-token-ranking-track {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    height: 12px;
+  }
+  .user-token-ranking-person {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .user-token-ranking-value {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .user-token-ranking-share {
+    grid-column: 4;
+    grid-row: 1;
+  }
+  .user-token-ranking-row {
+    grid-template-columns: 20px minmax(0, 1fr) 100px 50px;
+    gap: 6px 8px;
+  }
+}

@@ -1,0 +1,22 @@
+:root
+  :is(.ant-dropdown, .ant-dropdown-menu-submenu)
+  .ant-dropdown-menu
+  .ant-dropdown-menu-item.ant-dropdown-menu-item-danger:not(.ant-dropdown-menu-item-disabled):is(
+    :hover,
+    :focus-visible,
+    .ant-dropdown-menu-item-active,
+    .ant-dropdown-menu-item-selected
+  ) {
+  color: var(--error);
+  background-color: var(--error-muted);
+}
+
+:root
+  :is(.ant-dropdown, .ant-dropdown-menu-submenu)
+  .ant-dropdown-menu
+  .ant-dropdown-menu-item.ant-dropdown-menu-item-danger:not(
+    .ant-dropdown-menu-item-disabled
+  ):active {
+  color: var(--error-active);
+  background-color: var(--error-muted-active);
+}

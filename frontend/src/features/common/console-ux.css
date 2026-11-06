@@ -1,0 +1,13 @@
+.console-load-error,
+.console-section-links {
+  margin-bottom: 16px;
+}
+
+.console-form-modal .ant-modal-body {
+  max-height: calc(100dvh - 240px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-inline: 8px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}

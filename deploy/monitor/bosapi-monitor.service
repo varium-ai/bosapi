@@ -1,0 +1,28 @@
+[Unit]
+Description=BOS API bounded host telemetry snapshot
+
+[Service]
+Type=oneshot
+User=bosapi-monitor
+Group=bosapi-monitor
+ExecStart=/usr/bin/python3 /usr/local/lib/bosapi-monitor/collect.py
+StateDirectory=bosapi-monitor
+StateDirectoryMode=0755
+UMask=0022
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=5%
+MemoryMax=64M
+TasksMax=8
+TimeoutStartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true

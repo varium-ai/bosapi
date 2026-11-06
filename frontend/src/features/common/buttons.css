@@ -1,0 +1,59 @@
+.ant-btn:not(:disabled):focus-visible {
+  outline: none;
+}
+
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-variant-solid):not(:disabled):focus-visible {
+  background-color: var(--fill);
+}
+
+.ant-btn:is(.ant-btn-primary, .ant-btn-variant-solid):not(:disabled):focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ant-btn:is(.ant-btn-dangerous, .ant-btn-color-dangerous):not(.ant-btn-primary):not(
+    .ant-btn-variant-solid
+  ):not(:disabled):not(.ant-btn-disabled):is(:hover, :focus-visible) {
+  color: var(--error-hover);
+  background-color: var(--error-muted);
+}
+
+.ant-btn:is(.ant-btn-dangerous, .ant-btn-color-dangerous):not(.ant-btn-primary):not(
+    .ant-btn-variant-solid
+  ):not(:disabled):not(.ant-btn-disabled):active {
+  color: var(--error-active);
+  background-color: var(--error-muted-active);
+}
+
+.ant-btn.console-toolbar-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.console-toolbar-button > .ant-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.console-toolbar-button.ant-btn-loading {
+  opacity: 1;
+  cursor: wait;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ant-btn.console-toolbar-button {
+    transition: none;
+  }
+
+  .console-toolbar-button .anticon-spin {
+    animation: none;
+  }
+}

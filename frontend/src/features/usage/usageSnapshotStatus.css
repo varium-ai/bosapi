@@ -1,0 +1,52 @@
+.ant-alert.usage-snapshot-status {
+  margin-bottom: 16px;
+  padding: 10px 12px !important;
+  align-items: flex-start;
+}
+
+.usage-snapshot-status .ant-alert-icon {
+  margin-top: 3px;
+}
+
+.usage-snapshot-status .ant-alert-message {
+  font-size: 13px !important;
+  line-height: 20px;
+}
+
+.usage-snapshot-status.ant-alert-info .ant-alert-message {
+  color: var(--gray) !important;
+  font-weight: 400 !important;
+}
+
+.usage-snapshot-status.ant-alert-info .ant-alert-icon {
+  color: var(--gray) !important;
+}
+
+.usage-snapshot-status__content {
+  display: grid;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.usage-snapshot-status__metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 24px;
+}
+
+.usage-snapshot-status__timestamp {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-snapshot-status__timestamp time {
+  display: inline-block;
+}
+
+@media (max-width: 575px) {
+  .usage-snapshot-status__timestamp {
+    flex-basis: 100%;
+    margin-inline-start: 0;
+  }
+}

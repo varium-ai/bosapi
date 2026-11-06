@@ -1,0 +1,27 @@
+.ant-descriptions.console-record-details .ant-descriptions-view > table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ant-descriptions.console-record-details .ant-descriptions-item-label {
+  width: 130px;
+  overflow-wrap: anywhere;
+}
+
+.console-record-details .ant-descriptions-item-content {
+  overflow-wrap: anywhere;
+}
+
+/* Table renderers may forbid wrapping; detail views need room for long values. */
+.console-record-details .ant-descriptions-item-content [style*='white-space: nowrap'],
+.console-record-details .ant-descriptions-item-content .ant-tag {
+  max-width: 100%;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 575px) {
+  .ant-descriptions.console-record-details .ant-descriptions-item-label {
+    width: 105px;
+  }
+}

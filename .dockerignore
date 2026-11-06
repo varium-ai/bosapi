@@ -1,0 +1,94 @@
+# =============================================================================
+# Docker Ignore File for BOS API
+# =============================================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!LICENSING.md
+docs/
+# Vite copies public legal documents into the frontend output.
+!frontend/public/docs/
+!frontend/public/docs/legal/
+!frontend/public/docs/legal/*.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+**/Thumbs.db
+**/._*
+
+# Build artifacts
+dist/
+build/
+frontend/dist/
+frontend/coverage/
+frontend/tests/
+**/*.tsbuildinfo
+
+# Node modules (will be installed in container)
+frontend/node_modules/
+node_modules/
+/.pnpm-store/
+# Local pnpm workspace metadata is ignored by Git and is not needed by this single-package frontend.
+frontend/pnpm-workspace.yaml
+
+# Go build cache (will be built in container)
+backend/vendor/
+/backend/bin/
+backend/.gocache/
+.gocache/
+backend/server
+backend/bosapi
+backend/main
+
+# Test files
+*_test.go
+**/*.test.js
+coverage/
+.nyc_output/
+
+# Environment files
+.env
+.env.*
+!.env.example
+deploy/.env
+deploy/stack.env
+
+# Local plugins may contain release-signing keys; keep them out of the build context.
+/plugins/
+
+# Local config
+config.yaml
+config.local.yaml
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# The current image copies only frontend/ and backend/.
+deploy/
+
+# GitHub
+.github/
+
+# Claude files
+.claude/
+issues/
+CLAUDE.md

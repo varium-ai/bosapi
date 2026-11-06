@@ -1,0 +1,6 @@
+.console-overflow-text:focus-visible {
+  outline: none;
+  background-color: var(--fill);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

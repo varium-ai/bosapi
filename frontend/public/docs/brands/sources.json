@@ -1,0 +1,55 @@
+{
+  "retrievedOn": "2026-10-12",
+  "usage": "Unmodified official assets used only to identify third-party products in integration documentation. All marks belong to their respective owners; no endorsement or model service is implied.",
+  "assets": [
+    {
+      "file": "codex.png",
+      "brand": "Codex",
+      "page": "https://marketplace.visualstudio.com/items?itemName=openai.chatgpt",
+      "url": "https://openai.gallerycdn.vsassets.io/extensions/openai/chatgpt/26.51007.21434/1791508178385/Microsoft.VisualStudio.Services.Icons.Default",
+      "sha256": "2ce1c57dd3b312417106a487815ab1235bddce17e1fa9b32a2f048bd71ee25d3"
+    },
+    {
+      "file": "claude-code.png",
+      "brand": "Claude Code",
+      "page": "https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code",
+      "url": "https://anthropic.gallerycdn.vsassets.io/extensions/anthropic/claude-code/2.1.296/1791574289266/Microsoft.VisualStudio.Services.Icons.Default",
+      "sha256": "7241633e5a39b44a947c7b9a821637f30d6e86716e7a8c847136d91f9c3f6ba1"
+    },
+    {
+      "file": "cursor.svg",
+      "brand": "Cursor",
+      "page": "https://cursor.com/brand",
+      "url": "https://cursor.com/marketing-static/favicon-light.svg",
+      "sha256": "78f169abca311d70e18ada789ccf1a55b4ca0306822f21a9ab0c2658ed88dbe0"
+    },
+    {
+      "file": "cline.svg",
+      "brand": "Cline",
+      "page": "https://github.com/cline/cline",
+      "url": "https://raw.githubusercontent.com/cline/cline/HEAD/assets/branding/logos/cline-icon-dark.svg",
+      "sha256": "6aab009bf089a8dc1b5452c05c471244a08595b78fd639835eacc0821b887c06"
+    },
+    {
+      "file": "roo-code.svg",
+      "brand": "Roo Code",
+      "page": "https://github.com/RooCodeInc/Roo-Code",
+      "url": "https://raw.githubusercontent.com/RooCodeInc/Roo-Code/HEAD/src/assets/icons/icon.svg",
+      "sha256": "000ec2162a72986334d517641efa3502735f6b53b9293d9772db92be679c8032"
+    },
+    {
+      "file": "opencode.svg",
+      "brand": "OpenCode",
+      "page": "https://opencode.ai/brand",
+      "url": "https://raw.githubusercontent.com/anomalyco/opencode/HEAD/packages/console/app/src/asset/brand/opencode-logo-light.svg",
+      "sha256": "b47a4fecc77599382e238868e74064bbe92307b0e253a32f0b1a026517a2d2a6"
+    },
+    {
+      "file": "openclaw.svg",
+      "brand": "OpenClaw",
+      "page": "https://openclaw.ai/",
+      "url": "https://openclaw.ai/favicon.svg",
+      "sha256": "fa7e2ec07ebfa696bcc8c27d7e36425cbb7b1772f6f7f04ce390cf5f1c35cf0e"
+    }
+  ]
+}

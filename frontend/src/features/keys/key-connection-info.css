@@ -1,0 +1,22 @@
+.key-connection-info {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.key-connection-info .ant-typography {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.key-connection-info .key-connection-secret {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--fill);
+}
+
+.key-connection-secret-value {
+  font-family: monospace;
+  white-space: pre-wrap;
+}

@@ -1,0 +1,13 @@
+{
+  "package": "toggle-selection@1.0.6",
+  "declared_license": "MIT",
+  "license_file": "third_party/licenses/771e50e27b2426992363.txt",
+  "license_source": "https://raw.githubusercontent.com/sudodoki/toggle-selection/888650b271ee4937e2baff6a43bee744635601e3/LICENSE",
+  "licensed_source_revision": "888650b271ee4937e2baff6a43bee744635601e3",
+  "upstream_version": "2.1.0",
+  "source_path": "index.js",
+  "installed_source_sha256": "d1a1caf366f8ae5ed3cf4a87c42c46e73bb5536acbcbc5ca479c180d4d3e7756",
+  "licensed_source_sha256": "d1a1caf366f8ae5ed3cf4a87c42c46e73bb5536acbcbc5ca479c180d4d3e7756",
+  "source_bytes_identical": true,
+  "note": "The 1.0.6 npm archive omits a standalone LICENSE. Its manifest declares MIT. The included notice is from the pinned newer upstream revision whose CommonJS implementation is byte-for-byte identical; it is not represented as a file from the historical npm archive."
+}

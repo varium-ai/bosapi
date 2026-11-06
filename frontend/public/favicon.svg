@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">BOS API</title>
+  <desc id="desc">BOS API - Enterprise AI Security Gateway</desc>
+  <defs>
+    <linearGradient id="bos-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35383f"/>
+      <stop offset="0.55" stop-color="#2b2d34"/>
+      <stop offset="1" stop-color="#202229"/>
+    </linearGradient>
+
+    <!-- Subtle Hairline Rim -->
+    <linearGradient id="bos-rim" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="rgba(221,194,140,0.65)"/>
+      <stop offset="1" stop-color="rgba(165,139,93,0.35)"/>
+    </linearGradient>
+
+    <!-- Champagne Gold Sheen for the Geometric Origami Glyphs -->
+    <linearGradient id="bos-glyph" x1="142" y1="120" x2="370" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2e9da"/>
+      <stop offset="0.75" stop-color="#ddc28c"/>
+      <stop offset="1" stop-color="#a58b5d"/>
+    </linearGradient>
+
+    <!-- Negative Space Cutout Mask for Optical Apertures -->
+    <mask id="bos-aperture-mask">
+      <rect width="512" height="512" fill="#ffffff"/>
+      <circle cx="264" cy="197" r="28" fill="#000000"/>
+      <circle cx="276" cy="313" r="28" fill="#000000"/>
+    </mask>
+  </defs>
+
+  <!-- Squircle Canvas Base -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bos-bg)"/>
+  <rect x="25" y="25" width="462" height="462" rx="111" stroke="url(#bos-rim)" stroke-width="2" fill="none"/>
+
+  <!-- Scheme S3: Origami Fold Gateway Monogram -->
+  <g mask="url(#bos-aperture-mask)">
+    <!-- Upper Chamfered Origami Block -->
+    <path d="M 142 127 H 284 L 354 197 L 284 267 H 142 Z" fill="url(#bos-glyph)"/>
+
+    <!-- Lower Chamfered Origami Block -->
+    <path d="M 142 241 H 298 L 370 313 L 298 385 H 142 Z" fill="url(#bos-glyph)"/>
+  </g>
+</svg>

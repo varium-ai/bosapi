@@ -1,0 +1,33 @@
+.console-discard-dialog .ant-modal-confirm-body > .anticon {
+  color: var(--gray);
+  font-size: 22px;
+  margin-inline-end: 14px;
+}
+
+.console-discard-dialog .ant-modal-confirm-title {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.console-discard-dialog .ant-modal-confirm-content {
+  color: var(--gray);
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 8px;
+}
+
+.console-discard-dialog .ant-modal-confirm-btns {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.console-discard-dialog .ant-modal-confirm-btns .ant-btn + .ant-btn {
+  margin-inline-start: 0;
+}
+
+.console-discard-dialog .ant-btn-dangerous {
+  border-color: var(--line);
+}

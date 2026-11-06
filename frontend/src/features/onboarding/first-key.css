@@ -1,0 +1,138 @@
+.first-key-guide {
+  max-width: 1800px;
+  padding: 22px 24px;
+  margin: 0 auto 24px;
+  border-radius: 16px;
+  background: #fff;
+}
+.first-key-header,
+.first-key-heading,
+.first-key-tools,
+.first-key-footer,
+.first-key-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.first-key-header,
+.first-key-footer {
+  justify-content: space-between;
+}
+.first-key-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.first-key-heading > span {
+  color: #777;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.first-key-header p {
+  margin: 7px 0 0;
+  color: #777;
+  font-size: 13px;
+}
+.first-key-tools .ant-select {
+  width: 200px;
+}
+.first-key-org {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #666;
+}
+.first-key-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  list-style: none;
+  margin: 22px 0;
+  padding: 0;
+}
+.first-key-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #999;
+}
+.first-key-step-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f3f3f3;
+  font-size: 12px;
+}
+.first-key-steps strong {
+  display: block;
+  font-size: 14px;
+  line-height: 28px;
+  font-weight: 500;
+}
+.first-key-steps li > div > span {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #888;
+}
+.first-key-steps .is-current {
+  color: #222;
+}
+.first-key-steps .is-current .first-key-step-number {
+  background: #242424;
+  color: #fff;
+}
+.first-key-steps .is-complete {
+  color: #555;
+}
+.first-key-steps .is-complete .first-key-step-number {
+  background: #edf3ef;
+  color: #477358;
+}
+.first-key-footer {
+  padding-top: 16px;
+  border-top: 1px solid #f2f2f2;
+  color: #777;
+  font-size: 12px;
+}
+.first-key-footer a {
+  color: inherit;
+  white-space: nowrap;
+}
+@media (max-width: 1000px) {
+  .first-key-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .first-key-steps {
+    gap: 12px;
+  }
+  .first-key-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .first-key-footer > div {
+    align-self: flex-end;
+  }
+}
+@media (max-width: 600px) {
+  .first-key-guide {
+    padding: 18px;
+  }
+  .first-key-steps {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .first-key-heading {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .first-key-footer > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

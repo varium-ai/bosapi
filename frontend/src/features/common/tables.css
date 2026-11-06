@@ -1,0 +1,281 @@
+.ant-table-wrapper .ant-table,
+.admin-users-data-table {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th,
+.admin-users-data-table th {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.ant-table-wrapper .ant-table-tbody > tr > td strong,
+.admin-users-data-table td strong,
+.console-record-title,
+.ant-btn.console-record-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.console-record {
+  min-width: 0;
+}
+.console-record-title,
+.console-record-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.console-record-title a,
+.console-record-title.ant-btn-link {
+  color: var(--ink);
+}
+.ant-table-cell .resource-name,
+.admin-users-data-table .resource-name {
+  max-width: 100%;
+}
+.console-record-description {
+  margin-top: 4px;
+  color: var(--gray);
+  font-size: 12px;
+}
+
+.ant-btn.console-table-action {
+  height: 30px;
+  padding-inline: 7px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.console-table-action.ant-btn-icon-only {
+  width: 30px;
+  padding: 0;
+}
+.console-table-action > .ant-btn-icon {
+  width: 14px;
+  height: 14px;
+  flex-basis: 14px;
+  font-size: 14px;
+}
+.console-table-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.console-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gray);
+  white-space: nowrap;
+  font-size: 12px;
+}
+.console-status::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.console-status[data-state='active'],
+.console-status[data-state='enabled'] {
+  color: var(--success);
+}
+.console-status[data-state='failed'],
+.console-status[data-state='error'] {
+  color: var(--error);
+}
+
+.console-list-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.console-list-summary > .console-chip {
+  flex: 0 1 auto;
+  line-height: 20px;
+}
+.console-list-summary > :last-child:not(.console-chip) {
+  flex-shrink: 0;
+}
+.console-list-summary > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.ant-btn.console-list-more {
+  flex-shrink: 0;
+  min-width: 32px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--gray);
+  font-size: 12px;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.ant-btn.console-list-more:not(:disabled):hover {
+  border-color: var(--focus);
+  background: var(--fill);
+  color: var(--ink);
+}
+.ant-btn.console-list-more:not(:disabled):active {
+  background: var(--line-light);
+}
+.console-chip {
+  display: inline-block;
+  background: var(--fill);
+  color: var(--gray);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.console-list-empty {
+  color: var(--gray);
+  font-size: 12px;
+}
+.console-list-tooltip {
+  max-height: 240px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.console-chip:focus-visible {
+  outline: none;
+  background: var(--line-light);
+  color: var(--ink);
+}
+.console-quota-period {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.console-section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.console-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 12px;
+}
+.console-cursor-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.console-page-number {
+  min-width: 24px;
+  text-align: center;
+  color: var(--gray);
+  font-variant-numeric: tabular-nums;
+}
+.console-request-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.console-request-id > a {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--ink);
+}
+.console-request-id > a:hover {
+  text-decoration: underline;
+}
+.console-request-id > .ant-typography {
+  flex-shrink: 0;
+}
+.console-request-id code {
+  font-size: 12px;
+}
+.org-key-cell {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.org-key-cell > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.admin-users-table-scroll {
+  border: 0;
+  border-radius: 10px;
+}
+.admin-users-data-table {
+  min-width: 1140px;
+}
+.admin-users-data-table th {
+  padding: 11px 16px;
+  background: var(--hover);
+  color: var(--gray);
+  border-bottom: 1px solid var(--line-light);
+}
+.admin-users-data-table td {
+  padding: 15px 16px;
+  background: var(--paper);
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-light);
+}
+.admin-users-data-table tbody tr:hover td {
+  background: var(--hover);
+}
+
+@media (max-width: 640px) {
+  .ant-card .ant-card-head-wrapper {
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ant-card .ant-card-extra {
+    max-width: 100%;
+    margin-inline-start: 0;
+  }
+  .ant-card-extra > .ant-space {
+    flex-wrap: wrap;
+  }
+}
+@media (pointer: coarse) {
+  .ant-btn.console-table-action {
+    min-height: 40px;
+  }
+  .console-table-action.ant-btn-icon-only {
+    min-width: 40px;
+  }
+}

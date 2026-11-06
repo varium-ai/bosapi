@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="600" viewBox="0 0 1600 600" role="img" aria-labelledby="hero-title hero-desc">
+<title id="hero-title">BOS API — Your models. One gateway.</title>
+<desc id="hero-desc">BOS API community gateway. Manage access, inspect requests and understand usage on your own infrastructure. An illustrative flow connects applications through BOS API to model services.</desc>
+<defs>
+<linearGradient id="hero-bg" x2="1" y2="1"><stop stop-color="#161a25"/><stop offset=".62" stop-color="#0c0e14"/><stop offset="1" stop-color="#181c26"/></linearGradient>
+<linearGradient id="hero-gold" x2="1" y2="1"><stop stop-color="#fcf7ed"/><stop offset=".52" stop-color="#e0c99a"/><stop offset="1" stop-color="#af9566"/></linearGradient>
+<linearGradient id="hero-line"><stop stop-color="#e0c99a" stop-opacity="0"/><stop offset=".5" stop-color="#e0c99a" stop-opacity=".46"/><stop offset="1" stop-color="#e0c99a" stop-opacity="0"/></linearGradient>
+<radialGradient id="hero-halo"><stop stop-color="#e0c99a" stop-opacity=".14"/><stop offset="1" stop-color="#e0c99a" stop-opacity="0"/></radialGradient>
+<linearGradient id="hero-card" x2="1" y2="1"><stop stop-color="#1a1f2c"/><stop offset="1" stop-color="#11141c"/></linearGradient>
+<symbol id="bos-mark" viewBox="0 0 512 512">
+
+
+  <defs>
+    <linearGradient id="bos-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35383f"/>
+      <stop offset="0.55" stop-color="#2b2d34"/>
+      <stop offset="1" stop-color="#202229"/>
+    </linearGradient>
+
+    <!-- Subtle Hairline Rim -->
+    <linearGradient id="bos-rim" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="rgba(221,194,140,0.65)"/>
+      <stop offset="1" stop-color="rgba(165,139,93,0.35)"/>
+    </linearGradient>
+
+    <!-- Champagne Gold Sheen for the Geometric Origami Glyphs -->
+    <linearGradient id="bos-glyph" x1="142" y1="120" x2="370" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2e9da"/>
+      <stop offset="0.75" stop-color="#ddc28c"/>
+      <stop offset="1" stop-color="#a58b5d"/>
+    </linearGradient>
+
+    <!-- Negative Space Cutout Mask for Optical Apertures -->
+    <mask id="bos-aperture-mask">
+      <rect width="512" height="512" fill="#ffffff"/>
+      <circle cx="264" cy="197" r="28" fill="#000000"/>
+      <circle cx="276" cy="313" r="28" fill="#000000"/>
+    </mask>
+  </defs>
+
+  <!-- Squircle Canvas Base -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bos-bg)"/>
+  <rect x="25" y="25" width="462" height="462" rx="111" stroke="url(#bos-rim)" stroke-width="2" fill="none"/>
+
+  <!-- Scheme S3: Origami Fold Gateway Monogram -->
+  <g mask="url(#bos-aperture-mask)">
+    <!-- Upper Chamfered Origami Block -->
+    <path d="M 142 127 H 284 L 354 197 L 284 267 H 142 Z" fill="url(#bos-glyph)"/>
+
+    <!-- Lower Chamfered Origami Block -->
+    <path d="M 142 241 H 298 L 370 313 L 298 385 H 142 Z" fill="url(#bos-glyph)"/>
+  </g>
+</symbol>
+</defs>
+<rect width="1600" height="600" rx="24" fill="url(#hero-bg)"/>
+<rect x=".5" y=".5" width="1599" height="599" rx="23.5" fill="none" stroke="#e0c99a" stroke-opacity=".17"/>
+<ellipse cx="1160" cy="300" rx="440" ry="320" fill="url(#hero-halo)"/>
+<g stroke="#fff" stroke-opacity=".026"><path d="M 780 80 H 1536 M 780 180 H 1536 M 780 280 H 1536 M 780 380 H 1536 M 780 480 H 1536 M 820 48 V 552 M 940 48 V 552 M 1060 48 V 552 M 1180 48 V 552 M 1300 48 V 552 M 1420 48 V 552"/></g>
+<use xlink:href="#bos-mark" x="76" y="50" width="76" height="76"/>
+<text x="170" y="102" fill="#f7f7f9" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="-.5">BOS API</text>
+<rect x="1330" y="65" width="182" height="32" rx="16" fill="#e0c99a" fill-opacity=".055" stroke="#e0c99a" stroke-opacity=".22"/>
+<text x="1421" y="86" text-anchor="middle" fill="#e0c99a" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="1.8">COMMUNITY EDITION</text>
+<g font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="78" letter-spacing="-2.8">
+<text x="84" y="244" fill="#f7f7f9">Your models.</text>
+<text x="84" y="337" fill="url(#hero-gold)">One gateway.</text>
+</g>
+<g fill="#aeb3c0" font-family="Arial, Helvetica, sans-serif" font-size="24"><text x="87" y="401">Manage access. Inspect requests.</text><text x="87" y="438">Understand your usage.</text></g>
+<path d="M 84 478 H 687" stroke="url(#hero-line)"/>
+<g font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="600" letter-spacing="1.3" fill="#c5bdac">
+<text x="88" y="521">SELF-HOSTED</text><circle cx="218" cy="516" r="2" fill="#af9566"/><text x="238" y="521">TEAM ACCESS</text><circle cx="375" cy="516" r="2" fill="#af9566"/><text x="395" y="521">USAGE VISIBILITY</text>
+</g>
+<g font-family="Arial, Helvetica, sans-serif">
+<text x="811" y="146" fill="#7d8494" font-size="11" font-weight="700" letter-spacing="1.6">APPLICATIONS</text>
+<text x="1382" y="146" fill="#7d8494" font-size="11" font-weight="700" letter-spacing="1.6">MODEL SERVICES</text>
+<g fill="none" stroke="#bba371" stroke-opacity=".43" stroke-width="1.5"><path d="M 969 215 H 995 Q 1026 215 1026 247 V 278 Q 1026 307 1060 307"/><path d="M 969 307 H 1060"/><path d="M 969 399 H 995 Q 1026 399 1026 369 V 337 Q 1026 307 1060 307"/><path d="M 1280 307 H 1312 Q 1343 307 1343 277 V 261 H 1382"/><path d="M 1280 307 H 1312 Q 1343 307 1343 337 V 353 H 1382"/></g>
+<g fill="url(#hero-card)" stroke="#c2ad80" stroke-opacity=".18"><rect x="808" y="180" width="161" height="70" rx="12"/><rect x="808" y="272" width="161" height="70" rx="12"/><rect x="808" y="364" width="161" height="70" rx="12"/><rect x="1382" y="226" width="158" height="70" rx="12"/><rect x="1382" y="318" width="158" height="70" rx="12"/></g>
+<g fill="#e4e5e9" font-size="16" font-weight="600" text-anchor="middle"><text x="888.5" y="221">Applications</text><text x="888.5" y="313">SDKs &amp; clients</text><text x="888.5" y="405">Team workflows</text><text x="1461" y="257">Model APIs</text><text x="1461" y="349">Your endpoints</text></g>
+<g fill="#72798a" font-size="11" text-anchor="middle"><text x="1461" y="276">configured providers</text><text x="1461" y="368">self-hosted models</text></g>
+<rect x="1052" y="166" width="236" height="288" rx="24" fill="#e0c99a" fill-opacity=".07" stroke="#e0c99a" stroke-opacity=".27"/>
+<rect x="1060" y="174" width="220" height="272" rx="18" fill="url(#hero-gold)"/>
+<rect x="1067" y="181" width="206" height="258" rx="13" fill="none" stroke="#fff" stroke-opacity=".30"/>
+<use xlink:href="#bos-mark" x="1138" y="199" width="64" height="64"/>
+<text x="1170" y="293" text-anchor="middle" fill="#22232a" font-size="25" font-weight="700" letter-spacing="-.5">BOS API</text>
+<g fill="#514a3a" font-size="12" text-anchor="middle"><text x="1170" y="329">01  ACCESS CONTROL</text><text x="1170" y="363">02  CONTENT CHECKS</text><text x="1170" y="397">03  USAGE ACCOUNTING</text></g>
+<g stroke="#5f533b" stroke-opacity=".20"><path d="M 1100 341 H 1240 M 1100 375 H 1240"/></g>
+<g fill="#ead8af"><circle cx="1059" cy="307" r="4"/><circle cx="1281" cy="307" r="4"/></g>
+<text x="1171" y="513" text-anchor="middle" fill="#777d8b" font-size="11" letter-spacing="1.3">ON YOUR INFRASTRUCTURE</text>
+<text x="1171" y="535" text-anchor="middle" fill="#505766" font-size="9" letter-spacing="1.5">ILLUSTRATIVE FLOW</text>
+</g>
+</svg>

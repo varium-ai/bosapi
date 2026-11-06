@@ -1,0 +1,556 @@
+:root {
+  --canvas: #f7f7f7;
+  --ink: #171717;
+  --paper: #ffffff;
+  --gray: #737373;
+  --silver: #999999;
+  --line: #e7e7e7;
+  --line-light: #f0f0f0;
+  --panel-edge: #ededed;
+  --fill: #f5f5f5;
+  --hover: #fafafa;
+  --focus: #a3a3a3;
+  --focus-ring: #1717170c;
+  --primary-hover: #333333;
+  --night: #101010;
+  --surface: #191919;
+  --success: #15803d;
+  --success-muted: #f0fdf4;
+  --warning: #92400e;
+  --warning-muted: #fffbeb;
+  --error: #b91c1c;
+  --error-hover: #991b1b;
+  --error-active: #7f1d1d;
+  --error-muted: #fef2f2;
+  --error-muted-active: #fee2e2;
+  --error-border: #fecaca;
+  --info: #1d4ed8;
+  --info-muted: #eff6ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  background-color: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--gray);
+}
+
+a:hover,
+a:active {
+  color: var(--ink);
+}
+
+/* SubLane-style modern scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--focus);
+}
+
+/* Monospace code elements */
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  background-color: var(--line-light);
+  border: 1px solid #e5e5e5;
+  color: var(--ink);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* Ant Design Component Styles adjusted to SubLane minimalist aesthetic */
+.ant-layout {
+  background: var(--canvas) !important;
+}
+
+.ant-layout-header {
+  height: 56px !important;
+  line-height: normal !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.security-events-table .ant-table-cell {
+  white-space: nowrap !important;
+}
+
+/* Ant Table Expanded Row and Nested Table layout constraints */
+.ant-table-expanded-row > .ant-table-cell {
+  max-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ant-table-expanded-row .ant-table-expanded-row-fixed {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.key-ip-expanded-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.key-ip-expanded-container .ant-space {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.key-ip-expanded-container .ant-table-wrapper {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ant-row .ant-form-item-label > label {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Sidebar Menu */
+.ant-menu-light {
+  background: transparent !important;
+}
+
+.ant-menu-light .ant-menu-item-group-title {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  color: #8c8c8c !important;
+  padding: 16px 12px 6px !important;
+  text-transform: uppercase !important;
+}
+
+.ant-menu-light .ant-menu-item {
+  border-radius: 6px !important;
+  margin: 3px 0 !important;
+  height: 38px !important;
+  line-height: 38px !important;
+  font-weight: 500 !important;
+  font-size: 13.5px !important;
+  color: #525252 !important;
+  transition: all 0.15s ease;
+}
+
+.ant-menu-light .ant-menu-item:hover {
+  background: var(--fill) !important;
+  color: var(--ink) !important;
+}
+
+.ant-menu-light .ant-menu-item-selected {
+  background: var(--line-light) !important;
+  color: var(--ink) !important;
+  font-weight: 600 !important;
+}
+
+/* Ensure table action columns and right-fixed action areas always stay on a single line */
+.ant-table-cell-fix-right {
+  white-space: nowrap !important;
+}
+
+.ant-table-cell-fix-right .ant-space {
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
+}
+
+/* Dark Terminal Code Copy Button */
+.code-copy-btn {
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  background-color: #242424 !important;
+  border: 1px solid #3d3d3d !important;
+  color: var(--fill) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+}
+
+.code-copy-btn:hover {
+  background-color: var(--primary-hover) !important;
+  border-color: #555555 !important;
+  color: var(--paper) !important;
+}
+
+.code-copy-btn .anticon {
+  color: #d4d4d4 !important;
+  font-size: 13px !important;
+}
+
+.code-copy-btn:hover .anticon {
+  color: var(--paper) !important;
+}
+
+.code-copy-btn.copied {
+  background-color: #064e3b !important;
+  border-color: #10b981 !important;
+  color: #a7f3d0 !important;
+}
+
+.code-copy-btn.copied .anticon {
+  color: #a7f3d0 !important;
+}
+
+/* Modals */
+.ant-modal-content {
+  border-radius: 12px !important;
+  border: 1px solid #e5e5e5 !important;
+  box-shadow:
+    0 10px 38px -10px rgba(22, 23, 24, 0.35),
+    0 10px 20px -15px rgba(22, 23, 24, 0.2) !important;
+  padding: 24px !important;
+}
+
+.ant-modal-header {
+  margin-bottom: 16px !important;
+}
+
+.ant-modal-title {
+  font-weight: 600 !important;
+  color: var(--ink) !important;
+}
+
+/* Tags / Badges in subtle pastel tints */
+.ant-tag {
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  padding: 1px 8px !important;
+  line-height: 20px !important;
+  border: 1px solid transparent;
+}
+
+.ant-tag-success,
+.ant-tag-green {
+  background: var(--success-muted) !important;
+  color: var(--success) !important;
+  border-color: #bbf7d0 !important;
+}
+
+.ant-tag-warning,
+.ant-tag-orange,
+.ant-tag-gold {
+  background: var(--warning-muted) !important;
+  color: var(--warning) !important;
+  border-color: #fde68a !important;
+}
+
+.ant-tag-error,
+.ant-tag-red {
+  background: var(--error-muted) !important;
+  color: var(--error) !important;
+  border-color: var(--error-border) !important;
+}
+
+.ant-tag-processing,
+.ant-tag-blue,
+.ant-tag-geekblue {
+  background: var(--info-muted) !important;
+  color: var(--info) !important;
+  border-color: #bfdbfe !important;
+}
+
+.ant-tag-cyan {
+  background: #ecfeff !important;
+  color: #0e7490 !important;
+  border-color: #a5f3fc !important;
+}
+
+.ant-tag-purple {
+  background: #faf5ff !important;
+  color: #7e22ce !important;
+  border-color: #e9d5ff !important;
+}
+
+.ant-tag-default {
+  background: var(--fill) !important;
+  color: #525252 !important;
+  border-color: #e5e5e5 !important;
+}
+
+/* Tabs */
+.ant-tabs-ink-bar {
+  background: var(--ink) !important;
+}
+
+.ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--ink) !important;
+  font-weight: 600 !important;
+}
+
+.ant-tabs-tab:hover .ant-tabs-tab-btn {
+  color: #404040 !important;
+}
+
+/* SubLane Minimalist Alert & Callout boxes */
+.ant-alert {
+  border-radius: 8px !important;
+  padding: 12px 16px !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+.ant-alert-icon {
+  margin-right: 12px !important;
+  font-size: 16px !important;
+}
+
+.ant-alert-message {
+  color: var(--ink) !important;
+  font-weight: 600 !important;
+  font-size: 13.5px !important;
+  letter-spacing: 0 !important;
+}
+
+.ant-alert-description {
+  color: #616161 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  margin-top: 3px !important;
+}
+
+/* Info Alert: Clean neutral slate card with dark accents */
+.ant-alert-info {
+  background-color: var(--hover) !important;
+  border: 1px solid #e5e5e5 !important;
+}
+
+.ant-alert-info .ant-alert-icon {
+  color: var(--ink) !important;
+}
+
+.ant-alert-info .ant-alert-message {
+  color: var(--ink) !important;
+}
+
+.ant-alert-info .ant-alert-description {
+  color: #616161 !important;
+}
+
+/* Success Alert: Fresh soft mint */
+.ant-alert-success {
+  background-color: var(--success-muted) !important;
+  border: 1px solid #dcfce7 !important;
+}
+
+.ant-alert-success .ant-alert-icon {
+  color: var(--success) !important;
+}
+
+.ant-alert-success .ant-alert-message {
+  color: #14532d !important;
+}
+
+.ant-alert-success .ant-alert-description {
+  color: #166534 !important;
+}
+
+/* Warning Alert: Warm subtle ivory amber */
+.ant-alert-warning {
+  background-color: var(--warning-muted) !important;
+  border: 1px solid #fef3c7 !important;
+}
+
+.ant-alert-warning .ant-alert-icon {
+  color: var(--warning) !important;
+}
+
+.ant-alert-warning .ant-alert-message {
+  color: var(--warning) !important;
+}
+
+.ant-alert-warning .ant-alert-description {
+  color: var(--warning) !important;
+}
+
+/* Error Alert: Soft light crimson */
+.ant-alert-error {
+  background-color: var(--error-muted) !important;
+  border: 1px solid var(--error-muted-active) !important;
+}
+
+.ant-alert-error .ant-alert-icon {
+  color: var(--error) !important;
+}
+
+.ant-alert-error .ant-alert-message {
+  color: var(--error-hover) !important;
+}
+
+.ant-alert-error .ant-alert-description {
+  color: var(--error) !important;
+}
+/* Shared, responsive console task surfaces. */
+.ux-help {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  color: var(--gray);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.ux-help a {
+  white-space: nowrap;
+}
+.resource-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  margin-inline-end: 0;
+  white-space: nowrap;
+}
+.resource-name a {
+  color: inherit;
+}
+.resource-name-unavailable {
+  color: var(--gray);
+  font-size: 12px;
+}
+.model-list-dialog {
+  display: grid;
+  gap: 8px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.model-list-dialog code {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+  background: var(--hover);
+}
+.ux-advanced {
+  margin: 16px 0;
+}
+.ux-details {
+  overflow-wrap: anywhere;
+}
+.ux-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.admin-users-table-shell {
+  position: relative;
+  min-height: 160px;
+}
+
+.rate-limits-status-slot {
+  min-height: 48px;
+  margin-bottom: 24px;
+}
+
+.admin-users-table-loading {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #525252;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.admin-users-table-scroll {
+  overflow-x: auto;
+}
+
+.admin-users-data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.admin-users-data-table th {
+  text-align: left;
+}
+
+.admin-users-data-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-users-data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-users-data-table .admin-users-action-cell {
+  overflow: visible;
+}
+
+.admin-users-empty {
+  height: 112px;
+  color: var(--gray) !important;
+  text-align: center;
+}
+
+.admin-users-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  color: #525252;
+  font-size: 13px;
+}
+
+@media (min-width: 1100px) {
+  .admin-users-data-table .admin-users-action-cell {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    box-shadow: -1px 0 var(--line-light);
+  }
+}
+
+/* Hide horizontal scrollbar on empty Ant Design tables */
+.ant-table-wrapper .ant-table-empty .ant-table-content,
+.ant-table-wrapper .ant-table-empty .ant-table-body {
+  overflow-x: hidden !important;
+}

@@ -1,0 +1,29 @@
+/* Tabbed card headers keep their own tab indicator and spacing. */
+.ant-card:not(.ant-card-contain-tabs) > .ant-card-head {
+  min-height: 0;
+  margin-bottom: 0;
+  padding-top: 20px;
+  border-bottom: 0;
+}
+
+.ant-card.ant-card-small:not(.ant-card-contain-tabs) > .ant-card-head {
+  padding-top: 16px;
+}
+
+.ant-card:not(.ant-card-contain-tabs) > .ant-card-head + .ant-card-body {
+  padding-top: 16px;
+}
+
+.ant-card > .ant-card-head > .ant-card-head-wrapper > .ant-card-head-title {
+  letter-spacing: 0;
+}
+
+@media (max-width: 640px) {
+  .ant-card:not(.ant-card-contain-tabs) > .ant-card-head {
+    padding: 16px 16px 0;
+  }
+
+  .ant-card:not(.ant-card-contain-grid) > .ant-card-body {
+    padding: 16px;
+  }
+}

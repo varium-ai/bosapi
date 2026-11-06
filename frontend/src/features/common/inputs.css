@@ -1,0 +1,45 @@
+.console-search-input .ant-input-prefix {
+  color: var(--gray);
+  margin-inline-end: 8px;
+}
+
+.console-search-input.ant-input-affix-wrapper {
+  min-width: 0;
+}
+
+.console-select-error .ant-alert {
+  margin: 4px !important;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.console-select-error .ant-alert-action {
+  margin-inline-start: 0;
+}
+
+.ant-input-affix-wrapper > input.ant-input {
+  background: transparent;
+}
+
+.ant-input-number-input,
+.ant-picker-input > input {
+  font-variant-numeric: tabular-nums;
+}
+
+.ant-input::placeholder,
+.ant-input-number-input::placeholder {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .ant-input:not(textarea),
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-picker {
+    min-height: 40px;
+  }
+
+  .ant-input-affix-wrapper > input.ant-input {
+    min-height: 0;
+  }
+}

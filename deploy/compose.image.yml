@@ -1,0 +1,5 @@
+# stack.sh adds this only when deploy/image.env contains a pinned image reference.
+services:
+  app:
+    image: ${BOS_APP_IMAGE:?Set BOS_APP_IMAGE in deploy/image.env}
+    pull_policy: never

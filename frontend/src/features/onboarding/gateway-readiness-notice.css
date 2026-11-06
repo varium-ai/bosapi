@@ -1,0 +1,63 @@
+.gateway-readiness-notice.ant-alert {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+  margin-bottom: 20px;
+  box-shadow: none !important;
+}
+
+.gateway-readiness-notice.ant-alert > .ant-alert-icon {
+  margin: 3px 0 0 !important;
+}
+
+.gateway-readiness-notice > .ant-alert-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gateway-readiness-notice.ant-alert .ant-alert-message {
+  margin-bottom: 0;
+  font-size: 13px !important;
+  line-height: 1.6;
+}
+
+.gateway-readiness-notice.ant-alert .ant-alert-description {
+  max-width: 112ch;
+  margin-top: 4px !important;
+  color: var(--gray) !important;
+  font-size: 12px !important;
+  line-height: 1.65 !important;
+}
+
+.gateway-readiness-notice > .ant-alert-action {
+  align-self: center;
+  margin-inline-start: 12px;
+}
+
+.gateway-readiness-notice .ant-btn {
+  height: auto;
+  min-height: 30px;
+  padding: 4px 10px;
+  white-space: normal;
+  text-align: start;
+}
+
+.gateway-readiness-notice .ant-btn > .anticon {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  .gateway-readiness-notice.ant-alert {
+    grid-template-columns: 16px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+
+  .gateway-readiness-notice > .ant-alert-action {
+    grid-column: 2;
+    justify-self: start;
+    margin: 10px 0 0;
+    max-width: 100%;
+  }
+}

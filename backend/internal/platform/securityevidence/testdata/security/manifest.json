@@ -1,0 +1,10 @@
+{
+  "corpus_version": "2026-11-04.1",
+  "coverage": {
+    "credentials_positive": 10,
+    "credentials_negative": 8
+  },
+  "assertion_policy": {
+    "credentials": "run"
+  }
+}

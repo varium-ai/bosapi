@@ -1,0 +1,207 @@
+.console-shell,
+.console-sidebar-drawer {
+  --sidebar-motion-duration: 320ms;
+  --sidebar-motion-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.console-shell {
+  --sidebar-toggle-offset: 0px;
+  --sidebar-header-inset: 44px;
+}
+
+.console-shell[data-sidebar-expanded='true'] {
+  --sidebar-toggle-offset: 170px;
+  --sidebar-header-inset: 0px;
+}
+
+.console-shell[data-mobile='true'] {
+  --sidebar-header-inset: 44px;
+}
+.console-shell[data-mobile='true'][data-sidebar-expanded='true'] {
+  --sidebar-toggle-offset: 218px;
+}
+
+.console-sidebar-toggle-anchor {
+  position: fixed;
+  top: 12px;
+  left: 24px;
+  z-index: 200;
+  transform: translateX(var(--sidebar-toggle-offset));
+  transition: transform var(--sidebar-motion-duration) var(--sidebar-motion-easing);
+}
+
+.console-shell[data-mobile='true'] .console-sidebar-toggle-anchor {
+  left: 16px;
+}
+.console-shell[data-mobile='true'][data-sidebar-expanded='true'] .console-sidebar-toggle-anchor {
+  z-index: 1001;
+}
+
+.console-sidebar.ant-layout-sider {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  z-index: 100;
+  background: #fff;
+  transition-property: width, min-width, max-width, flex-basis;
+  transition-duration: var(--sidebar-motion-duration);
+  transition-timing-function: var(--sidebar-motion-easing);
+}
+
+.console-sidebar-content::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: #e5e5e5;
+  pointer-events: none;
+}
+
+.console-sidebar .ant-layout-sider-children {
+  width: 240px;
+}
+
+.console-sidebar-content {
+  position: relative;
+  width: 240px;
+  transform: translateX(0);
+  transition: transform var(--sidebar-motion-duration) var(--sidebar-motion-easing);
+}
+
+.console-sidebar.ant-layout-sider-collapsed .console-sidebar-content {
+  transform: translateX(-100%);
+}
+
+.console-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 56px;
+  padding: 0 14px 0 20px;
+}
+
+.console-sidebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: #171717;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.console-sidebar-brand:hover {
+  color: #171717;
+}
+.console-sidebar-brand img {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+.console-sidebar-brand:focus-visible {
+  outline: none;
+  background: var(--fill);
+  border-radius: 4px;
+}
+
+.console-sidebar-nav {
+  height: calc(100vh - 56px);
+  height: calc(100dvh - 56px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 8px;
+}
+
+.console-sidebar-nav .ant-menu.ant-menu-root.ant-menu-inline {
+  border-inline-end: none;
+  background: transparent;
+}
+.console-navigation-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.console-main.ant-layout {
+  min-width: 0;
+}
+.console-header-leading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: var(--sidebar-header-inset);
+  transition: padding-left var(--sidebar-motion-duration) var(--sidebar-motion-easing);
+}
+.console-header {
+  gap: 16px;
+}
+
+.console-sidebar-toggle.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: 6px;
+  color: #737373;
+}
+
+.console-sidebar-toggle.ant-btn:is(:hover, :focus-visible) {
+  color: #171717;
+  background: #f0f0f0;
+}
+.console-sidebar-toggle .ant-btn-icon {
+  display: inline-flex;
+}
+.console-sidebar-tooltip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.console-sidebar-tooltip kbd {
+  font: inherit;
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.console-sidebar-drawer .ant-drawer-header {
+  padding: 0;
+  border: 0;
+}
+.console-sidebar-drawer .ant-drawer-body {
+  padding: 0;
+}
+.console-sidebar-drawer .console-sidebar-top {
+  padding-left: 20px;
+}
+.console-sidebar-drawer .ant-drawer-content-wrapper {
+  transition: transform var(--sidebar-motion-duration) var(--sidebar-motion-easing) !important;
+}
+
+@media (max-width: 991.98px) {
+  .console-content.ant-layout-content {
+    margin: 20px 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-sidebar.ant-layout-sider,
+  .console-sidebar-content,
+  .console-sidebar-toggle-anchor,
+  .console-header-leading,
+  .console-sidebar-drawer,
+  .console-sidebar-drawer .ant-drawer-mask,
+  .console-sidebar-drawer .ant-drawer-content-wrapper {
+    transition: none !important;
+    animation: none !important;
+  }
+}

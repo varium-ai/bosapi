@@ -1,0 +1,11 @@
+title = "Community source secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic PEM credential-detection corpus sample"
+condition = "AND"
+paths = ['''backend/internal/platform/securityevidence/testdata/security/credentials\.positive\.jsonl$''']
+regexTarget = "line"
+regexes = ['''"id"\s*:\s*"cred\.006\.pem_private_key"''']

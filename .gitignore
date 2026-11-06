@@ -1,0 +1,59 @@
+# Dependencies and generated output
+node_modules/
+frontend/dist/
+frontend/coverage/
+backend/bin/
+.gocache/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pnpm-store/
+
+# Credentials and private deployment state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+deploy/stack.env
+deploy/image.env
+deploy/image-updater.env
+deploy/*.enabled
+deploy/image-updater/*.json
+deploy/docker-compose.override.yml
+
+# Runtime data and operator-supplied databases
+*.enc
+*.enc.tmp
+*.log
+*.db
+*.sqlite*
+*.mmdb
+*.mmdb.gz
+deploy/backups/
+.local-private/
+output/
+
+# Local source preparation, review snapshots, and temporary files
+.opensource-prep/
+/tmp/
+/temp/
+*.tmp
+
+# Editor and agent state
+.DS_Store
+._*
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.codex/
+.claude/
+AGENTS.md
+CLAUDE.md
