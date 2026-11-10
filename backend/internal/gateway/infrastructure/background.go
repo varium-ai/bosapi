@@ -392,7 +392,23 @@ return {1, 0}
 `)
 
 var releaseSessionScript = redis.NewScript(`for _, key in ipairs(KEYS) do redis.call('ZREM', key, ARGV[1]) end return 1`)
-var renewSessionScript = redis.NewScript(`local time=redis.call('TIME'); local expiry=tonumber(time[1])*1000+math.floor(tonumber(time[2])/1000)+tonumber(ARGV[2]); for _,key in ipairs(KEYS) do redis.call('ZADD',key,expiry,ARGV[1]); redis.call('PEXPIRE',key,7200000) end return 1`)
+
+// Renew only an existing lease. If any scope lost the token while Redis was
+// unavailable, return 0 without recreating it; another request may own the slot.
+var renewSessionScript = redis.NewScript(`
+local time=redis.call('TIME')
+local expiry=tonumber(time[1])*1000+math.floor(tonumber(time[2])/1000)+tonumber(ARGV[2])
+local now=tonumber(time[1])*1000+math.floor(tonumber(time[2])/1000)
+for _,key in ipairs(KEYS) do
+  local score=redis.call('ZSCORE', key, ARGV[1])
+  if not score or tonumber(score) <= now then return 0 end
+end
+for _,key in ipairs(KEYS) do
+  redis.call('ZADD', key, expiry, ARGV[1])
+  redis.call('PEXPIRE', key, 7200000)
+end
+return 1
+`)
 
 // AcquireSession atomically reserves global, organization and key slots. Leases
 // expire after an hour as crash protection and are renewed while the request lives.
@@ -447,7 +463,13 @@ func (limiter *RedisRateLimiter) AcquireSession(ctx context.Context, key domain.
 				return
 			case <-ticker.C:
 				renewCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-				_ = renewSessionScript.Run(renewCtx, limiter.client, keys, token, lease.Milliseconds()).Err()
+				renewed, renewErr := renewSessionScript.Run(renewCtx, limiter.client, keys, token, lease.Milliseconds()).Int64()
+				if renewErr != nil || renewed == 0 {
+					// The lease expired or was removed while Redis was unavailable;
+					// never resurrect the token and inflate the active count.
+					cancel()
+					return
+				}
 				cancel()
 			}
 		}

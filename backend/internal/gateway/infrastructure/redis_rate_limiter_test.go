@@ -3,7 +3,11 @@ package infrastructure
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
+	"os/exec"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -101,4 +105,83 @@ func TestRedisRateLimiterAllowsAndMarksDegradedOnFailure(t *testing.T) {
 			t.Fatalf("failure decision=%+v err=%v", decision, err)
 		}
 	}
+}
+
+func TestRedisSessionRenewalDoesNotResurrectExpiredOrReplacedLease(t *testing.T) {
+	client := startSessionRenewRedis(t)
+	ctx := t.Context()
+	keys := []string{"test:{sessions}:organization:1"}
+	const lease = int64(time.Hour / time.Millisecond)
+
+	// A contender atomically removes the expired owner and takes the slot.
+	if err := client.ZAdd(ctx, keys[0], redis.Z{Score: 1, Member: "request-a"}).Err(); err != nil {
+		t.Fatal(err)
+	}
+	acquired, err := acquireSessionScript.Run(ctx, client, keys, "request-b", lease, int64(1)).Int64Slice()
+	if err != nil || len(acquired) != 2 || acquired[0] != 1 {
+		t.Fatalf("contender acquire=%v err=%v", acquired, err)
+	}
+
+	// A's late renewal must not reinsert it beside B.
+	renewed, err := renewSessionScript.Run(ctx, client, keys, "request-a", lease).Int64()
+	if err != nil || renewed != 0 {
+		t.Fatalf("stale renewal=%d err=%v, want lost lease", renewed, err)
+	}
+	if count, err := client.ZCard(ctx, keys[0]).Result(); err != nil || count != 1 {
+		t.Fatalf("lease count=%d err=%v, want only contender", count, err)
+	}
+	if score, err := client.ZScore(ctx, keys[0], "request-b").Result(); err != nil || score <= 1 {
+		t.Fatalf("contender score=%v err=%v", score, err)
+	}
+}
+
+func TestRedisSessionRenewalIsAtomicAcrossScopes(t *testing.T) {
+	client := startSessionRenewRedis(t)
+	ctx := t.Context()
+	keys := []string{"test:{sessions}:global", "test:{sessions}:key:3"}
+	const lease = int64(time.Hour / time.Millisecond)
+	const currentScore = float64(4_000_000_000_000)
+	if err := client.ZAdd(ctx, keys[0], redis.Z{Score: currentScore, Member: "request-a"}).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ZAdd(ctx, keys[1], redis.Z{Score: currentScore, Member: "request-b"}).Err(); err != nil {
+		t.Fatal(err)
+	}
+	renewed, err := renewSessionScript.Run(ctx, client, keys, "request-a", lease).Int64()
+	if err != nil || renewed != 0 {
+		t.Fatalf("partial renewal=%d err=%v, want lost lease", renewed, err)
+	}
+	if score, err := client.ZScore(ctx, keys[0], "request-a").Result(); err != nil || score != currentScore {
+		t.Fatalf("partially updated score=%v err=%v", score, err)
+	}
+}
+
+func startSessionRenewRedis(t *testing.T) *redis.Client {
+	t.Helper()
+	server, err := exec.LookPath("redis-server")
+	if err != nil {
+		t.Skip("redis-server is not installed")
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+	command := exec.Command(server, "--bind", "127.0.0.1", "--port", strconv.Itoa(port), "--save", "", "--appendonly", "no")
+	command.Stdout, command.Stderr = io.Discard, io.Discard
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	client := redis.NewClient(&redis.Options{Addr: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)), MaxRetries: 0})
+	t.Cleanup(func() { _ = client.Close(); _ = command.Process.Kill(); _ = command.Wait() })
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := client.Ping(t.Context()).Err(); err == nil {
+			return client
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("local Redis did not start")
+	return nil
 }
