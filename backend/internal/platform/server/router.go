@@ -200,11 +200,22 @@ func NewPortalRouter(database *gorm.DB, jwtSecret []byte, accessTTL, refreshTTL 
 		}
 	}()
 	admininterfaces.NewAdminUsageHandler(adminapp.NewAdminUsageService(usageRepository)).RegisterRoutes(admin)
-	var rateLimitRuntime func(context.Context) (bool, string)
+	var rateLimitRuntime admininterfaces.RuntimeStatus
 	if len(runtime) > 0 {
-		rateLimitRuntime = runtime[0].RateLimit
+		rateLimitRuntime = runtime[0]
 	}
-	admininterfaces.NewRateLimitHandler(adminapp.NewRateLimitService(admininfra.NewRateLimitRepository(database)), rateLimitRuntime).RegisterRoutes(admin)
+	rateLimitHandler := admininterfaces.NewRateLimitHandler(adminapp.NewRateLimitService(admininfra.NewRateLimitRepository(database)), rateLimitRuntime.RateLimit)
+	if rateLimitRuntime.RateLimitCacheInvalidator != nil {
+		rateLimitHandler = rateLimitHandler.WithQuotaCacheInvalidator(rateLimitRuntime.RateLimitCacheInvalidator)
+	}
+	if rateLimitRuntime.OrganizationQuotaUsage != nil {
+		rateLimitHandler.WithOrganizationUsage(rateLimitRuntime.OrganizationQuotaUsage)
+	} else {
+		rateLimitHandler.WithOrganizationUsage(func(ctx context.Context, id uint64, now time.Time) (userinfra.OrganizationPeriodicUsage, error) {
+			return userinfra.FindOrganizationPeriodicUsage(ctx, database, id, now)
+		})
+	}
+	rateLimitHandler.RegisterRoutes(admin)
 	statusHandler.RegisterRoutes(admin.Group("", authinterfaces.RequireRoles("super_admin")))
 	admininterfaces.NewSecurityEventHandler(adminapp.NewSecurityEventService(admininfra.NewCachedSecurityEventRepository(database, geoResolver))).RegisterRoutes(admin)
 	adminUserService := adminapp.NewAdminUserService(admininfra.NewAdminUserRepository(database), authapp.HashPassword)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"bosapi/backend/internal/admin/domain"
 )
@@ -33,23 +34,33 @@ func (service *RateLimitService) Write(ctx context.Context, update domain.RateLi
 	if update.Global != nil && !validRateLimit(*update.Global, true) {
 		return ErrInvalidRateLimit
 	}
-	orgs := make(map[uint64]struct{}, len(update.Organizations))
-	for _, value := range update.Organizations {
-		if value.OrganizationID == 0 || value.QPS < 0 || value.QPS > 100000000 || hasID(orgs, value.OrganizationID) {
+
+	seenOrganizations := make(map[uint64]struct{}, len(update.Organizations))
+	for _, organization := range update.Organizations {
+		if organization.OrganizationID == 0 || organization.QPS < 0 || organization.QPS > 100000000 || !validOrganizationQuotas(organization) {
 			return ErrInvalidRateLimit
 		}
-		orgs[value.OrganizationID] = struct{}{}
-	}
-	keys := make(map[uint64]struct{}, len(update.Keys))
-	for _, value := range update.Keys {
-		if value.KeyID == 0 || !validRateLimit(value.RateLimitConfig, true) || hasID(keys, value.KeyID) {
+		if _, exists := seenOrganizations[organization.OrganizationID]; exists {
 			return ErrInvalidRateLimit
 		}
-		keys[value.KeyID] = struct{}{}
+		seenOrganizations[organization.OrganizationID] = struct{}{}
 	}
+
+	seenKeys := make(map[uint64]struct{}, len(update.Keys))
+	for _, key := range update.Keys {
+		if key.KeyID == 0 || !validRateLimit(key.RateLimitConfig, true) {
+			return ErrInvalidRateLimit
+		}
+		if _, exists := seenKeys[key.KeyID]; exists {
+			return ErrInvalidRateLimit
+		}
+		seenKeys[key.KeyID] = struct{}{}
+	}
+
 	if update.Global == nil && len(update.Organizations) == 0 && len(update.Keys) == 0 {
 		return ErrInvalidRateLimit
 	}
+
 	return service.repository.WriteRateLimits(ctx, update, updatedBy)
 }
 
@@ -64,4 +75,21 @@ func validRateLimit(value domain.RateLimitConfig, allowQPSZero bool) bool {
 	}
 	return true
 }
-func hasID(values map[uint64]struct{}, id uint64) bool { _, exists := values[id]; return exists }
+
+func validOrganizationQuotas(organization domain.OrganizationRateLimit) bool {
+	for _, limit := range []*int64{organization.DailyQuotaTokens, organization.WeeklyQuotaTokens, organization.MonthlyQuotaTokens} {
+		if limit != nil && *limit < 0 {
+			return false
+		}
+	}
+	for _, amount := range []*float64{organization.DailyQuotaAmount, organization.WeeklyQuotaAmount, organization.MonthlyQuotaAmount} {
+		if amount != nil && (*amount < 0 || !isFiniteFloat(*amount)) {
+			return false
+		}
+	}
+	return true
+}
+
+func isFiniteFloat(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
+}

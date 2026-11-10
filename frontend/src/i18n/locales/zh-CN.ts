@@ -489,6 +489,9 @@ export const zhCN = {
     no_events: '暂无安全拦截审计记录',
   },
   overview: {
+    organization_quota_title: '组织配额概览',
+    organization_quota_failed: '组织配额暂不可用，请刷新重试。',
+
     traffic_window: '最近 5 分钟滑动窗口 · 当前网关实例 · 每 30 秒刷新',
     title: '运行概览',
     platform_scope: '查看全平台的调用用量、资源规模与运行状态。',
@@ -1066,9 +1069,24 @@ export const zhCN = {
     use_custom_model: '+ 使用“{model}”',
   },
   ratelimits: {
+    org_quota_hint:
+      'Token 限额以百万为单位（1M = 100 万 Token）。留空表示不限；周期限额为 0 时阻塞请求，并发会话数为 0 时表示不限制。',
+    org_invalid_quota:
+      'Token 限额最多输入 6 位小数且换算后须为非负安全整数，金额限额须为非负有限数。',
+    org_blocked: '0（已阻塞）',
+    org_usage_unavailable: '用量暂不可用',
+    org_tokens_usage_limit: 'Token 用量 / 上限',
+    org_amount_usage_limit: '金额用量 / 上限 (USD)',
+    org_reset_at: '重置时间 (UTC+8)',
+    org_calendar_hint:
+      '用量按 UTC+8 零点重置：每日、每周一、每月首日。限额为 0 时持续阻塞，需修改限额后恢复。',
+    org_limits_link: '限额',
+    org_view_limits_link: '查看组织限额',
+    save_failed: '保存限额失败，请重试。',
+
     title: '并发管控与限流策略',
     subtitle:
-      '配置层级 并发会话数限制 (全局 → 组织 → API 密钥) 以及 5小时 / 1天 / 7天 滚动 Token 窗口配额',
+      '配置层级 QPS 限流 (全局 → 组织 → API 密钥) 以及 5小时 / 1天 / 7天 滚动 Token 窗口配额',
     org_policies: '组织层级限流',
     key_policies: '密钥层级限流',
     rpm: 'RPM (每分钟请求数)',
@@ -1093,10 +1111,21 @@ export const zhCN = {
     enter_global_qps: '请输入并发会话数',
     qps_range: '并发会话数必须为 0～1,000,000 的整数（0 = 不限）',
     save_global_btn: '保存全局限流',
-    org_card_title: '组织并发会话数',
+    org_card_title: '组织并发会话数与周期限额',
     select_org_label: '选择目标组织',
     select_org_placeholder: '选择要查看/编辑的组织',
     org_qps_label: '组织并发会话数上限',
+    org_usage_title: '当前用量',
+    org_daily_usage: '日用量',
+    org_weekly_usage: '周用量',
+    org_monthly_usage: '月用量',
+    org_daily_tokens_label: '日 Token 限额',
+    org_weekly_tokens_label: '周 Token 限额',
+    org_monthly_tokens_label: '月 Token 限额',
+    org_daily_amount_label: '日金额限额 (USD)',
+    org_weekly_amount_label: '周金额限额 (USD)',
+    org_monthly_amount_label: '月金额限额 (USD)',
+    org_readonly_hint: '组织限额仅超级管理员可修改。',
     enter_org_qps: '请输入并发会话数',
     save_org_btn: '保存组织限流',
     key_card_title: 'API 密钥并发会话数与 Token 配额',

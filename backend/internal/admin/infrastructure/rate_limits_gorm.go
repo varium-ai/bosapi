@@ -38,13 +38,12 @@ func (repository *RateLimitRepository) ReadRateLimits(ctx context.Context, organ
 		return result, err
 	}
 	if organizationID > 0 {
-		var value struct {
-			QPS int64 `json:"qps"`
-		}
+		var value domain.OrganizationRateLimit
 		if err := repository.readSetting(ctx, fmt.Sprintf("rate_limit.organization.%d", organizationID), &value); err != nil {
 			return result, err
 		}
-		result.Organizations = append(result.Organizations, domain.OrganizationRateLimit{OrganizationID: organizationID, QPS: value.QPS})
+		value.OrganizationID = organizationID
+		result.Organizations = append(result.Organizations, value)
 	}
 	if keyID > 0 {
 		if organizationID > 0 {
@@ -92,9 +91,7 @@ func (repository *RateLimitRepository) WriteRateLimits(ctx context.Context, upda
 			}
 		}
 		for _, value := range update.Organizations {
-			if err := writeSetting(transaction, fmt.Sprintf("rate_limit.organization.%d", value.OrganizationID), struct {
-				QPS int64 `json:"qps"`
-			}{value.QPS}, updatedBy); err != nil {
+			if err := writeSetting(transaction, fmt.Sprintf("rate_limit.organization.%d", value.OrganizationID), value, updatedBy); err != nil {
 				return err
 			}
 		}

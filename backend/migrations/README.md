@@ -306,3 +306,34 @@ directly into that time range. This restriction needs no new migration.
 The migration uses `ALGORITHM=INPLACE, LOCK=NONE`; index construction still uses
 I/O and requires metadata locks. The matching `.down.sql` removes only these
 indexes; query correctness does not depend on them.
+
+### Organization calendar quota indexes
+
+`026_organization_quota_indexes.sql` adds the covering index
+`idx_usage_org_pending_time (organization_id, rollup_applied, created_at,
+total_tokens, cost_amount)` to both `usage_logs` and `usage_logs_v2`.
+Organization quota reads combine daily rollups with pending rows from both raw
+sources in one statement. They use `idx_rollup_org_date` for stored totals and
+the new indexes for each organization's pending tail. Filtering by the recorded
+organization includes all its keys, including deleted keys and history preceding
+a key's move to another organization. The pending flag before the timestamp
+avoids scanning acknowledged history when probing a period.
+
+Apply migration 026 before enabling organization quota reads: the query explicitly
+names these indexes with `FORCE INDEX`. The migration is embedded and applied
+at startup like other forward scripts. Index construction uses
+`ALGORITHM=INPLACE, LOCK=NONE`, but still consumes I/O and acquires metadata locks.
+If one statement fails, repair the partial DDL and unfinished migration history
+before restarting; do not blindly rerun an index addition that already succeeded.
+
+The matching `.down.sql` removes only these two indexes. Disable or roll back
+organization quota readers before removing them. Settings and usage data are
+preserved. Configuration continues to use `rate_limit.organization.{id}` in
+`settings`; replacing its JSON clears quotas sent as `null`, while numeric zero
+remains a blocking quota. No settings backfill is needed for existing QPS-only
+JSON.
+
+Unit coverage in `organization_quota_indexes_test.go` checks forward and rollback
+SQL and index column order. The user infrastructure periodic-usage unit tests
+check generated MySQL SQL, bound UTC+8 boundaries, organization scope, query
+isolation, cancellation, and error propagation with SQL mocks.

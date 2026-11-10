@@ -363,3 +363,31 @@
     flex-wrap: wrap;
   }
 }
+.org-quota-summary .org-quota-metrics {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.org-quota-summary .org-quota-metrics:last-child {
+  margin-bottom: 0;
+}
+
+.org-quota-period-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.org-quota-period-value {
+  color: #525252;
+  font-variant-numeric: tabular-nums;
+}
+
+.org-quota-summary .org-quota-progress {
+  margin: 4px 0 0;
+  line-height: 1;
+}
