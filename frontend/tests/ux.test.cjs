@@ -114,9 +114,8 @@ test('inactive key detail history is not fetched and rate-limit writes retain ro
     /if \(!superAdmin \|\| loading \|\| saving \|\| !snapshot \|\| loadError\) return/,
   );
   assert.match(limits, /Number\(values.key_id\) !== selectedKeyId/);
-  assert.match(limits, /const \[loading, setLoading\] = useState\(true\)/);
   assert.doesNotMatch(limits, /setSnapshot\(null\)/);
-  assert.doesNotMatch(limits, /disabled=\{[^}]*\bloading\b/);
+  assert.match(limits, /disabled=\{!editable \|\| !formReady/);
   assert.match(limits, /loading=\{savingScope === 'global'\}/);
   assert.match(limits, /loading=\{savingScope === 'org'\}/);
   assert.match(limits, /className="rate-limits-status-slot"/);

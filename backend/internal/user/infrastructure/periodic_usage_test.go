@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"database/sql/driver"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -220,4 +222,121 @@ func periodicBoundaryArgs(id uint64, day, week, month, start time.Time) []driver
 	return []driver.Value{date(day), date(day), date(week), date(week), date(month), date(month), id, date(start),
 		day, day, week, week, month, month, id, start,
 		day, day, week, week, month, month, id, start}
+}
+
+func organizationPeriodicRows() *sqlmock.Rows {
+	return sqlmock.NewRows([]string{"organization_id", "daily_tokens", "daily_amount", "weekly_tokens", "weekly_amount", "monthly_tokens", "monthly_amount"})
+}
+func TestOrganizationPeriodicUsageBoundariesAndEmptyPeriods(t *testing.T) {
+	for _, test := range []struct {
+		name, now, day, week, month, earliest string
+		empty                                 bool
+	}{
+		{"before midnight", "2026-10-12T15:59:59Z", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
+		{"after midnight", "2026-10-12T16:00:00Z", "2026-10-12T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
+		{"Sunday", "2026-10-11T15:59:59Z", "2026-10-10T16:00:00Z", "2026-10-04T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
+		{"Monday", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
+		{"week spans previous month", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-27T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-27T16:00:00Z", false},
+		{"year rollover", "2026-12-31T16:00:00Z", "2026-12-31T16:00:00Z", "2026-12-27T16:00:00Z", "2026-12-31T16:00:00Z", "2026-12-27T16:00:00Z", false},
+		{"all periods reset", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repository, mock := quotaRepository(t)
+			parse := func(value string) time.Time {
+				v, err := time.Parse(time.RFC3339, value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return v
+			}
+			rows := organizationPeriodicRows()
+			want := OrganizationPeriodicUsage{OrganizationID: 2}
+			if !test.empty {
+				want = OrganizationPeriodicUsage{OrganizationID: 2, DailyTokens: 10, DailyAmount: 0.1, WeeklyTokens: 20, WeeklyAmount: 0.2, MonthlyTokens: 30, MonthlyAmount: 0.3}
+				rows.AddRow(2, 10, 0.1, 20, 0.2, 30, 0.3)
+			}
+			mock.ExpectQuery(`SELECT organization_id, .*FROM \(SELECT .*usage_daily_rollups FORCE INDEX \(idx_rollup_org_date\).*UNION ALL SELECT .*usage_logs_v2 FORCE INDEX \(idx_usage_org_pending_time\).*rollup_applied = 0.*UNION ALL SELECT .*usage_logs FORCE INDEX \(idx_usage_org_pending_time\).*rollup_applied = 0`).WithArgs(periodicBoundaryArgs(2, parse(test.day), parse(test.week), parse(test.month), parse(test.earliest))...).WillReturnRows(rows)
+			got, err := FindOrganizationPeriodicUsage(context.Background(), repository.database, 2, parse(test.now).In(time.FixedZone("host", -7*3600)))
+			if err != nil || got != want {
+				t.Fatalf("usage=%+v want=%+v err=%v", got, want, err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+func TestOrganizationPeriodicUsageErrorsAndCancellation(t *testing.T) {
+	for _, phase := range []string{"database error", "canceled", "deadline"} {
+		t.Run(phase, func(t *testing.T) {
+			repository, mock := quotaRepository(t)
+			ctx := context.Background()
+			want := errors.New("ledger unavailable")
+			switch phase {
+			case "canceled":
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+				want = context.Canceled
+			case "deadline":
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, time.Now().Add(-time.Second))
+				defer cancel()
+				want = context.DeadlineExceeded
+			default:
+				mock.ExpectQuery("SELECT organization_id, .*FROM").WillReturnError(want)
+			}
+			got, err := FindOrganizationPeriodicUsage(ctx, repository.database, 2, time.Now())
+			if !errors.Is(err, want) || got != (OrganizationPeriodicUsage{}) {
+				t.Fatalf("usage=%+v err=%v want=%v", got, err, want)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+func TestPeriodicUsageSQLKeepsSourcesIsolatedWithContext(t *testing.T) {
+	repository, _ := quotaRepository(t)
+	type contextKey struct{}
+	ctx := context.WithValue(context.Background(), contextKey{}, "request")
+	// WithContext and a transaction both produce sessions which must not share
+	// mutable clauses between the UNION branches or their outer aggregate.
+	for _, org := range []bool{false, true} {
+		t.Run(fmt.Sprint(org), func(t *testing.T) {
+			db := repository.database.WithContext(ctx).Session(&gorm.Session{DryRun: true})
+			now := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+			var statement *gorm.Statement
+			if org {
+				statement = organizationPeriodicUsageQuery(db, 2, now).Find(&[]organizationPeriodicUsageRecord{}).Statement
+			} else {
+				statement = periodicUsageQuery(db, []uint64{7}, now).Find(&[]periodicUsageRecord{}).Statement
+			}
+			sql := statement.SQL.String()
+			if statement.Context.Value(contextKey{}) != "request" {
+				t.Fatal("query lost request context")
+			}
+			if strings.Count(sql, "UNION ALL") != 2 || strings.Count(sql, "GROUP BY") != 4 || strings.Count(sql, "rollup_applied = 0") != 2 || strings.Count(sql, "created_at >= ? THEN") != 12 {
+				t.Fatalf("shared query clauses: %s", sql)
+			}
+			dimension, index := "api_key_id", "key"
+			if org {
+				dimension, index = "organization_id", "org"
+			}
+			for _, fragment := range []string{"usage_daily_rollups FORCE INDEX (idx_rollup_" + index + "_date)", "usage_logs_v2 FORCE INDEX (idx_usage_" + index + "_pending_time)", "usage_logs FORCE INDEX (idx_usage_" + index + "_pending_time)"} {
+				if strings.Count(sql, fragment) != 1 {
+					t.Fatalf("missing/duplicated index %s: %s", fragment, sql)
+				}
+			}
+			if org && (strings.Contains(sql, "api_keys") || strings.Contains(sql, "api_key_id")) {
+				t.Fatalf("tenant history must include moved/deleted keys without joining key identities: %s", sql)
+			}
+			if strings.Count(sql, "WHERE "+dimension) != 3 || len(statement.Vars) != 24 {
+				t.Fatalf("unscoped SQL or unexpected boundaries: %s vars=%v", sql, statement.Vars)
+			}
+			if db.Statement.SQL.Len() != 0 || db.Statement.Table != "" {
+				t.Fatal("builder mutated the caller session")
+			}
+		})
+	}
 }

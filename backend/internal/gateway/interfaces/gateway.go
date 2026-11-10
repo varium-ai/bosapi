@@ -97,6 +97,7 @@ type usageMetricsState struct {
 }
 
 type usageEvent struct {
+	CreatedAt        time.Time
 	Context          context.Context
 	RequestID        string
 	UsageID          string
@@ -148,7 +149,11 @@ type app struct {
 	usageQueueFailed     atomic.Uint64
 	quotaMu              sync.Mutex
 	quotaAdmissions      map[string]*quotaAdmission
+	organizationQuota    organizationQuotaRuntime
 	monitorClose         func()
+
+	organizationPendingMu sync.Mutex
+	organizationPending   map[uint64]*organizationPendingReceipts
 }
 
 // Config is kept as a compatibility alias for the application-layer startup configuration.
@@ -190,6 +195,7 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 			services.RateLimiter = gatewayinfra.NewLocalRateLimiter(rateLimits)
 			a.background = normalizeBackgroundServices(services)
 		}
+		a.organizationQuota = gatewayinfra.NewOrganizationQuotaCounter(nil, gatewayinfra.NewGormOrganizationQuotaRepository(a.database), "bos:org:quota")
 		if c.RedisURL != "" {
 			options, err := redis.ParseURL(c.RedisURL)
 			if err != nil {
@@ -205,6 +211,7 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 				return nil, err
 			}
 			services.RateLimiter = gatewayinfra.NewRedisRateLimiter(a.redisClient, rateLimits, "bos:gateway:rate")
+			a.organizationQuota = gatewayinfra.NewOrganizationQuotaCounter(a.redisClient, gatewayinfra.NewGormOrganizationQuotaRepository(a.database), "bos:org:quota")
 			a.portalLoginLock = authinfra.NewLoginLockStore(
 				a.redisClient,
 				"bos:auth:login-lock",
@@ -213,6 +220,9 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 				c.LoginLockDuration,
 			)
 			a.background = normalizeBackgroundServices(services)
+			if a.organizationQuota != nil {
+				a.organizationQuota.Start()
+			}
 		}
 		if _, noop := services.SecurityEvents.(gatewayinfra.RuleSecurityEventSink); noop {
 			services.SecurityEvents = gatewayinfra.RuleSecurityEventSink{Sink: gatewayinfra.NewDatabaseSecurityEventSink(db, 256), Advanced: services.AdvancedSecurity}
@@ -249,6 +259,9 @@ func (g *Gateway) Close() error {
 		g.app.keyExpiryWorker.Close()
 	}
 	g.app.stopUsageQueue()
+	if g.app.organizationQuota != nil {
+		g.app.organizationQuota.Close()
+	}
 	if sink, ok := g.app.background.SecurityEvents.(interface{ Close() }); ok {
 		sink.Close()
 	}
@@ -366,6 +379,18 @@ func (a *app) routes() http.Handler {
 				return true, string(errorcode.CounterBackendUnavailable)
 			}
 			return false, "redis_counter"
+		}
+		if a.organizationQuota != nil {
+			runtime.OrganizationQuotaUsage = a.organizationQuota.Usage
+		}
+		runtime.RateLimitCacheInvalidator = func(ctx context.Context, update admindomain.RateLimitUpdate) {
+			if a.organizationQuota == nil {
+				return
+			}
+			for _, organization := range update.Organizations {
+				a.organizationQuota.Invalidate(organization.OrganizationID)
+				a.organizationQuota.PublishInvalidate(ctx, organization.OrganizationID)
+			}
 		}
 		portal, err := server.NewPortalRouter(a.database, a.jwtSecret, 15*time.Minute, 30*24*time.Hour, a.requestBodyLimit(), a.encryptionKey, fallback, a.portalLoginLock, runtime)
 		if err != nil {
@@ -1377,13 +1402,16 @@ func (a *app) recordRequest(r *http.Request, provider provider, status int, dura
 	}
 	isStream := state != nil && state.streaming || strings.HasSuffix(gatewayPath(r), ":streamGenerateContent") || metrics.Realtime || strings.Contains(strings.ToLower(r.Header.Get("Accept")), "text/event-stream")
 	persistent, _ := r.Context().Value(gatewayPersistentKeyRequestKey{}).(bool)
-	event := usageEvent{Context: logContext, RequestID: requestID, UsageID: "usage_" + random(16), Key: key, KeyHash: keyHash, Model: model, Status: status, ErrorCode: responseCode, Duration: duration, Metrics: metrics, Endpoint: endpoint, IsStream: isStream, ClientIP: clientIPBytes(requestClientIP(r)), Persistent: persistent}
+	event := usageEvent{CreatedAt: time.Now().UTC(), Context: logContext, RequestID: requestID, UsageID: "usage_" + random(16), Key: key, KeyHash: keyHash, Model: model, Status: status, ErrorCode: responseCode, Duration: duration, Metrics: metrics, Endpoint: endpoint, IsStream: isStream, ClientIP: clientIPBytes(requestClientIP(r)), Persistent: persistent}
 	event.FirstTokenMillis = firstTokenState(r.Context()).elapsedMillis()
 	if err := a.settleGatewayQuota(event); err != nil {
 		a.usageQueueFailed.Add(1)
 		logging.Printf(logContext, "ERROR", "gateway.quota.persist_failed", "api_key_id=%d err=%v", key.ID, err)
-		if admission, ok := r.Context().Value(gatewayQuotaAdmissionRequestKey{}).(*quotaAdmission); ok {
+		if admission, ok := r.Context().Value(gatewayQuotaAdmissionRequestKey{}).(*quotaAdmission); ok && admission != nil {
 			admission.pending = &event
+		}
+		if event.Persistent && key.OrgID > 0 && a.organizationQuota != nil {
+			a.retainOrganizationReceipt(event)
 		}
 	}
 	if metrics.Known {

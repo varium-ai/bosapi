@@ -36,6 +36,7 @@ import { parseTelemetry, rollingErrorRate } from '../status/telemetry';
 import { actionKey, securityEventName } from '../common/ux';
 import { SegmentedControl } from '../common/SegmentedControl';
 import { AnnouncementPanel } from '../announcements/AnnouncementPanel';
+import { OrganizationQuotaSummary } from './OrganizationQuotaSummary';
 
 interface OverviewUser {
   id: number;
@@ -522,6 +523,8 @@ const AdminOverview: React.FC<{ user: OverviewUser }> = ({ user }) => {
           </Card>
         ))}
       </div>
+      {!superAdmin && user.organization_id > 0 && <OrganizationQuotaSummary user={user} />}
+
       <div className="overview-data-note">
         <span>{t('overview.time_basis')}</span>
         <span>
