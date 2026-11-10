@@ -464,13 +464,14 @@ func (limiter *RedisRateLimiter) AcquireSession(ctx context.Context, key domain.
 			case <-ticker.C:
 				renewCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				renewed, renewErr := renewSessionScript.Run(renewCtx, limiter.client, keys, token, lease.Milliseconds()).Int64()
-				if renewErr != nil || renewed == 0 {
-					// The lease expired or was removed while Redis was unavailable;
-					// never resurrect the token and inflate the active count.
-					cancel()
+				cancel()
+				if renewErr != nil {
+					continue // Redis may be temporarily unavailable; retry next interval.
+				}
+				if renewed == 0 {
+					// The lease expired or was removed; never resurrect the token.
 					return
 				}
-				cancel()
 			}
 		}
 	}()
