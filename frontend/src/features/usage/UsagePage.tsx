@@ -38,7 +38,7 @@ import { LoadError, PageHelp } from '../common/ConsoleUX';
 import { useDebouncedValue } from '../common/useDebouncedValue';
 import { DailyOrganizationUsage } from './DailyOrganizationUsage';
 import { UsageCountStatistic } from './UsageCountStatistic';
-import { defaultUsageRange, validUserUsageRange } from './userUsageFilters';
+import { businessToday, defaultUsageRange, validUserUsageRange } from './userUsageFilters';
 import { formatFirstTokenLatency } from './requestTiming';
 import { refreshUsageQueries, usageRefreshParams } from './usageQueryCache';
 
@@ -78,6 +78,7 @@ export const UsagePage: React.FC<{ recordsOnly?: boolean }> = ({ recordsOnly = f
     : ['records', 'daily', 'weekly', 'monthly'].includes(params.get('view') || '')
       ? params.get('view')!
       : 'organizations';
+  const previousTab = React.useRef<string | null>(null);
   const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
   const pageSize = [10, 20, 50, 100].includes(Number(params.get('page_size')))
     ? Number(params.get('page_size'))
@@ -113,6 +114,29 @@ export const UsagePage: React.FC<{ recordsOnly?: boolean }> = ({ recordsOnly = f
     return () => window.clearInterval(timer);
   }, []);
   const defaultRange = defaultUsageRange(clock);
+  React.useEffect(() => {
+    if (recordsOnly) return;
+    if (previousTab.current === activeTab) return;
+    previousTab.current = activeTab;
+    if (activeTab !== 'weekly' && activeTab !== 'monthly') return;
+    const today = dayjs(businessToday(clock));
+    const range =
+      activeTab === 'weekly'
+        ? {
+            from: today.startOf('week').add(1, 'day').format('YYYY-MM-DD'),
+            to: today.startOf('week').add(7, 'day').format('YYYY-MM-DD'),
+          }
+        : {
+            from: today.startOf('month').format('YYYY-MM-DD'),
+            to: today.endOf('month').format('YYYY-MM-DD'),
+          };
+    const next = new URLSearchParams(params);
+    next.set('from', range.from);
+    next.set('to', range.to);
+    next.delete('page');
+    next.delete('cursor');
+    setParams(next, { replace: true });
+  }, [activeTab, clock, params, recordsOnly, setParams]);
   const previousDay = React.useRef(defaultRange.from);
   React.useEffect(() => {
     if (previousDay.current !== defaultRange.from && !params.has('from') && !params.has('to')) {
