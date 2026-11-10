@@ -37,13 +37,16 @@ type RateLimitDecision struct {
 type RateLimitReason string
 
 const (
-	RateLimitQPS             RateLimitReason = "qps"
-	RateLimitGlobalQPS       RateLimitReason = "global_qps"
-	RateLimitOrganizationQPS RateLimitReason = "organization_qps"
-	RateLimitKeyQPS          RateLimitReason = "key_qps"
-	RateLimitQuota5H         RateLimitReason = "quota_5h"
-	RateLimitQuota1D         RateLimitReason = "quota_1d"
-	RateLimitQuota7D         RateLimitReason = "quota_7d"
+	RateLimitQPS                     RateLimitReason = "qps"
+	RateLimitGlobalConcurrency       RateLimitReason = "global_concurrency"
+	RateLimitOrganizationConcurrency RateLimitReason = "organization_concurrency"
+	RateLimitKeyConcurrency          RateLimitReason = "key_concurrency"
+	RateLimitGlobalQPS               RateLimitReason = RateLimitGlobalConcurrency
+	RateLimitOrganizationQPS         RateLimitReason = RateLimitOrganizationConcurrency
+	RateLimitKeyQPS                  RateLimitReason = RateLimitKeyConcurrency
+	RateLimitQuota5H                 RateLimitReason = "quota_5h"
+	RateLimitQuota1D                 RateLimitReason = "quota_1d"
+	RateLimitQuota7D                 RateLimitReason = "quota_7d"
 )
 
 func (reason RateLimitReason) IsQuota() bool {
@@ -52,6 +55,11 @@ func (reason RateLimitReason) IsQuota() bool {
 
 type RateLimitDecider interface {
 	Decide(context.Context, RateLimitKey, time.Time) (RateLimitDecision, error)
+}
+
+// SessionLimiter reserves a concurrency slot until the request finishes.
+type SessionLimiter interface {
+	AcquireSession(context.Context, RateLimitKey) (RateLimitDecision, func(), error)
 }
 
 // Trigger signal values are observability-only weak hints. They must remain

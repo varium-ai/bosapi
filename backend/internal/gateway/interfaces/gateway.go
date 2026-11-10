@@ -326,7 +326,7 @@ func (a *app) routes() http.Handler {
 	router.Use(gin.Recovery())
 	router.GET("/health", func(ctx *gin.Context) { ctx.Status(http.StatusOK) })
 	gateway := router.Group("")
-	gateway.Use(a.gatewayBodyLimitMiddleware(a.requestBodyLimit()), a.gatewayRequestIDMiddleware(), a.gatewayAccessLogMiddleware(), a.gatewayAuthenticationMiddleware(), a.gatewayErrorLogMiddleware(), a.gatewayGeminiMiddleware(), a.gatewayQuotaMiddleware(), a.gatewaySecurityMiddleware(), a.gatewayModelMiddleware(), a.gatewayRateLimitMiddleware(), a.gatewayUsageMiddleware())
+	gateway.Use(a.gatewayBodyLimitMiddleware(a.requestBodyLimit()), a.gatewayRequestIDMiddleware(), a.gatewayAccessLogMiddleware(), a.gatewayAuthenticationMiddleware(), a.gatewayErrorLogMiddleware(), a.gatewayGeminiMiddleware(), a.gatewaySessionMiddleware(), a.gatewayQuotaMiddleware(), a.gatewaySecurityMiddleware(), a.gatewayModelMiddleware(), a.gatewayRateLimitMiddleware(), a.gatewayUsageMiddleware())
 	gateway.Any("/v1beta/models", func(ctx *gin.Context) { a.gateway(ctx.Writer, ctx.Request) })
 	gateway.Any("/v1beta/models/*modelAction", func(ctx *gin.Context) { a.gateway(ctx.Writer, ctx.Request) })
 	gateway.Any("/v1", func(ctx *gin.Context) { a.gateway(ctx.Writer, ctx.Request) })

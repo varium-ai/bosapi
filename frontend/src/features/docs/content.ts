@@ -2174,7 +2174,7 @@ export const docPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Gateway 429 responses include `error.reason` (also in `X-RateLimit-Reason`) and `error.retryable`. QPS reasons are `global_qps`, `organization_qps`, and `key_qps`; window reasons are `quota_5h`, `quota_1d`, and `quota_7d`. Key budget reasons identify the period and unit, such as `daily_tokens` or `total_amount`. Upstream rejections use `upstream_rate_limit` or `upstream_quota`.',
+            text: 'Gateway 429 responses include `error.reason` (also in `X-RateLimit-Reason`) and `error.retryable`. Concurrency reasons are `global_concurrency`, `organization_concurrency`, and `key_concurrency`; window reasons are `quota_5h`, `quota_1d`, and `quota_7d`. Key budget reasons identify the period and unit, such as `daily_tokens` or `total_amount`. Upstream rejections use `upstream_rate_limit` or `upstream_quota`.',
           },
           {
             type: 'paragraph',

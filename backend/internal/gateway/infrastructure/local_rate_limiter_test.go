@@ -26,51 +26,47 @@ func (*rateLimitTestRepository) WriteRateLimits(context.Context, adminDomain.Rat
 	return nil
 }
 
-func TestLocalRateLimiterEnforcesSavedKeyLimit(t *testing.T) {
-	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{
-		Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{QPS: 1}}},
-	}}
+func TestLocalRateLimiterEnforcesSessionConcurrencyAndReleases(t *testing.T) {
+	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{QPS: 1}}}}}
 	limiter := NewLocalRateLimiter(repository)
-	now := time.Unix(1_800_000_000, 0)
 	key := domain.RateLimitKey{OrganizationID: 1, APIKeyID: 3}
-	for index, want := range []bool{true, false} {
-		decision, err := limiter.Decide(context.Background(), key, now.Add(time.Duration(index)*time.Millisecond))
-		if err != nil || decision.Allowed != want || !decision.Degraded {
-			t.Fatalf("request %d: decision=%+v err=%v", index, decision, err)
-		}
-		if !decision.Allowed && (decision.Reason != domain.RateLimitKeyQPS || decision.RetryAfter != 999*time.Millisecond) {
-			t.Fatalf("missing key QPS reason or reset: %+v", decision)
-		}
+	first, release, err := limiter.AcquireSession(t.Context(), key)
+	if err != nil || !first.Allowed || !first.Degraded {
+		t.Fatalf("first acquire=%+v err=%v", first, err)
 	}
-	decision, err := limiter.Decide(context.Background(), domain.RateLimitKey{OrganizationID: 1, APIKeyID: 4}, now)
-	if err != nil || !decision.Allowed {
-		t.Fatalf("other key: decision=%+v err=%v", decision, err)
+	denied, _, err := limiter.AcquireSession(t.Context(), key)
+	if err != nil || denied.Allowed || denied.Reason != domain.RateLimitKeyQPS {
+		t.Fatalf("second acquire=%+v err=%v", denied, err)
 	}
-	decision, err = limiter.Decide(context.Background(), key, now.Add(time.Second))
-	if err != nil || !decision.Allowed {
-		t.Fatalf("after window: decision=%+v err=%v", decision, err)
+	release()
+	third, releaseThird, err := limiter.AcquireSession(t.Context(), key)
+	if err != nil || !third.Allowed {
+		t.Fatalf("acquire after release=%+v err=%v", third, err)
 	}
+	releaseThird()
 }
 
-func TestLocalRateLimiterSharesOrganizationAndGlobalCounters(t *testing.T) {
-	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{
-		Global:        &adminDomain.RateLimitConfig{QPS: 3},
-		Organizations: []adminDomain.OrganizationRateLimit{{OrganizationID: 1, QPS: 2}},
-	}}
+func TestLocalRateLimiterSharesGlobalAndOrganizationSessions(t *testing.T) {
+	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{Global: &adminDomain.RateLimitConfig{QPS: 2}, Organizations: []adminDomain.OrganizationRateLimit{{OrganizationID: 1, QPS: 1}}}}
 	limiter := NewLocalRateLimiter(repository)
-	now := time.Unix(1_800_000_000, 0)
-	check := func(key domain.RateLimitKey, want bool) {
-		t.Helper()
-		decision, err := limiter.Decide(context.Background(), key, now)
-		if err != nil || decision.Allowed != want {
-			t.Fatalf("key=%+v decision=%+v err=%v, want allowed=%t", key, decision, err, want)
-		}
+	_, release, err := limiter.AcquireSession(t.Context(), domain.RateLimitKey{OrganizationID: 1, APIKeyID: 3})
+	if err != nil {
+		t.Fatal(err)
 	}
-	check(domain.RateLimitKey{OrganizationID: 1, APIKeyID: 3}, true)
-	check(domain.RateLimitKey{OrganizationID: 1, APIKeyID: 4}, true)
-	check(domain.RateLimitKey{OrganizationID: 1, APIKeyID: 5}, false)
-	check(domain.RateLimitKey{OrganizationID: 2, APIKeyID: 6}, true)
-	check(domain.RateLimitKey{OrganizationID: 2, APIKeyID: 7}, false)
+	denied, _, err := limiter.AcquireSession(t.Context(), domain.RateLimitKey{OrganizationID: 1, APIKeyID: 4})
+	if err != nil || denied.Allowed || denied.Reason != domain.RateLimitOrganizationQPS {
+		t.Fatalf("organization decision=%+v err=%v", denied, err)
+	}
+	allowed, releaseOther, err := limiter.AcquireSession(t.Context(), domain.RateLimitKey{OrganizationID: 2, APIKeyID: 5})
+	if err != nil || !allowed.Allowed {
+		t.Fatalf("other organization=%+v err=%v", allowed, err)
+	}
+	_, _, err = limiter.AcquireSession(t.Context(), domain.RateLimitKey{OrganizationID: 2, APIKeyID: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+	releaseOther()
 }
 
 func TestLocalRateLimiterUsesUpdatedConfiguration(t *testing.T) {
@@ -89,17 +85,18 @@ func TestLocalRateLimiterUsesUpdatedConfiguration(t *testing.T) {
 }
 
 func TestLocalRateLimiterAppliesGlobalLimitToLegacyKey(t *testing.T) {
-	repository := &rateLimitTestRepository{missingKeyRow: true, config: adminDomain.RateLimitUpdate{
-		Global: &adminDomain.RateLimitConfig{QPS: 1},
-	}}
+	repository := &rateLimitTestRepository{missingKeyRow: true, config: adminDomain.RateLimitUpdate{Global: &adminDomain.RateLimitConfig{QPS: 1}}}
 	limiter := NewLocalRateLimiter(repository)
-	now := time.Unix(1_800_000_000, 0)
-	for index, want := range []bool{true, false} {
-		decision, err := limiter.Decide(context.Background(), domain.RateLimitKey{OrganizationID: 1, APIKeyID: 3}, now)
-		if err != nil || decision.Allowed != want {
-			t.Fatalf("request %d: decision=%+v err=%v", index, decision, err)
-		}
+	key := domain.RateLimitKey{OrganizationID: 1, APIKeyID: 3}
+	first, release, err := limiter.AcquireSession(t.Context(), key)
+	if err != nil || !first.Allowed {
+		t.Fatalf("first=%+v err=%v", first, err)
 	}
+	second, _, err := limiter.AcquireSession(t.Context(), key)
+	if err != nil || second.Allowed || second.Reason != domain.RateLimitGlobalQPS {
+		t.Fatalf("second=%+v err=%v", second, err)
+	}
+	release()
 }
 
 func TestRateLimitBucketsMatchTheirScope(t *testing.T) {

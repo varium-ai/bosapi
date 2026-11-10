@@ -46,8 +46,7 @@ Gateway-generated 429 responses expose `error.code`, `error.reason`, and
 `error.retryable`. `X-RateLimit-Reason` mirrors the reason; `X-RateLimit-Limit`
 and `X-RateLimit-Remaining: 0` describe the exhausted policy when its limit is known.
 
-- QPS: `rate_limited`, with `global_qps`, `organization_qps`, or `key_qps`.
-  Legacy limiters without policy metadata return `qps`.
+- Concurrent session caps: `rate_limited`, with `global_concurrency`, `organization_concurrency`, or `key_concurrency`. Session leases are released when the request ends and expire after Redis failures/crashes.
 - Configured windows: `quota_exceeded`, with `quota_5h`, `quota_1d`, or `quota_7d`.
 - Key budgets: `quota_exceeded`, with `total_tokens`, `total_amount`,
   `daily_tokens`, `daily_amount`, `weekly_tokens`, `weekly_amount`,
