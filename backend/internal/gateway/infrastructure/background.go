@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	adminDomain "bosapi/backend/internal/admin/domain"
@@ -357,16 +360,12 @@ type RedisRateLimiter struct {
 	client     redis.UniversalClient
 	repository adminDomain.RateLimitRepository
 	prefix     string
-	fallback   *LocalRateLimiter
 }
 
 func (limiter *RedisRateLimiter) Decide(ctx context.Context, key domain.RateLimitKey, now time.Time) (domain.RateLimitDecision, error) {
 	decision, err := limiter.decideRedis(ctx, key)
 	if err != nil {
-		if limiter.repository == nil || limiter.fallback == nil {
-			return domain.RateLimitDecision{}, err
-		}
-		return limiter.fallback.Decide(ctx, key, now)
+		return domain.RateLimitDecision{Allowed: true, Degraded: true}, nil
 	}
 	return decision, nil
 }
@@ -375,7 +374,150 @@ func NewRedisRateLimiter(client redis.UniversalClient, repository adminDomain.Ra
 	if prefix == "" {
 		prefix = "bos:gateway:rate"
 	}
-	return &RedisRateLimiter{client: client, repository: repository, prefix: prefix, fallback: NewLocalRateLimiter(repository)}
+	return &RedisRateLimiter{client: client, repository: repository, prefix: prefix}
+}
+
+var acquireSessionScript = redis.NewScript(`
+local time = redis.call('TIME')
+local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+local expiry = now + tonumber(ARGV[2])
+local token = ARGV[1]
+for i, key in ipairs(KEYS) do
+  redis.call('ZREMRANGEBYSCORE', key, '-inf', now)
+  local limit = tonumber(ARGV[2 + i])
+  if limit > 0 and redis.call('ZCARD', key) >= limit then return {0, i} end
+end
+for _, key in ipairs(KEYS) do redis.call('ZADD', key, expiry, token); redis.call('PEXPIRE', key, 7200000) end
+return {1, 0}
+`)
+
+var releaseSessionScript = redis.NewScript(`for _, key in ipairs(KEYS) do redis.call('ZREM', key, ARGV[1]) end return 1`)
+
+// Renew only an existing lease. If any scope lost the token while Redis was
+// unavailable, return 0 without recreating it; another request may own the slot.
+var renewSessionScript = redis.NewScript(`
+local time=redis.call('TIME')
+local expiry=tonumber(time[1])*1000+math.floor(tonumber(time[2])/1000)+tonumber(ARGV[2])
+local now=tonumber(time[1])*1000+math.floor(tonumber(time[2])/1000)
+for _,key in ipairs(KEYS) do
+  local score=redis.call('ZSCORE', key, ARGV[1])
+  if not score or tonumber(score) <= now then return 0 end
+end
+for _,key in ipairs(KEYS) do
+  redis.call('ZADD', key, expiry, ARGV[1])
+  redis.call('PEXPIRE', key, 7200000)
+end
+return 1
+`)
+
+// AcquireSession atomically reserves global, organization and key slots. Leases
+// expire after an hour as crash protection and are renewed while the request lives.
+func (limiter *RedisRateLimiter) AcquireSession(ctx context.Context, key domain.RateLimitKey) (domain.RateLimitDecision, func(), error) {
+	if limiter.client == nil || limiter.repository == nil {
+		return domain.RateLimitDecision{Allowed: true, Degraded: true}, func() {}, nil
+	}
+	config, err := readGatewayRateLimits(ctx, limiter.repository, key)
+	if err != nil {
+		return domain.RateLimitDecision{Allowed: true, Degraded: true}, func() {}, nil
+	}
+	rules := configuredConcurrencyRules(config, key)
+	var keys []string
+	var limits []int64
+	var activeRules []redisLimitRule
+	for _, rule := range rules {
+		if rule.limit > 0 {
+			keys = append(keys, concurrencyBucket(limiter.prefix, rule.name, key))
+			limits = append(limits, rule.limit)
+			activeRules = append(activeRules, rule)
+		}
+	}
+	if len(keys) == 0 {
+		return domain.RateLimitDecision{Allowed: true}, func() {}, nil
+	}
+	token := strconv.FormatInt(time.Now().UnixNano(), 36) + ":" + strconv.FormatUint(sessionSequence.Add(1), 36)
+	lease := time.Hour
+	args := []any{token, lease.Milliseconds()}
+	for _, limit := range limits {
+		args = append(args, limit)
+	}
+	result, err := acquireSessionScript.Run(ctx, limiter.client, keys, args...).Int64Slice()
+	if err != nil {
+		return domain.RateLimitDecision{Allowed: true, Degraded: true}, func() {}, nil
+	}
+	if len(result) != 2 || result[1] < 0 || result[1] > int64(len(limits)) {
+		return domain.RateLimitDecision{Allowed: true, Degraded: true}, func() {}, nil
+	}
+	if result[0] == 0 {
+		rule := activeRules[result[1]-1]
+		return domain.RateLimitDecision{Allowed: false, Reason: rule.reason(), Limit: rule.limit, Remaining: 0, RetryAfter: time.Second}, func() {}, nil
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(20 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				renewCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				renewed, renewErr := renewSessionScript.Run(renewCtx, limiter.client, keys, token, lease.Milliseconds()).Int64()
+				cancel()
+				if renewErr != nil {
+					continue // Redis may be temporarily unavailable; retry next interval.
+				}
+				if renewed == 0 {
+					// The lease expired or was removed; never resurrect the token.
+					return
+				}
+			}
+		}
+	}()
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			close(stop)
+			<-done
+			releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = releaseSessionScript.Run(releaseCtx, limiter.client, keys, token).Err()
+		})
+	}
+	return domain.RateLimitDecision{Allowed: true}, release, nil
+}
+
+// All keys touched by the multi-key Lua scripts share a Redis Cluster slot.
+func concurrencyBucket(prefix, name string, key domain.RateLimitKey) string {
+	scope := "global"
+	switch name {
+	case "organization":
+		scope = "organization:" + strconv.FormatUint(key.OrganizationID, 10)
+	case "key":
+		scope = "key:" + strconv.FormatUint(key.APIKeyID, 10)
+	}
+	return prefix + ":{sessions}:" + scope
+}
+
+var sessionSequence atomic.Uint64
+
+func configuredConcurrencyRules(config adminDomain.RateLimitUpdate, key domain.RateLimitKey) []redisLimitRule {
+	var rules []redisLimitRule
+	if config.Global != nil {
+		rules = append(rules, redisLimitRule{"global", config.Global.QPS, 0})
+	}
+	for _, item := range config.Organizations {
+		if item.OrganizationID == key.OrganizationID {
+			rules = append(rules, redisLimitRule{"organization", item.QPS, 0})
+		}
+	}
+	for _, item := range config.Keys {
+		if item.KeyID == key.APIKeyID {
+			rules = append(rules, redisLimitRule{"key", item.QPS, 0})
+		}
+	}
+	return rules
 }
 
 var rateLimitScript = redis.NewScript(`
@@ -469,11 +611,11 @@ type redisLimitRule struct {
 func (rule redisLimitRule) reason() domain.RateLimitReason {
 	switch rule.name {
 	case "global":
-		return domain.RateLimitGlobalQPS
+		return domain.RateLimitGlobalConcurrency
 	case "organization":
-		return domain.RateLimitOrganizationQPS
+		return domain.RateLimitOrganizationConcurrency
 	case "key":
-		return domain.RateLimitKeyQPS
+		return domain.RateLimitKeyConcurrency
 	default:
 		return domain.RateLimitReason(rule.name)
 	}
@@ -495,17 +637,10 @@ func (limiter *RedisRateLimiter) rules(config adminDomain.RateLimitUpdate, key d
 
 func configuredRateLimitRules(config adminDomain.RateLimitUpdate, key domain.RateLimitKey) []redisLimitRule {
 	var rules []redisLimitRule
-	if config.Global != nil {
-		rules = append(rules, redisLimitRule{"global", config.Global.QPS, time.Second})
-	}
-	for _, item := range config.Organizations {
-		if item.OrganizationID == key.OrganizationID {
-			rules = append(rules, redisLimitRule{"organization", item.QPS, time.Second})
-		}
-	}
+	// Legacy QPS fields are now enforced as active-session caps in AcquireSession.
 	for _, item := range config.Keys {
 		if item.KeyID == key.APIKeyID {
-			rules = append(rules, redisLimitRule{"key", item.QPS, time.Second}, redisLimitRule{"quota_5h", pointerOrZero(item.Quota5H), 5 * time.Hour}, redisLimitRule{"quota_1d", pointerOrZero(item.Quota1D), 24 * time.Hour}, redisLimitRule{"quota_7d", pointerOrZero(item.Quota7D), 7 * 24 * time.Hour})
+			rules = append(rules, redisLimitRule{"quota_5h", pointerOrZero(item.Quota5H), 5 * time.Hour}, redisLimitRule{"quota_1d", pointerOrZero(item.Quota1D), 24 * time.Hour}, redisLimitRule{"quota_7d", pointerOrZero(item.Quota7D), 7 * 24 * time.Hour})
 		}
 	}
 	return rules

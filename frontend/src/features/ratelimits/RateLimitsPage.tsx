@@ -338,7 +338,7 @@ const RateLimitsEditor: React.FC<{
               title={
                 <Space>
                   <GlobalOutlined />
-                  <span>{t('ratelimits.global_card_title', 'Global Gateway QPS')}</span>
+                  <span>{t('ratelimits.global_card_title', 'Global Concurrent Sessions')}</span>
                 </Space>
               }
               style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
@@ -354,11 +354,11 @@ const RateLimitsEditor: React.FC<{
               <div>
                 <Descriptions size="small" column={1} style={{ marginBottom: 16 }}>
                   <Descriptions.Item
-                    label={t('ratelimits.configured_global_qps', 'Configured Global QPS')}
+                    label={t('ratelimits.configured_global_qps', 'Configured Global Concurrency')}
                   >
-                    <Tag color="blue">{`${snapshot?.global?.qps ?? 0} req/s`}</Tag>
+                    <Tag color="blue">{`${snapshot?.global?.qps ?? 0} sessions`}</Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label={t('ratelimits.current_live_qps', 'Current Live QPS')}>
+                  <Descriptions.Item label={t('ratelimits.current_live_qps', 'Current Active Sessions')}>
                     {snapshot?.global?.current_qps ??
                       t('ratelimits.persisted_mode', 'N/A (Persisted Mode)')}
                   </Descriptions.Item>
@@ -376,11 +376,11 @@ const RateLimitsEditor: React.FC<{
                 >
                   <Form.Item
                     name="qps"
-                    label={t('ratelimits.global_qps_label', 'Global QPS Cap (0 = unlimited)')}
+                    label={t('ratelimits.global_qps_label', 'Global concurrent sessions (0 = unlimited)')}
                     rules={[
                       {
                         required: true,
-                        message: t('ratelimits.enter_global_qps', 'Enter global QPS'),
+                        message: t('ratelimits.enter_global_qps', 'Enter concurrency limit'),
                       },
                       qpsRangeRule,
                     ]}
@@ -392,7 +392,7 @@ const RateLimitsEditor: React.FC<{
                       precision={0}
                       maxLength={7}
                       style={{ width: '100%' }}
-                      addonAfter="req / sec"
+                      addonAfter="sessions"
                     />
                   </Form.Item>
                   <div style={{ marginTop: 8 }}>
@@ -419,7 +419,7 @@ const RateLimitsEditor: React.FC<{
             title={
               <Space>
                 <ApartmentOutlined />
-                <span>{t('ratelimits.org_card_title', 'Organization QPS & Period Quotas')}</span>
+                <span>{t('ratelimits.org_card_title', 'Organization Concurrency & Period Quotas')}</span>
               </Space>
             }
             style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
@@ -537,7 +537,7 @@ const RateLimitsEditor: React.FC<{
                       max={MAX_QPS}
                       precision={0}
                       style={{ width: '100%' }}
-                      addonAfter="req / sec"
+                      addonAfter="sessions"
                     />
                   </Form.Item>
                   <Text type="secondary">{t('ratelimits.org_quota_hint')}</Text>
@@ -598,7 +598,7 @@ const RateLimitsEditor: React.FC<{
                   <Descriptions.Item label={t('ratelimits.org_qps_label')}>
                     {snapshot.organization.qps === 0
                       ? t('keys.unlimited')
-                      : `${snapshot.organization.qps} req / sec`}
+                      : `${snapshot.organization.qps} sessions`}
                   </Descriptions.Item>
                 </Descriptions>
               ) : null}
@@ -615,7 +615,7 @@ const RateLimitsEditor: React.FC<{
               title={
                 <Space>
                   <KeyOutlined />
-                  <span>{t('ratelimits.key_card_title', 'API Key QPS & Token Quotas')}</span>
+                  <span>{t('ratelimits.key_card_title', 'API Key Concurrency & Token Quotas')}</span>
                 </Space>
               }
             >
@@ -785,9 +785,9 @@ const RateLimitsEditor: React.FC<{
                   <Col xs={24} sm={12} lg={6}>
                     <Form.Item
                       name="qps"
-                      label={t('ratelimits.key_qps_label', 'Key QPS Limit')}
+                      label={t('ratelimits.key_qps_label', 'Key concurrent sessions')}
                       rules={[
-                        { required: true, message: t('ratelimits.enter_global_qps', 'Enter QPS') },
+                        { required: true, message: t('ratelimits.enter_global_qps', 'Enter concurrency limit') },
                         qpsRangeRule,
                       ]}
                       extra={qpsRangeMessage}
@@ -798,7 +798,7 @@ const RateLimitsEditor: React.FC<{
                         precision={0}
                         maxLength={7}
                         style={{ width: '100%' }}
-                        addonAfter="req/s"
+                        addonAfter="sessions"
                       />
                     </Form.Item>
                   </Col>

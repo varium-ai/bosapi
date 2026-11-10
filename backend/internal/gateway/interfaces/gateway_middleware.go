@@ -447,13 +447,48 @@ func providerSupportsModel(p provider, model string) bool {
 	return false
 }
 
-func (a *app) gatewayRateLimitMiddleware() gin.HandlerFunc {
+// gatewaySessionMiddleware reserves capacity before quota, security and model
+// checks, so those operations count as an active request session.
+func (a *app) gatewaySessionMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key, _ := c.Get(gatewayAPIKeyContext)
 		apiKey := key.(apiKey)
 		path := gatewayPath(c.Request)
 		limitKey := RateLimitKey{OrganizationID: uint64(apiKey.OrgID), APIKeyID: uint64(apiKey.ID), Route: path, Model: requestModel(c.Request), Operation: requestOperation(c.Request)}
 		logging.Printf(c.Request.Context(), "INFO", "gateway.rate_limit.check", "method=%s path=%s model=%s operation=%s", c.Request.Method, path, limitKey.Model, limitKey.Operation)
+		if sessions, ok := a.background.RateLimiter.(domain.SessionLimiter); ok {
+			sessionDecision, release, acquireErr := sessions.AcquireSession(c.Request.Context(), limitKey)
+			if acquireErr != nil {
+				sessionDecision = RateLimitDecision{Allowed: true, Degraded: true}
+			}
+			if sessionDecision.Degraded {
+				c.Header("X-RateLimit-Degraded", "true")
+			}
+			if !sessionDecision.Allowed {
+				retry := sessionDecision.RetryAfter
+				if retry <= 0 {
+					retry = time.Second
+				}
+				writeGatewayLimitError(c.Writer, errorcode.RateLimited, string(sessionDecision.Reason), retry, strconv.FormatInt(sessionDecision.Limit, 10))
+				c.Abort()
+				return
+			}
+			if release != nil {
+				defer release()
+			}
+		}
+		c.Set(gatewayRateLimitContext, limitKey)
+		c.Next()
+	}
+}
+
+func (a *app) gatewayRateLimitMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key, _ := c.Get(gatewayAPIKeyContext)
+		apiKey := key.(apiKey)
+		path := gatewayPath(c.Request)
+		limitKey := RateLimitKey{OrganizationID: uint64(apiKey.OrgID), APIKeyID: uint64(apiKey.ID), Route: path, Model: requestModel(c.Request), Operation: requestOperation(c.Request)}
+		logging.Printf(c.Request.Context(), "INFO", "gateway.rate_limit.decision", "method=%s path=%s model=%s operation=%s", c.Request.Method, path, limitKey.Model, limitKey.Operation)
 		decision := RateLimitDecision{Allowed: true}
 		var err error
 		if decider, ok := a.background.RateLimiter.(RateLimitDecider); ok {
@@ -466,9 +501,10 @@ func (a *app) gatewayRateLimitMiddleware() gin.HandlerFunc {
 			if decision.Degraded {
 				c.Header("X-RateLimit-Degraded", "true")
 			} else {
-				fail(c.Writer, http.StatusServiceUnavailable, errorcode.RateLimiterUnavailable)
-				c.Abort()
-				return
+				// Availability-first: backend errors bypass this limiter and surface degradation.
+				decision.Allowed = true
+				decision.Degraded = true
+				c.Header("X-RateLimit-Degraded", "true")
 			}
 		}
 		if decision.Degraded {
@@ -506,7 +542,6 @@ func (a *app) gatewayRateLimitMiddleware() gin.HandlerFunc {
 		}
 		logging.Printf(c.Request.Context(), "INFO", "gateway.rate_limit.allowed", "method=%s path=%s limit=%d remaining=%d degraded=%t", c.Request.Method, path, decision.Limit, decision.Remaining, decision.Degraded)
 		c.Set(gatewayPathContext, path)
-		c.Set(gatewayRateLimitContext, limitKey)
 		c.Next()
 	}
 }

@@ -21,10 +21,49 @@ type LocalRateLimiter struct {
 	mu         sync.Mutex
 	counters   map[string]localRateCounter
 	lastSweep  time.Time
+	active     map[string]int64
 }
 
 func NewLocalRateLimiter(repository adminDomain.RateLimitRepository) *LocalRateLimiter {
-	return &LocalRateLimiter{repository: repository, counters: make(map[string]localRateCounter)}
+	return &LocalRateLimiter{repository: repository, counters: make(map[string]localRateCounter), active: make(map[string]int64)}
+}
+
+func (limiter *LocalRateLimiter) AcquireSession(ctx context.Context, key domain.RateLimitKey) (domain.RateLimitDecision, func(), error) {
+	config, err := readGatewayRateLimits(ctx, limiter.repository, key)
+	if err != nil {
+		return domain.RateLimitDecision{Allowed: true, Degraded: true}, func() {}, nil
+	}
+	rules := configuredConcurrencyRules(config, key)
+	limiter.mu.Lock()
+	for _, rule := range rules {
+		if rule.limit > 0 && limiter.active[rateLimitBucket("", rule.name, key)] >= rule.limit {
+			limiter.mu.Unlock()
+			return domain.RateLimitDecision{Allowed: false, Reason: rule.reason(), Limit: rule.limit, RetryAfter: time.Second, Degraded: true}, func() {}, nil
+		}
+	}
+	var buckets []string
+	for _, rule := range rules {
+		if rule.limit > 0 {
+			b := rateLimitBucket("", rule.name, key)
+			limiter.active[b]++
+			buckets = append(buckets, b)
+		}
+	}
+	limiter.mu.Unlock()
+	var once sync.Once
+	return domain.RateLimitDecision{Allowed: true, Degraded: true}, func() {
+		once.Do(func() {
+			limiter.mu.Lock()
+			defer limiter.mu.Unlock()
+			for _, b := range buckets {
+				if limiter.active[b] <= 1 {
+					delete(limiter.active, b)
+				} else {
+					limiter.active[b]--
+				}
+			}
+		})
+	}, nil
 }
 
 func (limiter *LocalRateLimiter) Decide(ctx context.Context, key domain.RateLimitKey, now time.Time) (domain.RateLimitDecision, error) {

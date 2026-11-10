@@ -2,7 +2,7 @@ package domain
 
 import "context"
 
-// RateLimitConfig stores a QPS limit and optional rolling token quotas.
+// RateLimitConfig stores a concurrent-session limit in the legacy qps field, plus optional rolling token quotas.
 type RateLimitConfig struct {
 	QPS     int64  `json:"qps"`
 	Quota5H *int64 `json:"quota_5h,omitempty"`
@@ -10,8 +10,7 @@ type RateLimitConfig struct {
 	Quota7D *int64 `json:"quota_7d,omitempty"`
 }
 
-// OrganizationRateLimit associates a QPS configuration and optional calendar
-// quotas with an organization.
+// OrganizationRateLimit associates a concurrent-session limit and optional calendar quotas with an organization.
 type OrganizationRateLimit struct {
 	OrganizationID uint64 `json:"organization_id"`
 	QPS            int64  `json:"qps"`
@@ -24,7 +23,7 @@ type OrganizationRateLimit struct {
 	MonthlyQuotaAmount *float64 `json:"monthly_quota_amount,omitempty"`
 }
 
-// KeyRateLimit associates QPS and quota settings with an API key.
+// KeyRateLimit associates a concurrent-session limit and quota settings with an API key.
 type KeyRateLimit struct {
 	KeyID uint64 `json:"key_id"`
 	RateLimitConfig

@@ -21,14 +21,11 @@ func (gatewayRateLimitRepository) WriteRateLimits(context.Context, adminDomain.R
 	return nil
 }
 
-func TestGatewayReturns429ForConfiguredKeyQPS(t *testing.T) {
+func TestGatewayReturns429ForConfiguredQuotas(t *testing.T) {
 	for _, test := range []struct {
 		reason, code, retry string
 		config              adminDomain.RateLimitUpdate
 	}{
-		{"global_qps", "rate_limited", "1", adminDomain.RateLimitUpdate{Global: &adminDomain.RateLimitConfig{QPS: 1}}},
-		{"organization_qps", "rate_limited", "1", adminDomain.RateLimitUpdate{Organizations: []adminDomain.OrganizationRateLimit{{OrganizationID: 1, QPS: 1}}}},
-		{"key_qps", "rate_limited", "1", adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{QPS: 1}}}}},
 		{"quota_5h", "quota_exceeded", "18000", adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota5H: int64Ptr(1)}}}}},
 		{"quota_1d", "quota_exceeded", "86400", adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota1D: int64Ptr(1)}}}}},
 		{"quota_7d", "quota_exceeded", "604800", adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota7D: int64Ptr(1)}}}}},
@@ -36,6 +33,24 @@ func TestGatewayReturns429ForConfiguredKeyQPS(t *testing.T) {
 		t.Run(test.reason, func(t *testing.T) {
 			testGatewayConfiguredLimit(t, test.config, test.code, test.reason, test.retry)
 		})
+	}
+}
+
+func TestGatewayReleasesSessionAfterResponse(t *testing.T) {
+	a := testApp(t)
+	secret := "sk-gw-" + random(32)
+	a.data.Providers = []provider{{ID: 1, Status: "active", Type: "unconfigured"}}
+	a.data.Keys = []apiKey{{ID: 3, OrgID: 1, Hash: digest(secret), Status: "active", ProviderID: 1}}
+	a.background.RateLimiter = gatewayinfra.NewLocalRateLimiter(gatewayRateLimitRepository{config: adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{QPS: 1}}}}})
+	handler := a.routes()
+	for i := 0; i < 2; i++ {
+		request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		request.Header.Set("Authorization", "Bearer "+secret)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("completed request %d was not released: status=%d body=%s", i, response.Code, response.Body.String())
+		}
 	}
 }
 
