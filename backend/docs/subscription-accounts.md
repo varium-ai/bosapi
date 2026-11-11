@@ -80,6 +80,8 @@ tool history in JSON or streaming mode. It rejects generation controls including
 token limits, sampling and stop sequences until their Codex support is verified;
 other unsupported fields return an explicit conversion error. Output types that
 cannot be represented in Chat, including opaque reasoning items, remain rejected.
+Chat `reasoning_effort` maps unchanged to Responses `reasoning.effort`; actual
+effort availability depends on the selected upstream model.
 The separate Messages compatibility path remains limited to plain non-streaming
 conversation; use native Responses for full Codex capabilities.
 Subscription OAuth does not grant OpenAI API embeddings or image API access.

@@ -64,6 +64,9 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 		flush()
 	}
 	root := map[string]any{"model": q.Model, "input": input, "instructions": "", "stream": true, "store": false}
+	if q.ReasoningEffort != "" {
+		root["reasoning"] = map[string]any{"effort": q.ReasoningEffort}
+	}
 	if len(q.Tools) > 0 {
 		tools := []any{}
 		for _, tool := range q.Tools {

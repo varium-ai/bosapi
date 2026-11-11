@@ -65,6 +65,7 @@ type RelayTool struct {
 type RelayRequest struct {
 	Model                string
 	SystemRole           string
+	ReasoningEffort      string
 	Stream, IncludeUsage bool
 	System               []string
 	Messages             []RelayMessage
@@ -236,6 +237,23 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 		}
 	}
 	if source == "chat" {
+		if target == "openai_responses" {
+			if value, exists := root["reasoning_effort"]; exists {
+				if value != nil {
+					effort, ok := value.(string)
+					if !ok {
+						return q, conversionError("reasoning_effort", "expected a supported effort string or null")
+					}
+					switch effort {
+					case "none", "minimal", "low", "medium", "high", "xhigh", "max":
+						q.ReasoningEffort = effort
+					default:
+						return q, conversionError("reasoning_effort", "unsupported reasoning effort")
+					}
+				}
+				delete(root, "reasoning_effort")
+			}
+		}
 		if value, exists := root["max_completion_tokens"]; exists {
 			number, ok := value.(json.Number)
 			if !ok {

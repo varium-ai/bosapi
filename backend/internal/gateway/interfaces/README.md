@@ -348,7 +348,9 @@ Anthropic and Gemini relay. When both are present, they must be equal positive
 integers. OpenAI OAuth Chat uses a separate bounded Responses bridge: it accepts
 text, user images, function tools, matching tool history and JSON/SSE, and
 rejects generation controls including token limits rather than silently dropping
-them. Responses-specific opaque reasoning and other unrepresentable output still
+them. Chat `reasoning_effort` maps to Responses `reasoning.effort` unchanged;
+the upstream validates which effort values its selected model supports. A null
+value is treated as absent. Responses-specific opaque reasoning and other unrepresentable output still
 require the native Responses endpoint.
 
 Unsupported upstream content returns HTTP 502 `unsupported_upstream_feature`.
