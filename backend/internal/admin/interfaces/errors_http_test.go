@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func TestAdminErrorsWindowDefaultsAndPresets(t *testing.T) {
 		t.Run(strconv.Itoa(minutes), func(t *testing.T) {
 			repo := &errorWindowRepository{}
 			router := errorWindowRouter(repo, "org_admin")
-			query := "/errors?error_code=upstream_error&key_id=22"
+			query := "/errors?error_code=upstream_error&key_id=22&model=gpt-4o"
 			if minutes != 0 {
 				query += "&window_minutes=" + strconv.Itoa(minutes)
 			}
@@ -60,7 +61,7 @@ func TestAdminErrorsWindowDefaultsAndPresets(t *testing.T) {
 			if want == 0 {
 				want = 5
 			}
-			if filter.To.Sub(filter.From) != time.Duration(want)*time.Minute || filter.To.Before(start) || filter.To.After(time.Now()) || filter.OrganizationID != 11 || filter.APIKeyID != 22 || filter.ErrorCode != "upstream_error" {
+			if filter.To.Sub(filter.From) != time.Duration(want)*time.Minute || filter.To.Before(start) || filter.To.After(time.Now()) || filter.OrganizationID != 11 || filter.APIKeyID != 22 || filter.ErrorCode != "upstream_error" || filter.Model != "gpt-4o" {
 				t.Fatalf("unexpected filter: %+v", filter)
 			}
 		})
@@ -73,6 +74,7 @@ func TestAdminErrorsRejectInvalidWindowBeforeQuery(t *testing.T) {
 		"window_minutes=1441", "window_minutes=2880", "window_minutes=abc", "window_minutes=5.5",
 		"to=invalid", "to=0001-01-01T00:00:00Z", "cursor=invalid",
 		"cursor=" + encodeErrorCursor(time.Now(), 1),
+		"model=" + strings.Repeat("m", 129),
 	} {
 		t.Run(query, func(t *testing.T) {
 			repo := &errorWindowRepository{}
@@ -88,7 +90,7 @@ func TestAdminErrorsRejectInvalidWindowBeforeQuery(t *testing.T) {
 func TestAdminErrorsCursorKeepsWindowAndRejectsChangedScope(t *testing.T) {
 	repo := &errorWindowRepository{}
 	router := errorWindowRouter(repo, "super_admin")
-	params := url.Values{"window_minutes": {"120"}, "organization_id": {"11"}, "key_id": {"22"}, "error_code": {"upstream_error"}, "to": {"2026-11-03T12:00:00+08:00"}}
+	params := url.Values{"window_minutes": {"120"}, "organization_id": {"11"}, "key_id": {"22"}, "error_code": {"upstream_error"}, "model": {"gpt-4o"}, "to": {"2026-11-03T12:00:00+08:00"}}
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest("GET", "/errors?"+params.Encode(), nil))
 	var body struct {
@@ -112,7 +114,7 @@ func TestAdminErrorsCursorKeepsWindowAndRejectsChangedScope(t *testing.T) {
 	if !next.From.Equal(first.From) || !next.To.Equal(first.To) || next.BeforeID != 7 || !next.Before.Equal(first.To.Add(-time.Minute)) || !body.Data.From.Equal(first.From) || !body.Data.To.Equal(first.To) {
 		t.Fatalf("window changed: first=%+v next=%+v", first, next)
 	}
-	for key, value := range map[string]string{"window_minutes": "5", "organization_id": "12", "key_id": "23", "error_code": "invalid_request", "to": "2026-11-03T05:00:00Z"} {
+	for key, value := range map[string]string{"window_minutes": "5", "organization_id": "12", "key_id": "23", "error_code": "invalid_request", "model": "gpt-4.1", "to": "2026-11-03T05:00:00Z"} {
 		t.Run(key, func(t *testing.T) {
 			changed, _ := url.ParseQuery(params.Encode())
 			changed.Set(key, value)

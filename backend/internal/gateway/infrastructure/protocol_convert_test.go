@@ -147,6 +147,7 @@ func TestRelayImageBlocksConvertToEveryUpstream(t *testing.T) {
 		{"url to anthropic", "messages", "anthropic_messages", urlImage, `{"type":"url","url":"https://example.com/a.png"}`},
 		{"chat data url stays", "chat", "openai_chat", `{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,aGVsbG8="}}`, `"image_url":{"url":"data:image/jpeg;base64,aGVsbG8="}`},
 		{"chat http url stays", "chat", "openai_chat", `{"type":"image_url","image_url":{"url":"https://example.com/a.png"}}`, `"image_url":{"url":"https://example.com/a.png"}`},
+		{"chat image detail to anthropic", "chat", "anthropic_messages", `{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":"high"}}`, `"type":"url","url":"https://example.com/a.png"`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,6 +164,24 @@ func TestRelayImageBlocksConvertToEveryUpstream(t *testing.T) {
 				t.Fatalf("image lost: %s", payload)
 			}
 		})
+	}
+}
+
+func TestRelayRejectsImageDetailOutsideAnthropicConversion(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":"high"}}]}]}`
+	_, err := ParseRelayRequest([]byte(raw), "chat", "openai_chat")
+	var failure *ConversionError
+	if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
+		t.Fatalf("error=%v want detail field rejection", err)
+	}
+}
+
+func TestRelayRejectsInvalidImageDetailForAnthropicConversion(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":false}}]}]}`
+	_, err := ParseRelayRequest([]byte(raw), "chat", "anthropic_messages")
+	var failure *ConversionError
+	if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
+		t.Fatalf("error=%v want invalid detail rejection", err)
 	}
 }
 

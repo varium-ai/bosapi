@@ -10,6 +10,16 @@ export function defaultUsageRange(now = new Date(), days: 1 | 7 = 1): { from: st
 }
 
 export function validUserUsageRange(from: string, to: string): boolean {
+  if (from.includes('T') || to.includes('T')) {
+    const start = Date.parse(from);
+    const end = Date.parse(to) + (to.includes('T') ? 60_000 : 0);
+    return (
+      Number.isFinite(start) &&
+      Number.isFinite(end) &&
+      start < end &&
+      end - start <= 366 * 24 * 60 * 60 * 1000
+    );
+  }
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${to}T00:00:00Z`);
   return (

@@ -198,7 +198,7 @@ func adminUsageFilter(ctx *gin.Context) (domain.AdminUsageFilter, bool) {
 	location := usagetime.Location()
 	var from, to *time.Time
 	if fromText != "" {
-		parsed, parseErr := time.ParseInLocation("2006-01-02", fromText, location)
+		parsed, parseErr := parseUsageBoundary(fromText, location, false)
 		if parseErr != nil {
 			return domain.AdminUsageFilter{}, false
 		}
@@ -206,11 +206,11 @@ func adminUsageFilter(ctx *gin.Context) (domain.AdminUsageFilter, bool) {
 		from = &value
 	}
 	if toText != "" {
-		parsed, parseErr := time.ParseInLocation("2006-01-02", toText, location)
+		parsed, parseErr := parseUsageBoundary(toText, location, true)
 		if parseErr != nil {
 			return domain.AdminUsageFilter{}, false
 		}
-		value := parsed.AddDate(0, 0, 1).UTC()
+		value := parsed.UTC()
 		to = &value
 	}
 	if from != nil && to != nil && !from.Before(*to) {
@@ -224,6 +224,29 @@ func adminUsageFilter(ctx *gin.Context) (domain.AdminUsageFilter, bool) {
 		return domain.AdminUsageFilter{}, false
 	}
 	return domain.AdminUsageFilter{OrganizationID: organizationID, APIKeyID: keyID, ClientIP: clientIP, Model: ctx.Query("model"), From: from, To: to, Refresh: ctx.Query("refresh") == "true", SnapshotID: ctx.Query("snapshot_id")}, true
+}
+
+func parseUsageBoundary(raw string, location *time.Location, end bool) (time.Time, error) {
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		if end {
+			parsed = parsed.Add(time.Minute)
+		}
+		return parsed, nil
+	}
+	if parsed, err := time.ParseInLocation("2006-01-02T15:04:05", raw, location); err == nil {
+		if end {
+			parsed = parsed.Add(time.Minute)
+		}
+		return parsed, nil
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", raw, location)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if end {
+		parsed = parsed.AddDate(0, 0, 1)
+	}
+	return parsed, nil
 }
 
 // The scope digest prevents reusing a cursor after changing tenant or filters.

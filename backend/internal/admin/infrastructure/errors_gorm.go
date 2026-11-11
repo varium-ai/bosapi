@@ -56,6 +56,9 @@ func adminErrorBranch(database *gorm.DB, table string, filter domain.AdminErrorF
 	if filter.APIKeyID > 0 {
 		query = query.Where("api_key_id = ?", filter.APIKeyID)
 	}
+	if filter.Model != "" {
+		query = query.Where("model = ?", filter.Model)
+	}
 	if filter.ErrorCode != "" {
 		legacyStatus := "CASE WHEN status_code = 429 THEN 'rate_limited' WHEN status_code >= 500 THEN 'upstream_error' ELSE 'invalid_request' END"
 		query = query.Where("error_code = ? OR (error_code = '' AND "+legacyStatus+" = ?)", filter.ErrorCode, filter.ErrorCode)
