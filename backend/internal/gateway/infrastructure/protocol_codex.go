@@ -10,21 +10,28 @@ import (
 // CodexUpstream renders the validated common Chat subset as Responses input.
 // Unsupported controls are rejected rather than silently changing semantics.
 func (q RelayRequest) CodexUpstream() ([]byte, error) {
-	if len(q.Controls) > 0 {
-		keys := make([]string, 0, len(q.Controls))
-		for key := range q.Controls {
+	keys := make([]string, 0, len(q.Controls))
+	for key := range q.Controls {
+		if key != "max_tokens" {
 			keys = append(keys, key)
 		}
+	}
+	if len(keys) > 0 {
 		sort.Strings(keys)
 		return nil, conversionError(keys[0], "Codex OAuth support for this control is not established")
 	}
 	input := []any{}
+	instructions := ""
 	if len(q.System) > 0 {
 		role := q.SystemRole
 		if role == "" {
 			role = "developer"
 		}
-		input = append(input, map[string]any{"type": "message", "role": role, "content": strings.Join(q.System, "\n\n")})
+		if role == "system" {
+			instructions = strings.Join(q.System, "\n\n")
+		} else {
+			input = append(input, map[string]any{"type": "message", "role": role, "content": strings.Join(q.System, "\n\n")})
+		}
 	}
 	for i, message := range q.Messages {
 		parts := []any{}
@@ -63,7 +70,10 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 		}
 		flush()
 	}
-	root := map[string]any{"model": q.Model, "input": input, "instructions": "", "stream": true, "store": false}
+	root := map[string]any{"model": q.Model, "input": input, "instructions": instructions, "stream": true, "store": false}
+	if limit, exists := q.Controls["max_tokens"]; exists {
+		root["max_output_tokens"] = limit
+	}
 	if q.ReasoningEffort != "" {
 		root["reasoning"] = map[string]any{"effort": q.ReasoningEffort}
 	}

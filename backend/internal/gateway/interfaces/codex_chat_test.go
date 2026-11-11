@@ -4,6 +4,7 @@ import (
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	"bosapi/backend/internal/platform/subscription"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,109 @@ import (
 	"testing"
 	"time"
 )
+
+// Follow the sequence observed from Codex, including metadata emitted after
+// the first text delta. Empty terminal output exercises output_item.done replay.
+const codexMetadataStream = `event: response.created
+data: {"type":"response.created","response":{"id":"resp_metadata","output":[]}}
+
+event: response.in_progress
+data: {"type":"response.in_progress"}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","role":"assistant","phase":"final_answer","content":[]}}
+
+event: response.content_part.added
+data: {"type":"response.content_part.added","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"OK"}
+
+event: response.metadata
+data: {"type":"response.metadata","metadata":{"moderation":{"fixture_marker":"internal-metadata"}}}
+
+event: response.output_text.done
+data: {"type":"response.output_text.done","output_index":0,"content_index":0,"text":"OK"}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","output_index":0,"content_index":0,"part":{"type":"output_text","text":"OK","annotations":[]}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"OK","annotations":[]}]}}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_metadata","status":"completed","output":[],"usage":{"input_tokens":15,"output_tokens":5,"input_tokens_details":{"cached_tokens":0}}}}
+
+`
+
+func TestCodexChatSystemAndMetadataGateway(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "stream"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			a.data.Providers[0] = provider{ID: 1, Type: "oauth", Platform: "openai", APIFormat: "openai_responses", Status: "active", AccessToken: "token", AccountID: "account", ExpiresAt: time.Now().Add(time.Hour), Models: []string{"actual"}, ModelMapping: map[string]string{"alias": "actual"}}
+			called := false
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				called = true
+				var root struct {
+					Instructions string `json:"instructions"`
+					Input        []struct {
+						Role string `json:"role"`
+					} `json:"input"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&root); err != nil {
+					t.Fatal(err)
+				}
+				if root.Instructions != "Reply briefly." || len(root.Input) != 1 || root.Input[0].Role != "user" {
+					t.Fatalf("system was not promoted exactly once: %+v", root)
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(byteFragmentReader{strings.NewReader(codexMetadataStream)})}, nil
+			})}
+			request := `{"model":"alias","messages":[{"role":"system","content":"Reply briefly."},{"role":"user","content":"Reply OK"}],"stream":false}`
+			if streaming {
+				request = strings.Replace(request, `"stream":false`, `"stream":true,"stream_options":{"include_usage":true}`, 1)
+			}
+			r := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(request))
+			r.Header.Set("Authorization", "Bearer "+key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			body := w.Body.String()
+			if !called || w.Code != 200 || !strings.Contains(body, `"content":"OK"`) || !strings.Contains(body, `"total_tokens":20`) || strings.Contains(body, "internal-metadata") || strings.Contains(body, "unsupported_upstream_feature") {
+				t.Fatalf("response: %d %s", w.Code, body)
+			}
+			if streaming && !strings.Contains(body, "[DONE]") {
+				t.Fatalf("unfinished stream: %s", body)
+			}
+			select {
+			case event := <-a.usageQueue:
+				if event.Metrics.TotalTokens != 20 || event.Model != "alias" {
+					t.Fatalf("usage: %+v", event)
+				}
+			default:
+				t.Fatal("missing usage")
+			}
+		})
+	}
+}
+
+func TestCodexChatMetadataDoesNotCompleteOrHideUnknownEvents(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		for _, kind := range []string{"response.metadata", "response.unknown_future_event"} {
+			t.Run(kind+map[bool]string{false: "/json", true: "/stream"}[streaming], func(t *testing.T) {
+				a := testApp(t)
+				stream := "data: {\"type\":\"" + kind + "\"}\n\n"
+				if kind != "response.metadata" {
+					stream += codexMetadataStream
+				}
+				w := httptest.NewRecorder()
+				r := httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				a.convertCodexChat(w, r, strings.NewReader(stream), gatewayinfra.RelayRequest{Stream: streaming}, "model")
+				if !strings.Contains(w.Body.String(), "unsupported_upstream_feature") || strings.Contains(w.Body.String(), "[DONE]") || (!streaming && w.Code != 502) {
+					t.Fatalf("response: %d %s", w.Code, w.Body.String())
+				}
+			})
+		}
+	}
+}
 
 func TestCodexChatConversion(t *testing.T) {
 	for _, streaming := range []bool{false, true} {
@@ -58,7 +162,7 @@ func TestCodexChatConversion(t *testing.T) {
 func TestCodexChatRejectsUnsupportedAndTruncated(t *testing.T) {
 	a := testApp(t)
 	p := provider{Type: "oauth", Platform: "openai"}
-	for _, field := range []string{`"max_tokens":100,`, `"temperature":0.5,`, `"logprobs":true,`} {
+	for _, field := range []string{`"temperature":0.5,`, `"logprobs":true,`} {
 		called := false
 		a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { called = true; return nil, nil })}
 		r := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"x",`+field+`"messages":[{"role":"user","content":"hi"}]}`))

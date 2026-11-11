@@ -2078,6 +2078,10 @@ func (a *app) responses(w http.ResponseWriter, r *http.Request, p provider) {
 	if len(q["instructions"]) == 0 {
 		q["instructions"] = json.RawMessage(`""`)
 	}
+	if err := gatewayinfra.NormalizeCodexInstructions(q); err != nil {
+		crossFailure(w, r, "chat", 400, errorcode.UnsupportedConversion, err)
+		return
+	}
 	var inputText string
 	if json.Unmarshal(q["input"], &inputText) == nil {
 		normalized, _ := json.Marshal([]any{map[string]any{"role": "user", "content": []any{map[string]string{"type": "input_text", "text": inputText}}}})

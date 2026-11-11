@@ -91,7 +91,11 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 		reply.ID = id
 	}
 	if status, ok := root["status"].(string); ok && status != "completed" {
-		return reply, responseFieldError("status", "response did not complete")
+		details, _ := root["incomplete_details"].(map[string]any)
+		if status != "incomplete" || details["reason"] != "max_output_tokens" {
+			return reply, responseFieldError("status", "response did not complete")
+		}
+		reply.Stop = "length"
 	}
 	output, ok := root["output"].([]any)
 	if !ok {
@@ -142,7 +146,7 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 		return reply, err
 	}
 	reply.Blocks = append(reply.Blocks, blocks...)
-	if len(blocks) > 0 {
+	if len(blocks) > 0 && reply.Stop != "length" {
 		reply.Stop = "tool_calls"
 	}
 	if usage, ok := root["usage"].(map[string]any); ok {
@@ -218,6 +222,11 @@ func (a *app) convertCodexChat(w http.ResponseWriter, r *http.Request, body io.R
 		}
 		kind, _ := event["type"].(string)
 		switch kind {
+		case "response.metadata":
+			// Codex may send auxiliary moderation metadata between text events.
+			// It carries no Chat content or completion/usage semantics. Keep
+			// requiring response.completed and rejecting unknown event types.
+			return nil
 		case "response.created", "response.in_progress", "response.output_item.added", "response.content_part.added", "response.content_part.done", "response.output_item.done", "response.output_text.done", "response.function_call_arguments.delta", "response.function_call_arguments.done":
 			if kind == "response.output_item.done" {
 				index, ok := event["output_index"].(json.Number)
@@ -256,10 +265,16 @@ func (a *app) convertCodexChat(w http.ResponseWriter, r *http.Request, body io.R
 				return renderer.text(delta)
 			}
 			return nil
-		case "response.completed":
+		case "response.completed", "response.incomplete":
 			response, ok := event["response"].(map[string]any)
 			if !ok {
 				return responseFieldError("response", "missing completed response")
+			}
+			if kind == "response.incomplete" {
+				details, _ := response["incomplete_details"].(map[string]any)
+				if response["status"] != "incomplete" || details["reason"] != "max_output_tokens" {
+					return responseFieldError("stream", "upstream response failed or was incomplete")
+				}
 			}
 			if output, ok := response["output"].([]any); ok && len(output) == 0 && len(completedItems) > 0 {
 				indexes := make([]int, 0, len(completedItems))
@@ -285,10 +300,10 @@ func (a *app) convertCodexChat(w http.ResponseWriter, r *http.Request, body io.R
 			if text.Len() > 0 && text.String() != complete.String() {
 				return responseFieldError("output_text", "stream and completed response differ")
 			}
-			observeUsageValue(usageState(r), response, "response.completed")
+			observeUsageValue(usageState(r), response, kind)
 			terminal = true
 			return nil
-		case "response.failed", "response.incomplete", "error":
+		case "response.failed", "error":
 			return responseFieldError("stream", "upstream response failed or was incomplete")
 		default:
 			return responseFieldError("stream.type", "unsupported Responses event")

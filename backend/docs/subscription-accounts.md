@@ -95,12 +95,28 @@ gateway update. They do not establish model access or guarantee inference succes
 | Antigravity | Google Antigravity with its own OAuth client and managed/project ID | Gemini generateContent JSON, streamGenerateContent SSE; existing Chat/Messages conversion |
 
 OpenAI OAuth Chat accepts text, user images, function tools and matched textual
-tool history in JSON or streaming mode. It rejects generation controls including
-token limits, sampling and stop sequences until their Codex support is verified;
+tool history in JSON or streaming mode. Positive integer `max_tokens` and
+`max_completion_tokens` map to Codex `max_output_tokens`; conflicting aliases are
+rejected. This is an upstream output budget, including reasoning tokens, rather
+than a separate visible-text-only limit. A `response.incomplete` terminal event
+with reason `max_output_tokens` returns the available representable output and
+usage with Chat `finish_reason: "length"`. Truncated, invalid function arguments
+still fail conversion rather than being delivered as executable calls.
+Sampling and stop sequences remain unsupported;
 other unsupported fields return an explicit conversion error. Output types that
 cannot be represented in Chat, including opaque reasoning items, remain rejected.
 Chat `reasoning_effort` maps unchanged to Responses `reasoning.effort`; actual
 effort availability depends on the selected upstream model.
+Chat system-message prefixes are promoted once to Codex `instructions`; developer
+messages retain their role. Native OAuth Responses also promotes a prefix of
+text-only system input messages, prepending their text to existing instructions.
+Unsupported metadata, non-text system content and system messages following other
+input items return an explicit conversion error rather than losing content or
+moving instructions across conversation turns.
+The Chat bridge accepts Codex `response.metadata` as an auxiliary event without
+forwarding it as content. A successful terminal event must be `response.completed`
+or `response.incomplete` with reason `max_output_tokens`;
+unknown events and interrupted streams remain explicit conversion errors.
 The separate Messages compatibility path remains limited to plain non-streaming
 conversation; use native Responses for full Codex capabilities.
 Subscription OAuth does not grant OpenAI API embeddings or image API access.
