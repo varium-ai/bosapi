@@ -63,7 +63,12 @@ func (handler *AdminErrorHandler) list(ctx *gin.Context) {
 		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "key_id is invalid")
 		return
 	}
-	filter := domain.AdminErrorFilter{OrganizationID: organizationID, APIKeyID: keyID, ErrorCode: ctx.Query("error_code")}
+	model := strings.TrimSpace(ctx.Query("model"))
+	if len(model) > 128 {
+		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "model is invalid")
+		return
+	}
+	filter := domain.AdminErrorFilter{OrganizationID: organizationID, APIKeyID: keyID, ErrorCode: ctx.Query("error_code"), Model: model}
 	minutes, err := parseAdminErrorWindow(ctx, &filter, time.Now().UTC())
 	if err != nil {
 		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, err.Error())

@@ -16,6 +16,7 @@ export interface ErrorQueryFilter {
   error_code?: string;
   organization_id?: string;
   key_id?: string;
+  model?: string;
 }
 
 export function errorQueryOptions(filter: ErrorQueryFilter) {

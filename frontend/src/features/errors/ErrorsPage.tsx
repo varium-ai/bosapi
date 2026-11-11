@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Card, Table, Space, Button, Tooltip, Select, Typography } from 'antd';
+import { Alert, Card, Table, Space, Button, Tooltip, Select, Typography, Input } from 'antd';
 import { CursorPagination } from '../common/CursorPagination';
 import { useCursorPagination } from '../common/useCursorPagination';
 import { HttpStatusTag } from '../common/HttpStatusTag';
@@ -8,6 +8,8 @@ import { SearchInput } from '../common/SearchInput';
 import { RefreshButton } from '../common/RefreshButton';
 import { useQuery } from '@tanstack/react-query';
 import { useI18n } from '../../i18n';
+import { organizationOptionsQueryOptions } from '../../api/adminQueries';
+import { KeySelect } from '../common/KeySelect';
 import { RequestIDLink } from '../requestlogs/RequestIDLink';
 import { OrgKeyCell } from '../common/OrgKeyCell';
 import { useSearchParams } from 'react-router-dom';
@@ -23,6 +25,8 @@ export const ErrorsPage: React.FC = () => {
   const [params, setParams] = useSearchParams();
   const organizationID = params.get('organization_id');
   const keyID = params.get('key_id');
+  const modelFilter = params.get('model') || '';
+  const searchModel = useDebouncedValue(modelFilter);
   const filterCode = params.get('error_code') || '';
   const searchCode = useDebouncedValue(filterCode);
   const windowMinutes = errorWindowMinutes(params.get('window_minutes'));
@@ -34,6 +38,7 @@ export const ErrorsPage: React.FC = () => {
     searchCode,
     organizationID,
     keyID,
+    searchModel,
     pageSize,
     windowMinutes,
     refreshVersion,
@@ -64,8 +69,17 @@ export const ErrorsPage: React.FC = () => {
       error_code: searchCode || undefined,
       organization_id: organizationID || undefined,
       key_id: keyID || undefined,
+      model: searchModel.trim() || undefined,
     }),
   );
+  const { data: organizations } = useQuery(organizationOptionsQueryOptions());
+  const updateFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    next.delete('cursor');
+    setParams(next, { replace: true });
+  };
 
   const columns = [
     {
@@ -186,6 +200,42 @@ export const ErrorsPage: React.FC = () => {
         </Space>
       }
     >
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Select
+          allowClear
+          aria-label={t('usage.filter_org', 'Filter Organization')}
+          placeholder={t('usage.filter_org', 'Filter Organization')}
+          style={{ width: 180 }}
+          value={organizationID ? Number(organizationID) : undefined}
+          onChange={value => {
+            const next = new URLSearchParams(params);
+            if (value) next.set('organization_id', String(value));
+            else next.delete('organization_id');
+            next.delete('key_id');
+            next.delete('cursor');
+            setParams(next, { replace: true });
+          }}
+          options={organizations?.map((organization: any) => ({
+            value: organization.id,
+            label: organization.name,
+          }))}
+        />
+        <KeySelect
+          value={Number(keyID) || undefined}
+          organizationId={Number(organizationID) || undefined}
+          placeholder={t('usage.filter_key_name', 'Filter Key')}
+          style={{ width: 180 }}
+          onChange={value => updateFilter('key_id', value ? String(value) : '')}
+        />
+        <Input
+          aria-label={t('usage.filter_model', 'Model ID (e.g. gpt-4o)')}
+          placeholder={t('usage.filter_model', 'Model ID (e.g. gpt-4o)')}
+          style={{ width: 220 }}
+          value={modelFilter}
+          onChange={event => updateFilter('model', event.target.value)}
+          allowClear
+        />
+      </Space>
       <Typography.Paragraph type="secondary">
         {t('errors.window_hint')} ·{' '}
         {formatDateTime(new Date(Date.parse(timeWindow.to) - windowMinutes * 60_000).toISOString())}
@@ -204,9 +254,8 @@ export const ErrorsPage: React.FC = () => {
           )}
         </>
       )}
-      {(organizationID || keyID || filterCode || windowMinutes !== 5) && (
+      {(organizationID || keyID || modelFilter || filterCode || windowMinutes !== 5) && (
         <Space wrap style={{ marginBottom: 16 }}>
-          {(organizationID || keyID) && <OrgKeyCell orgId={organizationID} keyId={keyID} />}
           <Button onClick={() => setParams({})}>{t('ux.clear')}</Button>
         </Space>
       )}
@@ -240,7 +289,7 @@ export const ErrorsPage: React.FC = () => {
       <CursorPagination
         page={pagination.page}
         hasNext={!!errorLogs?.next_cursor}
-        loading={isFetching || searchCode !== filterCode}
+        loading={isFetching || searchCode !== filterCode || searchModel !== modelFilter}
         onPrevious={pagination.previous}
         onNext={() => pagination.next(errorLogs?.next_cursor)}
         pageNumbers={Array.from({ length: Math.min(5, pagination.history.length) }, (_, index) => {

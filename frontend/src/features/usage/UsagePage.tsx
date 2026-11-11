@@ -23,6 +23,8 @@ import {
   Tooltip,
 } from 'antd';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezonePlugin from 'dayjs/plugin/timezone';
 import 'dayjs/locale/zh-cn';
 import { RefreshButton } from '../common/RefreshButton';
 import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query';
@@ -41,14 +43,19 @@ import { UsageCountStatistic } from './UsageCountStatistic';
 import { businessToday, defaultUsageRange, validUserUsageRange } from './userUsageFilters';
 import { formatFirstTokenLatency } from './requestTiming';
 import { refreshUsageQueries, usageRefreshParams } from './usageQueryCache';
+import { resolveTimezone } from '../../i18n/formatters';
+
+dayjs.extend(utc);
+dayjs.extend(timezonePlugin);
 
 export const UsagePage: React.FC<{ recordsOnly?: boolean }> = ({ recordsOnly = false }) => {
   const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
   const fetchingOrganizations = useIsFetching({ queryKey: ['admin-organization-daily-usage'] });
   const [detail, setDetail] = useState<any>(null);
-  const { t, formatDateTime, formatNumber, formatTokens, formatCurrency, timezoneBadge } =
+  const { t, formatDateTime, formatNumber, formatTokens, formatCurrency, timezoneBadge, timezone } =
     useI18n();
+  const datePickerTimezone = resolveTimezone(timezone);
   const selectedOrg = Number(params.get('organization_id')) || undefined;
   const selectedKey = params.get('key_id') || '';
   const modelFilter = params.get('model') || '';
@@ -149,7 +156,15 @@ export const UsagePage: React.FC<{ recordsOnly?: boolean }> = ({ recordsOnly = f
   }, [defaultRange.from, params, setParams]);
   const from = params.get('from') || defaultRange.from;
   const to = params.get('to') || defaultRange.to;
-  const validRange = validUserUsageRange(from, to);
+  const rangeStart =
+    recordsOnly && /^\d{4}-\d{2}-\d{2}$/.test(from)
+      ? dayjs.tz(`${from}T00:00:00`, datePickerTimezone).format()
+      : from;
+  const rangeEnd =
+    recordsOnly && /^\d{4}-\d{2}-\d{2}$/.test(to)
+      ? dayjs.tz(`${to}T23:59:00`, datePickerTimezone).format()
+      : to;
+  const validRange = validUserUsageRange(rangeStart, rangeEnd);
   const cursor = params.get('cursor') || '';
   const cursorScope = JSON.stringify([selectedOrg, searchKey, searchModel, from, to, pageSize]);
   const [cursorHistory, setCursorHistory] = useState<{
@@ -625,19 +640,59 @@ export const UsagePage: React.FC<{ recordsOnly?: boolean }> = ({ recordsOnly = f
               aria-label={t('usage.from_date')}
               placeholder={t('usage.from_date')}
               status={validRange ? undefined : 'error'}
-              format="YYYY-MM-DD"
-              value={dayjs(from).isValid() ? dayjs(from) : null}
-              onChange={date => updateFilter('from', date?.format('YYYY-MM-DD') || '')}
-              style={{ width: 150 }}
+              showTime={recordsOnly ? { format: 'HH:mm' } : undefined}
+              format={recordsOnly ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'}
+              value={
+                recordsOnly
+                  ? /^\d{4}-\d{2}-\d{2}$/.test(from)
+                    ? dayjs.tz(`${from}T00:00:00`, datePickerTimezone)
+                    : dayjs(from).isValid()
+                      ? dayjs(from).tz(datePickerTimezone)
+                      : null
+                  : dayjs(from).isValid()
+                    ? dayjs(from)
+                    : null
+              }
+              onChange={date =>
+                updateFilter(
+                  'from',
+                  date
+                    ? recordsOnly
+                      ? date.tz(datePickerTimezone).format()
+                      : date.format('YYYY-MM-DD')
+                    : '',
+                )
+              }
+              style={{ width: recordsOnly ? 190 : 150 }}
             />
             <DatePicker
               aria-label={t('usage.to_date')}
               placeholder={t('usage.to_date')}
               status={validRange ? undefined : 'error'}
-              format="YYYY-MM-DD"
-              value={dayjs(to).isValid() ? dayjs(to) : null}
-              onChange={date => updateFilter('to', date?.format('YYYY-MM-DD') || '')}
-              style={{ width: 150 }}
+              showTime={recordsOnly ? { format: 'HH:mm' } : undefined}
+              format={recordsOnly ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD'}
+              value={
+                recordsOnly
+                  ? /^\d{4}-\d{2}-\d{2}$/.test(to)
+                    ? dayjs.tz(`${to}T23:59:00`, datePickerTimezone)
+                    : dayjs(to).isValid()
+                      ? dayjs(to).tz(datePickerTimezone)
+                      : null
+                  : dayjs(to).isValid()
+                    ? dayjs(to)
+                    : null
+              }
+              onChange={date =>
+                updateFilter(
+                  'to',
+                  date
+                    ? recordsOnly
+                      ? date.tz(datePickerTimezone).format()
+                      : date.format('YYYY-MM-DD')
+                    : '',
+                )
+              }
+              style={{ width: recordsOnly ? 190 : 150 }}
             />
             <Button onClick={() => setParams({ view: activeTab })}>{t('ux.clear')}</Button>
           </div>

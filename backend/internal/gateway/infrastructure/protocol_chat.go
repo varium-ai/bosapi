@@ -253,7 +253,7 @@ func parseChatReply(raw []byte, id string) (RelayReply, error) {
 	if err := ChatRelayMessage(message); err != nil {
 		return reply, err
 	}
-	blocks, err := textBlocks(message["content"], "response.message.content", false)
+	blocks, err := textBlocks(message["content"], "response.message.content", false, false)
 	if err != nil {
 		return reply, err
 	}

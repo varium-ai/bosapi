@@ -74,7 +74,7 @@ type RelayRequest struct {
 	DisableParallel      bool
 }
 
-func textBlocks(value any, path string, allowImage bool) ([]RelayBlock, error) {
+func textBlocks(value any, path string, allowImage, allowImageDetail bool) ([]RelayBlock, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -93,7 +93,7 @@ func textBlocks(value any, path string, allowImage bool) ([]RelayBlock, error) {
 			return nil, conversionError(field, "expected a text block")
 		}
 		if allowImage && block["type"] == "image_url" {
-			image, err := relayImageFromURLPart(block, field)
+			image, err := relayImageFromURLPart(block, field, allowImageDetail)
 			if err != nil {
 				return nil, err
 			}
@@ -111,7 +111,7 @@ func textBlocks(value any, path string, allowImage bool) ([]RelayBlock, error) {
 	}
 	return result, nil
 }
-func relayImageFromURLPart(block map[string]any, path string) (RelayBlock, error) {
+func relayImageFromURLPart(block map[string]any, path string, allowDetail bool) (RelayBlock, error) {
 	if err := fieldsOnly(block, path, "type", "image_url"); err != nil {
 		return RelayBlock{}, err
 	}
@@ -119,8 +119,19 @@ func relayImageFromURLPart(block map[string]any, path string) (RelayBlock, error
 	if !ok {
 		return RelayBlock{}, conversionError(path+"image_url", "expected an object")
 	}
-	if err := fieldsOnly(source, path+"image_url.", "url"); err != nil {
+	allowedFields := []string{"url"}
+	if allowDetail {
+		allowedFields = append(allowedFields, "detail")
+	}
+	if err := fieldsOnly(source, path+"image_url.", allowedFields...); err != nil {
 		return RelayBlock{}, err
+	}
+	if detail, exists := source["detail"]; exists && allowDetail {
+		switch detail {
+		case "auto", "low", "high":
+		default:
+			return RelayBlock{}, conversionError(path+"image_url.detail", "expected auto, low, or high")
+		}
 	}
 	return relayImageFromURL(source["url"], path+"image_url")
 }
@@ -310,7 +321,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 		q.DisableParallel = !b
 	}
 	if source == "messages" {
-		blocks, err := textBlocks(root["system"], "system", false)
+		blocks, err := textBlocks(root["system"], "system", false, false)
 		if err != nil {
 			return q, err
 		}
@@ -378,7 +389,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 				return q, conversionError(path+"tool_call_id", "not valid on instruction messages")
 			}
 			systemRole = role
-			blocks, err := textBlocks(message["content"], path+"content", false)
+			blocks, err := textBlocks(message["content"], path+"content", false, false)
 			if err != nil {
 				return q, err
 			}
@@ -398,7 +409,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			if role != "user" && role != "assistant" && role != "tool" {
 				return q, conversionError(path+"role", "unsupported Chat role")
 			}
-			blocks, err := textBlocks(message["content"], path+"content", role == "user")
+			blocks, err := textBlocks(message["content"], path+"content", role == "user", target == "anthropic_messages")
 			if err != nil {
 				return q, err
 			}
@@ -562,7 +573,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 							return q, conversionError(field+"tool_use_id", "missing or duplicate historical invocation")
 						}
 						answered[id] = true
-						text, err := textBlocks(block["content"], field+"content", false)
+						text, err := textBlocks(block["content"], field+"content", false, false)
 						if err != nil {
 							return q, err
 						}

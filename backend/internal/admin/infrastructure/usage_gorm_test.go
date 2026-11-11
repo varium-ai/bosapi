@@ -58,18 +58,18 @@ func TestAdminErrorsIncludeModelAndEndpointWithinTenantScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	end := time.Now().UTC()
-	filter := domain.AdminErrorFilter{OrganizationID: 11, APIKeyID: 22, From: end.Add(-5 * time.Minute), To: end}
+	filter := domain.AdminErrorFilter{OrganizationID: 11, APIKeyID: 22, Model: "gpt-4o", From: end.Add(-5 * time.Minute), To: end}
 	statement := adminErrorPageQuery(database.Session(&gorm.Session{DryRun: true}), filter, 1).Find(&[]adminUsageRecord{}).Statement
 	query := statement.SQL.String()
-	if strings.Contains(query, "usage_logs_read") || strings.Count(query, "organization_id = ?") != 2 || strings.Count(query, "api_key_id = ?") != 2 || strings.Count(query, "LIMIT ?") != 3 {
+	if strings.Contains(query, "usage_logs_read") || strings.Count(query, "organization_id = ?") != 2 || strings.Count(query, "api_key_id = ?") != 2 || strings.Count(query, "model = ?") != 2 || strings.Count(query, "LIMIT ?") != 3 {
 		t.Fatalf("error paging must bound and scope both physical branches: %s", query)
 	}
 	if strings.Count(query, "created_at >= ? AND created_at < ?") != 2 {
 		t.Fatalf("time window must be inside both physical branches: %s", query)
 	}
 	mock.ExpectQuery(regexp.QuoteMeta(query)).
-		WithArgs(400, filter.From, filter.To, 11, 22, "security_blocked", "security_inspection_unavailable", "tool_call_inspection_unavailable", "tool_call_invalid", "unauthorized_tool", 2,
-			400, filter.From, filter.To, 11, 22, "security_blocked", "security_inspection_unavailable", "tool_call_inspection_unavailable", "tool_call_invalid", "unauthorized_tool", 2, 2).
+		WithArgs(400, filter.From, filter.To, 11, 22, "gpt-4o", "security_blocked", "security_inspection_unavailable", "tool_call_inspection_unavailable", "tool_call_invalid", "unauthorized_tool", 2,
+			400, filter.From, filter.To, 11, 22, "gpt-4o", "security_blocked", "security_inspection_unavailable", "tool_call_inspection_unavailable", "tool_call_invalid", "unauthorized_tool", 2, 2).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "request_id", "organization_id", "api_key_id", "model", "endpoint", "status_code", "error_code", "duration_ms", "created_at"}).
 			AddRow(9, "req-failed", 11, 22, "deepseek-v4-pro", "chat/completions", 502, "provider_unavailable", 20289, time.Now()))
 	items, more, err := NewAdminErrorRepository(database).ListAdminErrors(context.Background(), filter, 1)

@@ -10,6 +10,7 @@ type AdminErrorFilter struct {
 	OrganizationID uint64
 	APIKeyID       uint64
 	ErrorCode      string
+	Model          string
 	From           time.Time
 	To             time.Time
 	Before         time.Time

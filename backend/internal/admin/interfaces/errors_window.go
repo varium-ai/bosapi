@@ -50,7 +50,7 @@ func parseAdminErrorWindow(ctx *gin.Context, filter *domain.AdminErrorFilter, no
 			return 0, invalid
 		}
 		previous := cursor.Filter
-		if previous.OrganizationID != filter.OrganizationID || previous.APIKeyID != filter.APIKeyID || previous.ErrorCode != filter.ErrorCode ||
+		if previous.OrganizationID != filter.OrganizationID || previous.APIKeyID != filter.APIKeyID || previous.ErrorCode != filter.ErrorCode || previous.Model != filter.Model ||
 			previous.From.IsZero() || previous.To.IsZero() || previous.To.Sub(previous.From) != time.Duration(minutes)*time.Minute ||
 			previous.BeforeID == 0 || previous.Before.Before(previous.From) || !previous.Before.Before(previous.To) {
 			return 0, invalid

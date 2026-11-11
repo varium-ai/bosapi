@@ -21,7 +21,13 @@ function load(file, mocks = {}) {
     URLSearchParams,
     window: mocks.window,
     require: name =>
-      Object.hasOwn(mocks, name) ? mocks[name] : name.endsWith('.css') ? {} : require(name),
+      Object.hasOwn(mocks, name)
+        ? mocks[name]
+        : name === 'dayjs/plugin/utc' || name === 'dayjs/plugin/timezone'
+          ? { default: require(name) }
+          : name.endsWith('.css')
+            ? {}
+            : require(name),
   });
   return exports;
 }
@@ -140,8 +146,10 @@ function pageHarness(file, { search = '', logs = {}, draft = {} } = {}) {
         formatTokens: String,
         formatCurrency: String,
         timezoneBadge: 'UTC+8',
+        timezone: 'UTC',
       }),
     },
+    '../../i18n/formatters': { resolveTimezone: timezone => timezone },
     '../common/ConsoleUX': new Proxy(
       { useDiscardChanges: () => () => {} },
       { get: (target, key) => target[key] || key },
