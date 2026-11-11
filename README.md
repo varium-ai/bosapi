@@ -78,6 +78,10 @@ Protocol support includes OpenAI Chat Completions and Responses, Anthropic
 Messages, and Gemini interfaces. Available models and conversion behavior depend
 on the configured upstream channel and its capabilities.
 
+ChatGPT/Codex OAuth channels support a bounded Chat Completions bridge for text,
+images, and function tools. Use Responses for full Codex capabilities; see the
+[subscription account guide](backend/docs/subscription-accounts.md).
+
 **Community capacity: 2 organizations and 10 API Keys per installation.**
 
 <details>

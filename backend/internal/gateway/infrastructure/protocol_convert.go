@@ -64,6 +64,7 @@ type RelayTool struct {
 }
 type RelayRequest struct {
 	Model                string
+	SystemRole           string
 	Stream, IncludeUsage bool
 	System               []string
 	Messages             []RelayMessage
@@ -234,6 +235,25 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			return q, err
 		}
 	}
+	if source == "chat" {
+		if value, exists := root["max_completion_tokens"]; exists {
+			number, ok := value.(json.Number)
+			if !ok {
+				return q, conversionError("max_completion_tokens", "expected a positive integer")
+			}
+			if n, err := number.Int64(); err != nil || n <= 0 {
+				return q, conversionError("max_completion_tokens", "expected a positive integer")
+			}
+			if old, present := root["max_tokens"]; present {
+				previous, ok := old.(json.Number)
+				if !ok || previous != number {
+					return q, conversionError("max_completion_tokens", "conflicts with max_tokens")
+				}
+			}
+			root["max_tokens"] = value
+			delete(root, "max_completion_tokens")
+		}
+	}
 	allowed := []string{"model", "messages", "stream", "max_tokens", "temperature", "top_p", "tools", "tool_choice"}
 	if source == "chat" {
 		allowed = append(allowed, "stop", "n", "stream_options", "parallel_tool_calls")
@@ -389,6 +409,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 				return q, conversionError(path+"tool_call_id", "not valid on instruction messages")
 			}
 			systemRole = role
+			q.SystemRole = role
 			blocks, err := textBlocks(message["content"], path+"content", false, false)
 			if err != nil {
 				return q, err

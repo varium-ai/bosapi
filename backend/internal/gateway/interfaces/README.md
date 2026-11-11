@@ -334,7 +334,7 @@ against a generated probe file; Read is the only enabled local tool.
 Unsupported request fields return HTTP 400 `unsupported_conversion` with
 `error.param` identifying the field. This includes multimodal content,
 Chat-source `response_format`, strict tool schemas, logprobs, penalties, seeds,
-`max_completion_tokens`, legacy `functions`/`function_call`, multiple candidates,
+legacy `functions`/`function_call`, multiple candidates,
 unknown fields, non-advisory thinking/reasoning controls, compaction,
 server-hosted tools, OpenAI beta capabilities, and Anthropic capability/workspace
 headers on a Gemini provider (only the standard Messages version header is
@@ -342,6 +342,14 @@ accepted). Cache-control hints are rejected outside the Chat bridge. Gemini
 assistant prefill is also rejected. Conversion of Responses, OpenAI embeddings
 and Messages count_tokens to these upstream protocols is not implemented; use
 native endpoints for those operations.
+
+Chat `max_completion_tokens` is accepted as an alias for `max_tokens` on the
+Anthropic and Gemini relay. When both are present, they must be equal positive
+integers. OpenAI OAuth Chat uses a separate bounded Responses bridge: it accepts
+text, user images, function tools, matching tool history and JSON/SSE, and
+rejects generation controls including token limits rather than silently dropping
+them. Responses-specific opaque reasoning and other unrepresentable output still
+require the native Responses endpoint.
 
 Unsupported upstream content returns HTTP 502 `unsupported_upstream_feature`.
 Anthropic text blocks with absent, null or empty `citations`, and tool blocks

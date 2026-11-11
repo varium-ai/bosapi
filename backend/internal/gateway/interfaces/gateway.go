@@ -2002,7 +2002,7 @@ func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	case path == "responses" && r.Method == "POST":
 		a.responses(w, r, p)
 	case path == "chat/completions" && r.Method == "POST":
-		a.compat(w, r, p, "chat")
+		a.codexChat(w, r, p)
 	case path == "messages" && r.Method == "POST":
 		a.compat(w, r, p, "messages")
 	case path == "messages/count_tokens" && r.Method == "POST":
@@ -2030,6 +2030,9 @@ func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *app) upstreamRequest(ctx context.Context, p provider, path string, payload []byte) (*http.Response, error) {
+	return a.upstreamRequestWithClient(ctx, p, path, payload, a.client)
+}
+func (a *app) upstreamRequestWithClient(ctx context.Context, p provider, path string, payload []byte, upstreamClient *http.Client) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", upstream+path, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
@@ -2041,7 +2044,7 @@ func (a *app) upstreamRequest(ctx context.Context, p provider, path string, payl
 	req.Header.Set("originator", "codex-tui")
 	req.Header.Set("User-Agent", codexUserAgent)
 	req.Header.Set("version", codexVersion)
-	client := *a.client
+	client := *upstreamClient
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	res, err := a.doUpstream(&client, req, p, payload, a.client.Timeout)
 	observeUpstreamResult(ctx, p, res, err)
