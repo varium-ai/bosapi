@@ -56,8 +56,6 @@ import (
 const clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
 const redirectURI = "http://localhost:1455/auth/callback"
 const upstream = "https://chatgpt.com/backend-api/codex"
-const codexVersion = "0.146.0"
-const codexUserAgent = "codex-tui/0.146.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
 
 type oauthSession struct {
 	Verifier string
@@ -2041,9 +2039,7 @@ func (a *app) upstreamRequestWithClient(ctx context.Context, p provider, path st
 	req.Header.Set("ChatGPT-Account-ID", p.AccountID)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("originator", "codex-tui")
-	req.Header.Set("User-Agent", codexUserAgent)
-	req.Header.Set("version", codexVersion)
+	subscription.ApplyCodexClientHeaders(req.Header)
 	client := *upstreamClient
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	res, err := a.doUpstream(&client, req, p, payload, a.client.Timeout)

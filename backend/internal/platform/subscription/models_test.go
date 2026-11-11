@@ -22,6 +22,9 @@ func TestOpenAIModelsUsesCodexCatalogVersionAndAccount(t *testing.T) {
 		if req.Header.Get("Authorization") != "Bearer access" || req.Header.Get("ChatGPT-Account-ID") != "account" {
 			t.Error("catalog request is missing account credentials")
 		}
+		if req.URL.Query().Get("client_version") != req.Header.Get("Version") || !strings.HasPrefix(req.Header.Get("User-Agent"), "codex-tui/"+req.Header.Get("Version")+" ") {
+			t.Error("catalog version declarations differ")
+		}
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"models":[]}`)), Header: make(http.Header)}, nil
 	})}}
 	if _, err := client.Models(context.Background(), "openai", Credentials{AccessToken: "access", AccountID: "account"}); err != nil {

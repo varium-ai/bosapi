@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
+	"bosapi/backend/internal/platform/subscription"
 	"context"
 	"io"
 	"net/http"
@@ -26,6 +27,9 @@ func TestCodexChatConversion(t *testing.T) {
 				}
 				if r.Header.Get("Authorization") != "Bearer secret" || r.Header.Get("ChatGPT-Account-ID") != "account" {
 					t.Fatal("bad oauth headers")
+				}
+				if version := subscription.CodexClientVersion(); r.Header.Get("Version") != version || !strings.HasPrefix(r.Header.Get("User-Agent"), r.Header.Get("Originator")+"/"+version+" ") {
+					t.Fatal("inference did not use the shared Codex client version")
 				}
 				reply := `{"type":"response.completed","response":{"id":"resp_1","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"hello","annotations":[]}]},{"type":"function_call","call_id":"new","name":"read","arguments":"{\"n\":9007199254740993}"}],"usage":{"input_tokens":10,"output_tokens":3,"input_tokens_details":{"cached_tokens":2}}}}`
 				stream := "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: " + reply + "\n\n"

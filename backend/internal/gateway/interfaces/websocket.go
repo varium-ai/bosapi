@@ -11,6 +11,7 @@ import (
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	"bosapi/backend/internal/platform/errorcode"
 	"bosapi/backend/internal/platform/logging"
+	"bosapi/backend/internal/platform/subscription"
 
 	"github.com/coder/websocket"
 )
@@ -38,9 +39,7 @@ func (a *app) responsesWebSocket(w http.ResponseWriter, r *http.Request, p provi
 	} else {
 		headers.Set("Authorization", "Bearer "+p.AccessToken)
 		headers.Set("ChatGPT-Account-ID", p.AccountID)
-		headers.Set("Version", codexVersion)
-		headers.Set("Originator", "codex-tui")
-		headers.Set("User-Agent", codexUserAgent)
+		subscription.ApplyCodexClientHeaders(headers)
 	}
 	a.bridgeWebSocket(w, r, target, headers)
 }

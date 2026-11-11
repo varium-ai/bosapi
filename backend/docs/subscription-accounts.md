@@ -68,6 +68,25 @@ English, Japanese, German, and Spanish. They are accessible without signing in.
 
 ## Supported upstreams
 
+### Codex client version
+
+Model discovery (`client_version`) and OAuth HTTP, WebSocket and live requests
+share a single version for their `Version` and `User-Agent` headers. The bundled
+fallback is `0.166.0`. At startup and every six hours, BOS checks the latest stable
+`rust-vX.Y.Z` release from `openai/codex` on GitHub and adopts it when newer.
+Discovery runs in the background and does not delay serving requests. Failures,
+rate limits and malformed/prerelease responses retain the current version and
+produce a `codex.version.sync_failed` log. A restart uses the bundled fallback
+until a successful check; synchronized values are not persisted.
+
+Set `BOS_CODEX_CLIENT_VERSION=0.166.0` in `deploy/stack.env` to pin a tested stable
+version and override automatic updates. Alternatively, set
+`BOS_CODEX_VERSION_AUTO_UPDATE=false` to keep the bundled version. Recreate the
+application container after changing these settings. Version updates change the
+protocol version declaration, not the installed Codex software or the gateway's
+implemented capabilities; new upstream protocol features can still require a
+gateway update. They do not establish model access or guarantee inference success.
+
 | Account | Upstream | Client protocol |
 | --- | --- | --- |
 | ChatGPT/Codex | ChatGPT Codex backend | Responses JSON/SSE, Chat JSON/SSE with a bounded function-tool subset, and the existing Codex WebSocket/compaction routes |

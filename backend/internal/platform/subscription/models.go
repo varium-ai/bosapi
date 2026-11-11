@@ -8,9 +8,6 @@ import (
 	"sort"
 )
 
-// codexCatalogClientVersion controls the catalog offered by the official endpoint.
-const codexCatalogClientVersion = "0.166.0"
-
 // Models reads the official catalog without sending credentials to custom URLs.
 func (c Client) Models(ctx context.Context, platform string, credentials Credentials) ([]byte, error) {
 	cfg, err := Configuration(platform)
@@ -19,7 +16,7 @@ func (c Client) Models(ctx context.Context, platform string, credentials Credent
 	}
 	endpoint := cfg.BaseURL + "/v1/models"
 	if platform == "openai" {
-		endpoint = cfg.BaseURL + "/models?client_version=" + codexCatalogClientVersion
+		endpoint = cfg.BaseURL + "/models"
 	}
 	if platform == "gemini" {
 		_, err := c.CodeAssistProject(ctx, platform, credentials.AccessToken, credentials.ProjectID)
@@ -53,6 +50,10 @@ func (c Client) Models(ctx context.Context, platform string, credentials Credent
 	req.Header.Set("Authorization", "Bearer "+credentials.AccessToken)
 	if platform == "openai" {
 		req.Header.Set("ChatGPT-Account-ID", credentials.AccountID)
+		version := ApplyCodexClientHeaders(req.Header)
+		query := req.URL.Query()
+		query.Set("client_version", version)
+		req.URL.RawQuery = query.Encode()
 	}
 	if platform == "anthropic" {
 		req.Header.Set("anthropic-version", "2023-06-01")

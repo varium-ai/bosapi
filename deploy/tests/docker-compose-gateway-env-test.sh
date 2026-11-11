@@ -23,6 +23,8 @@ assert "APP_ENV" not in environment
 assert environment["BOS_USAGE_REPORTING_FORCE_DISABLED"] == "false"
 assert "BOS_USAGE_REPORTING_ENDPOINT" not in environment
 assert environment["BOS_USAGE_REPORTING_HTTP_TIMEOUT"] == "5s"
+assert environment["BOS_CODEX_CLIENT_VERSION"] == ""
+assert environment["BOS_CODEX_VERSION_AUTO_UPDATE"] == "true"
 assert environment["BOS_ADMIN_EMAIL"] == "admin@bosapi.local"
 assert environment["BOS_ADMIN_PASSWORD"] == "replace-with-a-random-password-at-least-12-characters"
 assert app["depends_on"]["mysql"]["condition"] == "service_healthy"
