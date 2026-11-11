@@ -75,7 +75,7 @@ func insertUsageRecord(tx *gorm.DB, record *UsageRecord) (bool, error) {
 		 input_tokens, cache_read_tokens, cache_write_tokens,
 		 cache_read_cost_amount, cache_write_cost_amount,
 		 output_tokens, total_tokens, cost_amount)
-		SELECT DATE(CONVERT_TZ(?, '+00:00', '+08:00')), ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, receipt.cost_amount
+		SELECT DATE(?), ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, receipt.cost_amount
 		FROM usage_log_receipts AS receipt WHERE receipt.id = ?
 		ON DUPLICATE KEY UPDATE requests = requests + 1, errors = errors + ?,
 		input_tokens = input_tokens + ?, cache_read_tokens = cache_read_tokens + ?,

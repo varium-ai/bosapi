@@ -83,7 +83,7 @@ func TestDailyUserUsageHTTP(t *testing.T) {
 				t.Fatal("rejected request reached repository")
 			}
 			if test.status == 200 {
-				expectedStart := time.Date(2026, 9, 30, 16, 0, 0, 0, time.UTC)
+				expectedStart := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 				if !repo.filter.From.Equal(expectedStart) || !repo.filter.To.Equal(expectedStart.Add(24*time.Hour)) || repo.filter.OrganizationID != test.org {
 					t.Fatalf("filter=%+v", repo.filter)
 				}

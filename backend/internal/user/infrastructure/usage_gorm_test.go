@@ -42,7 +42,7 @@ func TestTrendUsageShanghaiDayBucketsKeepUTCFilter(t *testing.T) {
 	from := time.Date(2026, 10, 12, 16, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 1)
 	filter := domain.UsageFilter{OrganizationID: 2, UserID: 3, APIKeyID: 7, From: &from, To: &to}
-	day := "DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', '+08:00'), '%Y-%m-%d')"
+	day := "DATE_FORMAT(created_at, '%Y-%m-%d')"
 	mock.ExpectQuery("^SELECT "+regexp.QuoteMeta(day+" AS date,")+".*FROM usage_logs_read AS usage_logs WHERE .*created_at >= \\? AND created_at < \\? GROUP BY "+regexp.QuoteMeta(day)+" ORDER BY date ASC LIMIT \\?$").
 		WithArgs(uint64(2), uint64(7), from, to, 366).
 		WillReturnRows(sqlmock.NewRows([]string{"date", "requests", "errors", "input_tokens", "output_tokens", "total_tokens", "cost_amount"}).AddRow([]byte("2026-10-13"), 2, 0, 11, 7, 18, 0.01))
@@ -56,7 +56,7 @@ func TestDailyUsageByKeyIncludesTodayInShanghaiCalendarWindow(t *testing.T) {
 	for _, days := range []int{1, 7, 30} {
 		t.Run(strconv.Itoa(days)+" days", func(t *testing.T) {
 			repository, mock := usageRepository(t)
-			date := "DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', '+08:00'), '%Y-%m-%d')"
+			date := "DATE_FORMAT(created_at, '%Y-%m-%d')"
 			before := time.Now()
 			mock.ExpectQuery("^SELECT "+regexp.QuoteMeta(date+" AS date,")+".*FROM usage_logs_read AS usage_logs WHERE .*created_at >= \\? GROUP BY "+regexp.QuoteMeta(date)+" ORDER BY date ASC$").
 				WithArgs(uint64(2), uint64(7), shanghaiWindowStart{now: before, days: days}).
@@ -89,7 +89,7 @@ func TestUsageByKeysShanghaiDayBucketsKeepUTCFilter(t *testing.T) {
 	from := time.Date(2026, 10, 12, 16, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 1)
 	filter := domain.UsageFilter{OrganizationID: 2, UserID: 3, From: &from, To: &to}
-	date := "DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', '+08:00'), '%Y-%m-%d')"
+	date := "DATE_FORMAT(created_at, '%Y-%m-%d')"
 	mock.ExpectQuery("^SELECT api_key_id, "+regexp.QuoteMeta(date+" AS date,")+".*FROM usage_logs_read AS usage_logs WHERE .*created_at >= \\? AND created_at < \\? GROUP BY "+regexp.QuoteMeta("api_key_id, "+date)+" ORDER BY date ASC, api_key_id ASC LIMIT \\?$").
 		WithArgs(uint64(2), uint64(7), uint64(8), from, to, 10000).
 		WillReturnRows(sqlmock.NewRows([]string{"api_key_id", "date", "requests", "errors", "input_tokens", "output_tokens", "total_tokens", "cost_amount"}).AddRow(7, "2026-10-13", 2, 0, 11, 7, 18, 0.01))

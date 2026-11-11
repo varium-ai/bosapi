@@ -347,7 +347,7 @@ func TestOrganizationQuotaSettleDispatchAndDuplicates(t *testing.T) {
 	if !reflect.DeepEqual(call.keys, wantKeys) {
 		t.Fatalf("keys=%v want=%v", call.keys, wantKeys)
 	}
-	ends := []time.Time{time.Date(2026, 10, 14, 16, 5, 0, 0, time.UTC), time.Date(2026, 10, 18, 16, 5, 0, 0, time.UTC), time.Date(2026, 10, 31, 16, 5, 0, 0, time.UTC)}
+	ends := []time.Time{time.Date(2026, 10, 15, 0, 5, 0, 0, time.UTC), time.Date(2026, 10, 19, 0, 5, 0, 0, time.UTC), time.Date(2026, 11, 1, 0, 5, 0, 0, time.UTC)}
 	for i := 0; i < 6; i++ {
 		want := "7"
 		if i%2 == 1 {

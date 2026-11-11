@@ -155,16 +155,15 @@ export function organizationQuotaUpdate(values: OrganizationQuotaValues) {
   return { organizations: [organization] };
 }
 
-// Fixed UTC+8 calendar; independent of the browser's timezone and DST.
+// Fixed UTC calendar; independent of the browser's timezone and DST.
 export function quotaResetAt(period: Period, now = Date.now()) {
-  const offset = 8 * 60 * 60 * 1000;
-  const local = new Date(now + offset);
-  const year = local.getUTCFullYear();
-  const month = local.getUTCMonth();
-  const day = local.getUTCDate();
+  const current = new Date(now);
+  const year = current.getUTCFullYear();
+  const month = current.getUTCMonth();
+  const day = current.getUTCDate();
   const next =
     period === 'monthly'
       ? Date.UTC(year, month + 1, 1)
-      : Date.UTC(year, month, day + (period === 'weekly' ? 7 - ((local.getUTCDay() + 6) % 7) : 1));
-  return new Date(next - offset).toISOString();
+      : Date.UTC(year, month, day + (period === 'weekly' ? 7 - ((current.getUTCDay() + 6) % 7) : 1));
+  return new Date(next).toISOString();
 }

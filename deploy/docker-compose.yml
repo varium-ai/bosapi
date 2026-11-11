@@ -11,7 +11,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in deploy/stack.env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in deploy/stack.env}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in deploy/stack.env}
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-UTC}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in deploy/stack.env}
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-UTC}
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in deploy/stack.env}"]
     healthcheck:
       test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep -q PONG"]
@@ -105,7 +105,7 @@ services:
       BOS_ANTIGRAVITY_OAUTH_CLIENT_SECRET: ${BOS_ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
       BOS_FEISHU_WEBHOOK_URL: ${BOS_FEISHU_WEBHOOK_URL:-}
       BOS_PRIMARY_DOMAIN: ${BOS_PRIMARY_DOMAIN:-}
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-UTC}
     volumes:
       - ${BOS_GATEWAY_DATA_MOUNT:-gateway_data}:/app/data
     networks:

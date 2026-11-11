@@ -16,7 +16,7 @@ import (
 )
 
 func NewCachedKeyRepository(database *gorm.DB, client redis.UniversalClient) *KeyRepository {
-	return &KeyRepository{database: database, adminUsageCache: snapshot.New(client, "bos:admin-key-usage:v1:", 4*time.Minute, 5*time.Minute, 128)}
+	return &KeyRepository{database: database, adminUsageCache: snapshot.New(client, "bos:admin-key-usage:v2:", 4*time.Minute, 5*time.Minute, 128)}
 }
 func (r *KeyRepository) Close() {
 	if r.adminUsageCache != nil {
@@ -105,7 +105,7 @@ func adminKeyRollupQuery(ids []uint64, now time.Time) (string, []any) {
 	}
 	query := `WITH source AS (
  SELECT api_key_id, usage_date, total_tokens, cost_amount FROM usage_daily_rollups WHERE api_key_id IN ? AND usage_date >= ?
- UNION ALL SELECT api_key_id, DATE(CONVERT_TZ(created_at,'+00:00','+08:00')) AS usage_date, total_tokens, cost_amount FROM usage_logs_pending WHERE api_key_id IN ? AND created_at >= ?
+ UNION ALL SELECT api_key_id, DATE(created_at) AS usage_date, total_tokens, cost_amount FROM usage_logs_pending WHERE api_key_id IN ? AND created_at >= ?
  ), adjustments AS (SELECT api_key_id,SUM(before_recent) AS before_recent,SUM(after_now) AS after_now FROM (` + strings.Join(corrections, " UNION ALL ") + `) a GROUP BY api_key_id), totals AS (
  SELECT api_key_id,
  SUM(CASE WHEN usage_date >= ? THEN total_tokens ELSE 0 END) AS daily_tokens,

@@ -46,7 +46,7 @@ export function OrganizationQuotaUsage({
           amount: `${used(organization.usage?.[`${period}_amount`], true)} / ${limit(organization.quotas[`${period}_amount`], true)}`,
           reset: formatDateTime(
             organization.resets?.[period] ?? quotaResetAt(period),
-            'Asia/Shanghai',
+            'UTC',
             language,
           ),
         }))}

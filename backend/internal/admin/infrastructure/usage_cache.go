@@ -39,7 +39,7 @@ func NewSharedPortalUsageRepository(database *gorm.DB, client redis.UniversalCli
 	source := NewPreaggregatedAdminUsageRepository(database, resolver...)
 	return &CachedAdminUsageRepository{
 		AdminUsageRepository: source,
-		cache:                snapshot.New(client, "bos:key-portal-usage:v1:", time.Minute, 5*time.Minute, 64),
+		cache:                snapshot.New(client, "bos:key-portal-usage:v2:", time.Minute, 5*time.Minute, 64),
 		ipCache:              newIPUsageCache(client),
 	}
 }

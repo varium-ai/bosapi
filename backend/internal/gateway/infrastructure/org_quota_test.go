@@ -72,7 +72,7 @@ func (r *quotaTestRepository) commit(tokens int64, amount float64) {
 	r.usage.MonthlyAmount += amount
 }
 func quotaTestPtr[T any](v T) *T { return &v }
-func quotaTestNow() time.Time    { return time.Date(2026, 10, 14, 4, 0, 0, 0, time.UTC) }
+func quotaTestNow() time.Time    { return time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC) }
 func quotaTestLimited() *quotaTestRepository {
 	return &quotaTestRepository{config: adminDomain.OrganizationRateLimit{OrganizationID: 1, DailyQuotaTokens: quotaTestPtr(int64(100))}}
 }
@@ -103,9 +103,9 @@ var quotaTestReasons = []string{"organization_daily_tokens", "organization_daily
 func TestOrganizationQuotaSixLimits(t *testing.T) {
 	now := quotaTestNow()
 	resets := []time.Time{
-		time.Date(2026, 10, 14, 16, 0, 0, 0, time.UTC),
-		time.Date(2026, 10, 18, 16, 0, 0, 0, time.UTC),
-		time.Date(2026, 10, 31, 16, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
 	}
 	for i, reason := range quotaTestReasons {
 		t.Run(reason, func(t *testing.T) {
@@ -143,11 +143,11 @@ func TestOrganizationQuotaRetryCalendarBoundaries(t *testing.T) {
 		boundary time.Time
 		next     time.Duration
 	}{
-		{"day", 0, time.Date(2026, 10, 14, 16, 0, 0, 0, time.UTC), 24 * time.Hour},
-		{"Monday", 2, time.Date(2026, 10, 18, 16, 0, 0, 0, time.UTC), 7 * 24 * time.Hour},
-		{"month", 4, time.Date(2026, 10, 31, 16, 0, 0, 0, time.UTC), 30 * 24 * time.Hour},
-		{"year", 4, time.Date(2026, 12, 31, 16, 0, 0, 0, time.UTC), 31 * 24 * time.Hour},
-		{"leap February", 4, time.Date(2028, 1, 31, 16, 0, 0, 0, time.UTC), 29 * 24 * time.Hour},
+		{"day", 0, time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC), 24 * time.Hour},
+		{"Monday", 2, time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC), 7 * 24 * time.Hour},
+		{"month", 4, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), 30 * 24 * time.Hour},
+		{"year", 4, time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), 31 * 24 * time.Hour},
+		{"leap February", 4, time.Date(2028, 2, 1, 0, 0, 0, 0, time.UTC), 29 * 24 * time.Hour},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, offset := range []time.Duration{-time.Nanosecond, 0, time.Nanosecond} {
@@ -213,9 +213,9 @@ func TestOrganizationQuotaSnapshotGraceAndRollover(t *testing.T) {
 		{"grace inclusive", now, now.Add(10 * time.Second), true},
 		{"expired", now, now.Add(10*time.Second + time.Nanosecond), false},
 		{"future observation", now, now.Add(-time.Nanosecond), false},
-		{"day rollover", time.Date(2026, 10, 14, 15, 59, 59, 0, time.UTC), time.Date(2026, 10, 14, 16, 0, 0, 0, time.UTC), false},
-		{"week rollover", time.Date(2026, 10, 18, 15, 59, 59, 0, time.UTC), time.Date(2026, 10, 18, 16, 0, 0, 0, time.UTC), false},
-		{"month rollover", time.Date(2026, 10, 31, 15, 59, 59, 0, time.UTC), time.Date(2026, 10, 31, 16, 0, 0, 0, time.UTC), false},
+		{"day rollover", time.Date(2026, 10, 14, 23, 59, 59, 0, time.UTC), time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC), false},
+		{"week rollover", time.Date(2026, 10, 18, 23, 59, 59, 0, time.UTC), time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC), false},
+		{"month rollover", time.Date(2026, 10, 31, 23, 59, 59, 0, time.UTC), time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, used := range []int64{99, 100} {
@@ -380,10 +380,10 @@ func quotaTestResult(t *testing.T, ch <-chan error) error {
 }
 
 func TestOrganizationQuotaKeysAndExpirations(t *testing.T) {
-	now := time.Date(2026, 12, 31, 16, 0, 0, 0, time.UTC)
+	now := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
 	keys, args := quotaArguments("unit", 42, now, []int64{1, 2, 3, 4, 5, 6})
 	wantKeys := []string{"unit:{42}:daily:20270101:tokens", "unit:{42}:daily:20270101:amount", "unit:{42}:weekly:20261228:tokens", "unit:{42}:weekly:20261228:amount", "unit:{42}:monthly:202701:tokens", "unit:{42}:monthly:202701:amount"}
-	ends := []time.Time{time.Date(2027, 1, 1, 16, 5, 0, 0, time.UTC), time.Date(2027, 1, 3, 16, 5, 0, 0, time.UTC), time.Date(2027, 1, 31, 16, 5, 0, 0, time.UTC)}
+	ends := []time.Time{time.Date(2027, 1, 2, 0, 5, 0, 0, time.UTC), time.Date(2027, 1, 4, 0, 5, 0, 0, time.UTC), time.Date(2027, 2, 1, 0, 5, 0, 0, time.UTC)}
 	if len(keys) != 6 || len(args) != 12 {
 		t.Fatalf("keys=%v args=%v", keys, args)
 	}

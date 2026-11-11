@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-func TestNormalizeDateRangeUsesInclusiveShanghaiDays(t *testing.T) {
+func TestNormalizeDateRangeUsesInclusiveUTCDays(t *testing.T) {
 	for _, test := range []struct{ day, start, end string }{
-		{"2026-10-13", "2026-10-12T16:00:00Z", "2026-10-13T16:00:00Z"},
-		{"2026-10-01", "2026-09-30T16:00:00Z", "2026-10-01T16:00:00Z"},
-		{"2027-01-01", "2026-12-31T16:00:00Z", "2027-01-01T16:00:00Z"},
+		{"2026-10-13", "2026-10-13T00:00:00Z", "2026-10-14T00:00:00Z"},
+		{"2026-10-01", "2026-10-01T00:00:00Z", "2026-10-02T00:00:00Z"},
+		{"2027-01-01", "2027-01-01T00:00:00Z", "2027-01-02T00:00:00Z"},
 	} {
 		t.Run(test.day, func(t *testing.T) {
 			start, end, err := NormalizeDateRange(test.day, test.day, time.Date(2028, 1, 1, 0, 0, 0, 0, time.UTC))

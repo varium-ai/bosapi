@@ -2178,7 +2178,7 @@ export const docPages: DocPage[] = [
           },
           {
             type: 'paragraph',
-            text: 'When `error.retryable` is true, wait at least the seconds in `Retry-After`. Daily, weekly, and monthly budgets reset using the UTC+8 business calendar. Total and zero budgets return `error.retryable: false` without Retry-After; ask an administrator to adjust the budget. Upstream retry delays are honored; an upstream rate limit without a delay uses a one-second minimum backoff. An explicit upstream quota error without a reset delay is not automatically retryable.',
+            text: 'When `error.retryable` is true, wait at least the seconds in `Retry-After`. Daily, weekly, and monthly budgets reset using the UTC business calendar. Total and zero budgets return `error.retryable: false` without Retry-After; ask an administrator to adjust the budget. Upstream retry delays are honored; an upstream rate limit without a delay uses a one-second minimum backoff. An explicit upstream quota error without a reset delay is not automatically retryable.',
           },
         ],
       },

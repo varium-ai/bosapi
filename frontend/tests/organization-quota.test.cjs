@@ -409,16 +409,16 @@ test('million-token presentation and input preserve raw token limits', () => {
   assert.equal(form(ui, 'organization-limit').props.form.values.daily_quota_tokens, 1_500_001);
 });
 
-test('UTC+8 resets use midnight, Monday and calendar month across year and leap-day boundaries', () => {
+test('UTC resets use midnight, Monday and calendar month across year and leap-day boundaries', () => {
   const { quotaResetAt } = harness().model;
   const cases = [
-    ['daily', '2026-11-05T15:59:59Z', '2026-11-05T16:00:00.000Z'],
-    ['daily', '2026-11-05T16:00:00Z', '2026-11-06T16:00:00.000Z'],
-    ['weekly', '2026-11-08T15:59:59Z', '2026-11-08T16:00:00.000Z'],
-    ['weekly', '2026-11-08T16:00:00Z', '2026-11-15T16:00:00.000Z'],
-    ['monthly', '2026-12-31T15:59:59Z', '2026-12-31T16:00:00.000Z'],
-    ['monthly', '2026-12-31T16:00:00Z', '2027-01-31T16:00:00.000Z'],
-    ['daily', '2028-02-28T16:00:00Z', '2028-02-29T16:00:00.000Z'],
+    ['daily', '2026-11-05T23:59:59Z', '2026-11-06T00:00:00.000Z'],
+    ['daily', '2026-11-06T00:00:00Z', '2026-11-07T00:00:00.000Z'],
+    ['weekly', '2026-11-08T23:59:59Z', '2026-11-09T00:00:00.000Z'],
+    ['weekly', '2026-11-09T00:00:00Z', '2026-11-16T00:00:00.000Z'],
+    ['monthly', '2026-12-31T23:59:59Z', '2027-01-01T00:00:00.000Z'],
+    ['monthly', '2027-01-01T00:00:00Z', '2027-02-01T00:00:00.000Z'],
+    ['daily', '2028-02-28T23:59:59Z', '2028-02-29T00:00:00.000Z'],
   ];
   for (const [period, now, expected] of cases)
     assert.equal(quotaResetAt(period, Date.parse(now)), expected);
@@ -582,7 +582,7 @@ test('key reads wait for membership and never replace the separate organization 
   assert.equal(usage.props.organization.usage.daily_tokens, 42);
 });
 
-test('usage table distinguishes unlimited, blocked, fractional money and unknown usage with UTC+8 resets', () => {
+test('usage table distinguishes unlimited, blocked, fractional money and unknown usage with UTC resets', () => {
   const h = harness();
   const { OrganizationQuotaUsage } = h.load('features/ratelimits/OrganizationQuotaUsage.tsx');
   const organization = snapshot(10, { daily_tokens: 0, daily_amount: 0.00000001 }).organization;
@@ -593,7 +593,7 @@ test('usage table distinguishes unlimited, blocked, fractional money and unknown
   assert.equal(daily.amount, '$1e-8 / $1e-8');
   assert.equal(weekly.tokens, '80 / keys.unlimited');
   assert.equal(weekly.amount, 'ratelimits.org_usage_unavailable / keys.unlimited');
-  assert.match(daily.reset, /Asia\/Shanghai/);
+  assert.match(daily.reset, /UTC/);
 });
 
 test('org admin rate-limit table displays tokens in millions without changing amount or admin view', () => {
@@ -623,9 +623,9 @@ test('usage table prefers server reset timestamps and falls back only for missin
   };
   const { OrganizationQuotaUsage } = h.load('features/ratelimits/OrganizationQuotaUsage.tsx');
   const resets = {
-    daily: '2026-11-05T16:00:00Z',
-    weekly: '2026-11-08T16:00:00Z',
-    monthly: '2026-11-30T16:00:00Z',
+    daily: '2026-11-06T00:00:00Z',
+    weekly: '2026-11-09T00:00:00Z',
+    monthly: '2026-12-01T00:00:00Z',
   };
   for (const supplied of [resets, { daily: resets.daily }, undefined]) {
     fallbackCalls.length = 0;
@@ -633,7 +633,7 @@ test('usage table prefers server reset timestamps and falls back only for missin
     const tree = OrganizationQuotaUsage({ organization });
     const rows = nodes(tree, node => node.type === 'Table')[0].props.dataSource;
     for (const row of rows) {
-      assert.equal(row.reset, `${supplied?.[row.period] ?? `local-${row.period}`} Asia/Shanghai`);
+      assert.equal(row.reset, `${supplied?.[row.period] ?? `local-${row.period}`} UTC`);
     }
     assert.deepEqual(
       fallbackCalls,

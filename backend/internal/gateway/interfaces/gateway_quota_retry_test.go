@@ -10,8 +10,8 @@ import (
 )
 
 func TestGatewayQuotaResetAndReasons(t *testing.T) {
-	// Sunday just before the day, week and month reset together in UTC+8.
-	now := time.Date(2026, 5, 31, 15, 59, 59, 500000000, time.UTC)
+	// Sunday just before the day, week and month reset together in UTC.
+	now := time.Date(2026, 5, 31, 23, 59, 59, 500000000, time.UTC)
 	for _, test := range []struct {
 		reason string
 		key    apiKey

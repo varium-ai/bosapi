@@ -33,7 +33,7 @@ func TestListAdminOrganizationUsagePageOmitsRankings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	from := time.Date(2026, 9, 30, 16, 0, 0, 0, time.UTC)
+	from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	to := from.Add(24 * time.Hour)
 	filter := domain.AdminOrganizationUsageFilter{AdminUsageFilter: domain.AdminUsageFilter{OrganizationID: 9, APIKeyID: 8, Model: "example", From: &from, To: &to}, Search: "Team"}
 	mock.ExpectQuery(`WITH usage_buckets AS .*SELECT \* FROM user_days ORDER BY period DESC, total_tokens DESC, organization_id ASC LIMIT \? OFFSET \?`).
@@ -77,7 +77,7 @@ func TestDailyAdminOrganizationUsageQueries(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			from := time.Date(2026, 9, 30, 16, 0, 0, 0, time.UTC)
+			from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 			to := from.Add(24 * time.Hour)
 			search := "'; DROP TABLE users; --"
 			filter := domain.AdminOrganizationUsageFilter{AdminUsageFilter: domain.AdminUsageFilter{OrganizationID: 9, APIKeyID: 8, Model: "example", From: &from, To: &to}, Search: search}
@@ -86,7 +86,7 @@ func TestDailyAdminOrganizationUsageQueries(t *testing.T) {
 			}
 			querySQL := dailyAdminOrganizationDashboardQuery(database, filter, 2, 1).Statement.SQL.String()
 			for _, part := range []string{
-				"DATE_FORMAT(CONVERT_TZ(usage_logs.created_at, '+00:00', '+08:00'), '%Y-%m-%d') AS period",
+				"DATE_FORMAT(usage_logs.created_at, '%Y-%m-%d') AS period",
 				"FROM usage_logs FORCE INDEX (idx_usage_key_time)",
 				"LEFT JOIN organizations AS org ON org.id = buckets.organization_id",
 				"COUNT(DISTINCT api_key_id) AS key_count",
