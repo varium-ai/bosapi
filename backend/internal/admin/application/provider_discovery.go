@@ -104,9 +104,10 @@ type discoveredModels struct {
 }
 
 type discoveredModel struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	Visibility string `json:"visibility"`
 }
 
 func fetchProviderModels(ctx context.Context, provider domain.Provider, credential string, metadataRepo domain.ModelMetadataRepository) ([]domain.ProviderModel, error) {
@@ -134,6 +135,11 @@ func parseDiscoveredProviderModels(ctx context.Context, provider domain.Provider
 	result := make([]domain.ProviderModel, 0, len(models))
 	seen := make(map[string]struct{}, len(models))
 	for _, model := range models {
+		// Codex's catalog also includes internal models that its picker hides.
+		// Other providers may define visibility differently or omit it entirely.
+		if provider.AccountType == "oauth" && provider.Platform == "openai" && model.Visibility != "" && model.Visibility != "list" {
+			continue
+		}
 		name := strings.TrimSpace(model.ID)
 		if name == "" {
 			name = strings.TrimSpace(model.Slug)

@@ -8,6 +8,9 @@ import (
 	"sort"
 )
 
+// codexCatalogClientVersion controls the catalog offered by the official endpoint.
+const codexCatalogClientVersion = "0.166.0"
+
 // Models reads the official catalog without sending credentials to custom URLs.
 func (c Client) Models(ctx context.Context, platform string, credentials Credentials) ([]byte, error) {
 	cfg, err := Configuration(platform)
@@ -16,7 +19,7 @@ func (c Client) Models(ctx context.Context, platform string, credentials Credent
 	}
 	endpoint := cfg.BaseURL + "/v1/models"
 	if platform == "openai" {
-		endpoint = cfg.BaseURL + "/models?client_version=0.146.0"
+		endpoint = cfg.BaseURL + "/models?client_version=" + codexCatalogClientVersion
 	}
 	if platform == "gemini" {
 		_, err := c.CodeAssistProject(ctx, platform, credentials.AccessToken, credentials.ProjectID)

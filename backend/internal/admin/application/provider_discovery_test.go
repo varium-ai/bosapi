@@ -66,6 +66,32 @@ func TestProviderConnectivityRejectsUpstreamError(t *testing.T) {
 	}
 }
 
+func TestCodexDiscoveryUsesVisibleCatalogModels(t *testing.T) {
+	body := []byte(`{"models":[{"slug":"gpt-reserve","visibility":"hide"},{"slug":"gpt-6-luna","visibility":"list"},{"slug":"gpt-5.6-terra","visibility":"list"},{"slug":"gpt-5.6-luna","visibility":"list"},{"slug":"codex-auto-review","visibility":"hide"},{"slug":"legacy-model"}]}`)
+	for _, tc := range []struct {
+		name     string
+		provider domain.Provider
+		want     string
+	}{
+		{"codex subscription", domain.Provider{AccountType: "oauth", Platform: "openai", APIFormat: "openai_responses"}, "gpt-6-luna,gpt-5.6-terra,gpt-5.6-luna,legacy-model"},
+		{"other provider", domain.Provider{AccountType: "apikey", Platform: "openai", APIFormat: "openai_responses"}, "gpt-reserve,gpt-6-luna,gpt-5.6-terra,gpt-5.6-luna,codex-auto-review,legacy-model"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			models, err := parseDiscoveredProviderModels(context.Background(), tc.provider, body, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			names := make([]string, 0, len(models))
+			for _, model := range models {
+				names = append(names, model.ModelName)
+			}
+			if got := strings.Join(names, ","); got != tc.want {
+				t.Fatalf("models = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestResolveDiscoveredCapabilities(t *testing.T) {
 	tests := []struct {
 		name         string
