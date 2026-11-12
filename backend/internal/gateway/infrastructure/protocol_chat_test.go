@@ -36,6 +36,42 @@ func TestMessagesToChatPreservesHistoryAndControls(t *testing.T) {
 	}
 }
 
+func TestMessagesToChatPreservesImagesFromParallelToolResults(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"a","name":"read_a","input":{}},{"type":"tool_use","id":"b","name":"read_b","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"a","content":[{"type":"text","text":"first result"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}]},{"type":"tool_result","tool_use_id":"b","content":[{"type":"image","source":{"type":"url","url":"https://example.test/result.jpg"}}]},{"type":"text","text":"continue"}]}]}`
+	q, err := ParseRelayRequest([]byte(raw), "messages", "openai_chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := q.Upstream("openai_chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := DecodeProtocolJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := root["messages"].([]any)
+	if len(messages) != 5 {
+		t.Fatalf("expected assistant, two tool results, images, and continuation: %s", payload)
+	}
+	toolA := messages[1].(map[string]any)
+	toolB := messages[2].(map[string]any)
+	if toolA["role"] != "tool" || toolA["tool_call_id"] != "a" || toolA["content"] != "first result" || toolB["role"] != "tool" || toolB["tool_call_id"] != "b" || toolB["content"] != "Image output is attached in the following user message." {
+		t.Fatalf("tool results changed or lost pairing: %s", payload)
+	}
+	imageTurn := messages[3].(map[string]any)
+	if imageTurn["role"] != "user" {
+		t.Fatalf("tool images must follow all parallel tool results: %s", payload)
+	}
+	parts := imageTurn["content"].([]any)
+	if len(parts) != 4 || parts[1].(map[string]any)["image_url"].(map[string]any)["url"] != "data:image/png;base64,aGVsbG8=" || parts[3].(map[string]any)["image_url"].(map[string]any)["url"] != "https://example.test/result.jpg" {
+		t.Fatalf("tool images or their order lost: %s", payload)
+	}
+	if messages[4].(map[string]any)["content"] != "continue" {
+		t.Fatalf("continuation moved or lost: %s", payload)
+	}
+}
+
 func TestMessagesChatHintsAreValidatedWithoutTouchingArguments(t *testing.T) {
 	raw := strings.Replace(messagesRelayFixture, `"system":`, `"metadata":{"user_id":"local-user"},"thinking":{"type":"disabled"},"cache_control":{"type":"ephemeral"},"system":`, 1)
 	raw = strings.ReplaceAll(raw, `"type":"text",`, `"type":"text","cache_control":{"type":"ephemeral","ttl":"1h"},`)
