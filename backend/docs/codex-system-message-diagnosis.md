@@ -1,48 +1,29 @@
-# Codex OAuth 更新版本后的请求失败排查
+# Diagnosing Codex OAuth compatibility failures
 
-排查日期：2026-11-11。环境：`https://test.bosapi.net`。
-修复分支：`hotfix/codex_system_messages`。
+The November 11–12, 2026 fixes address request and response conversion failures
+seen after updating the declared Codex client version. Updating the version
+header alone does not update the gateway's protocol conversion capabilities.
+The historical upstream observations below describe specific accounts, models,
+and requests; they do not establish availability for every upstream capability.
 
-## 结论和证据
+## System instructions and metadata
 
-版本同步已在测试环境生效：18:05 的启动日志先声明 `0.166.0`，随后自动更新到
-`0.167.1`。更新客户端版本声明并不会自动更新网关的协议转换能力。
+An upstream HTTP 400 with `System messages are not allowed` can occur when a
+Chat request's leading `system` messages are forwarded as Responses input items.
+A native Responses request using `instructions` can succeed for the same account
+and model while the Chat bridge fails.
 
-18:06 的两个 Chat 请求均收到 Codex 上游 HTTP 400，原因为
-`System messages are not allowed`：
+The bridge promotes leading text-only system messages into `instructions` and
+removes them from `input`. Developer messages retain their original role. Native
+OAuth Responses requests use the same promotion, placing any existing
+`instructions` after the promoted text. Remaining history items, including
+opaque reasoning and exact tool arguments, retain their order and values.
+System messages with extra metadata, unsupported content, or a position after
+other input items return explicit field errors rather than losing information.
 
-| 请求 ID | 渠道 ID | 模型 |
-| --- | --- | --- |
-| `req_fe71a4a6b8141b4540e549cf5a9c8137` | 4 | `gpt-6-luna` |
-| `req_823c959127f2e0d6b49e89430d02e702` | 3 | `gpt-6.1-sol` |
-
-使用同一网关密钥、同一个 `gpt-6.1-sol` 模型进行对照：
-
-| 请求 | 测试环境结果 |
-| --- | --- |
-| Chat：`messages` 包含前置 `role: system` | 网关 HTTP 502；上游拒绝系统消息 |
-| Responses：系统提示放在 `instructions`，`input` 只有 user | HTTP 200，文本 `OK`，收到 `response.completed`，总用量 20 tokens |
-
-因此本次最小请求已证明该账号和模型可以完成推理。当前失败点在 Chat 到 Codex
-Responses 的请求转换，不能继续归因于模型列表或旧版本声明。这个结论限于本次
-测试的模型、账号和请求，并不保证所有模型及高级能力都可用。
-
-成功的原生 Responses SSE 还包含 `response.metadata`。原有 Chat 响应转换器
-将其视为不支持的事件，因此仅修复系统消息后，仍可能在返回途中中断。
-
-## 修改方向与范围
-
-1. Chat 转 Codex：将前置纯文本 system 消息合并到 `instructions`，并从
-   `input` 移除，避免发送 Codex 不接受的角色，也避免重复注入系统提示。
-   developer 消息继续保留原角色。
-2. 原生 OAuth Responses：同样提升前置纯文本 system 输入，已有
-   `instructions` 接在提升的文本之后；其余历史项保留，包括不透明推理内容和
-   工具参数。无法无损转换的内容、元数据或出现在其他输入项之后的 system
-   消息返回明确的字段错误，避免丢失数据或重排对话。
-3. Codex 转 Chat：识别并跳过辅助 `response.metadata`；流式和非流式共用
-   处理。仍须收到 `response.completed` 才能成功结束并记录终态用量。
-4. API Key 渠道及其他厂商协议不在本次修改范围内。此阶段仍拒绝不透明推理
-   输出；11 月 12 日补齐的推理历史扩展与结构化输出支持见文末。
+The response converter accepts auxiliary `response.metadata` events without
+emitting them as answer content. Metadata alone cannot complete a request. A
+valid terminal event remains required before recording terminal usage.
 
 ```text
 Chat -> Codex:
@@ -63,38 +44,24 @@ Codex SSE -> Chat:
   unknown event / EOF without completion: explicit conversion error
 ```
 
-## 回归验证
+Regression coverage includes streaming and non-streaming Chat and native
+Responses requests, single promotion of system instructions, developer and
+reasoning history, large integer tool arguments, lossy-conversion rejection,
+metadata event ordering, usage, and stream termination.
 
-测试覆盖 Chat 与原生 Responses 的流式、非流式请求；系统提示只提升一次；
-保留 developer、推理历史和大整数工具参数；拒绝有损转换；使用实测事件顺序
-构造包含 metadata 的 SSE；验证正文、用量与流结束；验证 metadata 本身不能
-代替完成事件，且未知事件不会被忽略。
+## Token limit aliases and incomplete responses
 
-这份记录中的远端对照测试针对修复前部署。修复后仍须更新测试环境，再重放
-相同 Chat 请求，确认上游不再拒绝 system，且客户端收到完整的流式结束。
+Historical native Responses checks accepted `max_output_tokens` and returned
+`response.incomplete` with reason `max_output_tokens` when the budget was
+exhausted. The same upstream did not accept `max_completion_tokens` directly.
 
-## 补充：保留 token 限制的兼容转换
-
-同日继续验证发现，当前部署使用的 Codex 上游已接受 `max_output_tokens`：
-
-| 最小原生 Responses 请求 | 结果 |
-| --- | --- |
-| `max_output_tokens: 32`，要求回答 OK | HTTP 200，完成响应保留该限制，回答 OK |
-| `max_completion_tokens: 32` | 网关 HTTP 502，上游未接受该字段 |
-| `max_output_tokens: 16`，要求输出 1 至 100 | `response.incomplete`，原因 `max_output_tokens`，实际 output_tokens 为 16 |
-
-参考的 sub2api 提交 `530c5e3a4f9c73ca2b0881191d0ef8e0d82c5484` 在
-`openai_codex_transform.go` 中将 `max_output_tokens` 和
-`max_completion_tokens` 列为 OAuth 不支持字段并移除。本次根据上述当前环境
-实测采用参数转换，保留上游限制，不照搬该删除逻辑。
-
-修改范围为 OAuth Chat 转 Codex：复用已有正整数校验与别名冲突检查，将
-`max_tokens` / `max_completion_tokens` 映射为 `max_output_tokens`。
-上游 budget 包括推理 token，不承诺单独的可见文本 token 上限。
-仅将原因明确为 `max_output_tokens` 的 incomplete 终态转换为 Chat
-`finish_reason: "length"`，保留可表达的已生成输出和用量。其他 incomplete
-原因或无效的截断工具参数仍明确报错。此阶段不透明推理输出仍报错，后续
-补齐方案见文末。
+OAuth Chat conversion validates positive integer limits and alias conflicts,
+then maps `max_tokens` or `max_completion_tokens` to `max_output_tokens`. This
+budget includes reasoning tokens; it does not promise a separate visible-text
+limit. Only an incomplete terminal event explicitly caused by
+`max_output_tokens` becomes Chat `finish_reason: "length"`. The converter retains
+representable output and usage. Other incomplete reasons and invalid truncated
+tool arguments still return errors.
 
 ```text
 limit = validated_alias(max_tokens, max_completion_tokens)
@@ -107,35 +74,32 @@ if terminal.type == response.incomplete:
   finish SSE with [DONE]
 ```
 
-## 补充：更新后上游 200，Chat 仍返回 502
+These mappings follow observed upstream behavior. Other proxies may remove token
+limits for their own OAuth compatibility; removing a limit would change the
+caller's request semantics here.
 
-修复分支：`hotfix/codex_response_format`。
+## Upstream HTTP 200 followed by Chat HTTP 502
 
-确认 11 月 11 日 19:18 启动的新容器为 `bosapi-bg-193c26c4815e`，已自动
-同步版本到 `0.167.1`。19:19–19:20 的多个请求已越过上游请求校验，上游
-返回 HTTP 200，但 Chat 网关在转换前报错：
+An upstream success can still fail during response conversion:
 
 ```text
-request_id=req_c98c80e3f04c64f755dde90c3d8996fc
 upstream_status=200
 failure_stage=response_conversion
 error_param=response.content-type
 error_reason=expected an SSE stream
 ```
 
-同环境最小重放确认：原生 Responses 返回完整 SSE，而 Chat 返回上述 502。
-再次用与 Chat 转换器相同的 `type: message`、`content: input_text` 数组输入
-调用原生 Responses，约 3.5 秒返回 HTTP 200，正文以
-`event: response.created` 开头，并有 `response.completed` 终态。
-原生转发路径会设置自己的 SSE 响应头，因此不能据此断言上游实际声明的
-Content-Type 值；旧日志没有记录该字段。
+Some observed Codex responses contained valid SSE without declaring the expected
+Content-Type. A native forwarding path may set its own response headers, so its
+outward Content-Type does not establish the original upstream header value.
 
-修改方向：解除 Chat 只依据响应头判断格式的限制。声明 SSE 时继续原有路径；
-否则只读取有界缓冲中的首个 SSE 字段前缀（`event:`、`data:`、注释、
-`id:`、`retry:`），识别后完整重放所有字节，交给同一事件解析器验证。
-JSON/HTML 或任意纯文本不能通过格式识别；未知事件、非法 JSON 和缺失终态
-仍失败。保留上游 body 关闭和首 token 计时，并记录经过脱敏处理的
-`upstream_content_type`，不输出正文或其他响应头。
+The Chat bridge keeps the normal parsing path when the upstream declares SSE.
+Otherwise, it reads only a bounded prefix and recognizes an SSE field such as
+`event:`, `data:`, a comment, `id:`, or `retry:`. It replays every buffered byte
+through the same parser and first-token observer. JSON, HTML, and arbitrary plain
+text fail format recognition. Unknown events, invalid JSON, and missing terminal
+events still fail. Diagnostics record a sanitized `upstream_content_type` without
+logging bodies or unrelated headers.
 
 ```text
 if upstream Content-Type declares SSE:
@@ -147,46 +111,44 @@ else:
   return explicit response format error
 ```
 
-本地基础设施、接口两个包完整测试通过。新增测试覆盖缺失/错误 Content-Type
-下的 Chat JSON 和 SSE 输出、分片读取、用量、结束标记、错误页拒绝、未知事件、
-截断流、首 token 计时和 body 关闭。修复未部署；更新后的远端 Chat 实测仍是
-上线后的验收步骤，不能将本地回归通过等同于远端请求已经恢复。
+Tests cover missing or incorrect Content-Type, fragmented reads, JSON and SSE
+Chat output, usage, completion markers, error-page rejection, unknown events,
+truncated streams, first-token timing, and closing the upstream body. Local
+regression success does not establish that a deployed instance has been updated.
 
-## 11 月 12 日：结构化输出与推理输出项
+## Structured output and reasoning history
 
-修复分支：`hotfix/codex_reasoning_output`。
+Two further conversion errors can remain after SSE recognition is fixed:
 
-测试环境已切换到 `bosapi-bg-75aef0444f56`，09:34 的版本同步为 `0.167.2`。
-最新日志确认 SSE 修复生效：上游确实不声明 Content-Type，并且已出现成功的
-Chat 调用。剩余两类错误为：
-
-| 请求 | 阶段 | 错误 |
+| Stage | Field | Failure |
 | --- | --- | --- |
-| `req_174ca971a2815c821c9820583042c683` | 请求转换，HTTP 400 | `response_format: unsupported in this protocol conversion` |
-| `req_70c9952a555a8e796f1e366790b069df` | 响应转换，上游 200 | `response.output.type: output item cannot be represented in Chat` |
+| Request conversion | `response_format` | Unsupported Chat field |
+| Response conversion after upstream HTTP 200 | `response.output.type` | Output item cannot be represented in Chat |
 
-使用相同测试密钥和 `gpt-6.1-terra` 直接验证原生 Responses：
+Native upstream checks accepted JSON object and strict JSON Schema formats.
+Higher-reasoning responses also contained reasoning items, summary events, and
+encrypted content. Rejecting those items after emitting answer text can cause
+clients to retry an otherwise successful upstream request.
 
-- `text.format.type=json_object` 和严格 `json_schema` 均返回 HTTP 200，正文
-  为预期 JSON，完成响应保留传入的格式定义。
-- 较复杂的高推理请求返回 `reasoning` 项、摘要事件及加密内容。该输出项在
-  旧转换器中走了默认拒绝分支，导致回答末尾报错并触发客户端重试。
+The compatibility path handles these cases as follows:
 
-修改范围：
-
-1. Chat `response_format` 支持 null/text/json_object/json_schema，转换为
-   Responses `text.format`。保留 schema、name、description、strict，明确
-   拒绝非法结构和无法转换的额外字段。
-2. 接收已知推理摘要事件，以终态 reasoning 项为准一次交付摘要。
-   摘要返回 `reasoning_content`，正文仍只包含模型答案。
-3. 原始 reasoning 项通过 `codex_reasoning` 数组扩展返回，包含 `item`、
-   UTF-8 字节偏移 `text_offset` 和调用偏移 `tool_offset`。客户端合并流式
-   数组并在 assistant 历史中回传，网关据此恢复原始顺序。加密内容不解密，
-   不拼接进正文，不构造虚假的 provider 签名。
-4. 上游请求加入 `include: ["reasoning.encrypted_content"]`，支持 store=false
-   的历史续接。推理 token 计入 completion_tokens，并单独出现在
-   completion_tokens_details.reasoning_tokens，避免重复收费。
-5. 未知输出类型、非法推理历史偏移、摘要与原项不一致、非法工具参数仍报错。
+1. Chat `response_format` accepts null, text, JSON object, and JSON Schema forms
+   and maps them to Responses `text.format`. Schema, name, description, and
+   strictness are preserved. Invalid structures and extra fields are rejected.
+2. Known reasoning summary events are accepted. The terminal reasoning item
+   determines the summary, delivered once as `reasoning_content`. The answer
+   text remains separate.
+3. Original reasoning items return through the `codex_reasoning` array extension.
+   Each entry includes `item`, a UTF-8 byte `text_offset`, and a `tool_offset`.
+   Clients merge streamed arrays and return them in assistant history so the
+   gateway can restore the original order. Encrypted content is preserved
+   without decryption or fabricated provider signatures.
+4. Upstream requests include `reasoning.encrypted_content` for stateless history
+   continuation. Reasoning tokens are included in `completion_tokens` and also
+   identified in `completion_tokens_details.reasoning_tokens`, without double
+   charging.
+5. Unknown output types, invalid history offsets, inconsistent summaries, and
+   invalid tool arguments remain errors.
 
 ```text
 Chat.response_format -> Responses.text.format
@@ -204,29 +166,23 @@ Chat assistant history:
   replay unchanged encrypted_content to Codex
 ```
 
-验证结果：基础设施与接口两个包完整测试通过；新增基于实测事件序列、经脱敏
-处理的 SSE fixture，覆盖流式/非流式、历史回传、精确整数、工具顺序、UTF-8
-偏移、参数拒绝和用量记录。
+The sanitized SSE fixture and offline regressions cover streaming and
+non-streaming conversion, reasoning replay, exact integers, tool ordering, UTF-8
+offsets, rejected parameters, and usage. Historical checks also exercised a
+non-streaming text request and a streaming strict-schema request through the new
+converter against a real upstream. Those observations do not establish the
+current behavior of any deployed Chat endpoint; repeat authorized acceptance
+checks after updating an instance.
 
-另用临时测试适配器，将本地新转换器的上游请求通过测试环境原生 Responses
-路径发送给真实上游（未提取 provider 凭据，未部署）：
+Official field references:
 
-| 本地新 Chat 转换器的请求 | 真实上游验证 |
-| --- | --- |
-| 非流式 text 格式、高推理、token 限制 | 成功，答案包含 4046，返回 1 个推理历史项；prompt 43 / completion 231（其中 reasoning 130）/ total 274 |
-| 流式严格 JSON Schema、高推理、token 限制 | 成功，合并正文为 `{"n":4046}`，收到 `[DONE]` |
+- [Responses migration: response_format becomes text.format](https://developers.openai.com/api/docs/guides/migrate-to-responses)
+- [Reasoning: stateless encrypted content and history](https://developers.openai.com/api/docs/guides/reasoning)
 
-测试环境上的 Chat 仍需部署本次分支后验收；上述真实上游验证不等于远端 Chat
-已经运行新代码。临时联网测试适配器已移除，仓库仅保留离线回归与脱敏 fixture。
+## Stateless Chat `store` hints
 
-官方字段说明：
-
-- [Responses 迁移：response_format 改为 text.format](https://developers.openai.com/api/docs/guides/migrate-to-responses)
-- [推理指南：stateless 模式下的 encrypted_content 与历史保留](https://developers.openai.com/api/docs/guides/reasoning)
-
-## 11 月 12 日：BOS Agent 的 `store` 字段
-
-请求 `req_c1cf28ed3b649b7a7ee27fd5d25c4aab` 的日志明确显示：
+A Chat request can fail before reaching the upstream when a client includes the
+Responses-style `store` field:
 
 ```text
 POST chat/completions
@@ -235,11 +191,11 @@ error_param=store
 error_reason=unsupported in this protocol conversion
 ```
 
-它没有到达上游，也不是工具函数参数或 OAuth 账号权限问题。BOS Agent 将
-Responses/OpenAI 的 `store:false` 带到了 Chat Completions 请求；旧白名单只
-接受有限 Chat 字段，因此在转换前直接返回 400。当前 OAuth Codex 转发本来
-就强制 `store:false`，所以这个兼容提示可以安全删除后继续转换。`store:true`
-仍明确拒绝，避免声称提供了不存在的持久化能力。
+OAuth Codex requests already enforce `store:false`. For Chat targeting
+`openai_responses`, conversion accepts a boolean false hint and removes it before
+parsing the common Chat subset. `store:true` is rejected because this path does
+not provide persisted-response semantics. Nulls, strings, and objects are also
+rejected.
 
 ```text
 if target == openai_responses && source == chat && body.store exists:
@@ -248,5 +204,6 @@ if target == openai_responses && source == chat && body.store exists:
   delete body.store
 ```
 
-新增测试覆盖 false、null、true、字符串和对象值，并确认删除后的上游 JSON
-不会包含 `store`。修复分支：`hotfix/codex_store_compat`。
+Tests cover false, null, true, string, and object values and verify that the
+converted Chat subset does not retain the hint. This compatibility handling does
+not change the final Codex request's mandatory `store:false` setting.
