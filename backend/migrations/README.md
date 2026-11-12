@@ -337,3 +337,25 @@ Unit coverage in `organization_quota_indexes_test.go` checks forward and rollbac
 SQL and index column order. The user infrastructure periodic-usage unit tests
 check generated MySQL SQL, bound UTC boundaries, organization scope, query
 isolation, cancellation, and error propagation with SQL mocks.
+
+### Gateway quota settlement retries
+
+`029_gateway_quota_retries.sql` adds the durable outbox used when an upstream
+request has completed but its usage and organization quota transaction could not
+be committed. The gateway retries these rows with the original request and usage
+identity, then deletes each row only after the idempotent settlement succeeds.
+The outbox contains usage metadata only; credentials and request bodies are not
+stored. The matching `.down.sql` removes the outbox table and should be applied
+only after all pending rows have been drained.
+
+Recovery scans advance by primary key in batches of 256 and wrap after the last
+page. Failed organizations use exponential background retry delays from five
+seconds to one minute; other organizations continue to recover. Admission probes
+share a 300 ms query per organization and cache a confirmed empty result for five
+seconds. A previously confirmed empty result can cover a transient read failure
+for at most 30 seconds. Cold starts and known pending settlements fail closed.
+
+Historical `001_initial_schema.sql` and `023_usage_log_transition.sql` retain
+their deployed community bytes. The community schema has no commercial
+report-job table and does not use the commercial report timezone migration. Do
+not update database checksums to accommodate rewritten historical SQL.

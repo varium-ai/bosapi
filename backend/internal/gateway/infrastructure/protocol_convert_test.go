@@ -167,24 +167,6 @@ func TestRelayImageBlocksConvertToEveryUpstream(t *testing.T) {
 	}
 }
 
-func TestRelayRejectsImageDetailOutsideAnthropicConversion(t *testing.T) {
-	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":"high"}}]}]}`
-	_, err := ParseRelayRequest([]byte(raw), "chat", "openai_chat")
-	var failure *ConversionError
-	if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
-		t.Fatalf("error=%v want detail field rejection", err)
-	}
-}
-
-func TestRelayRejectsInvalidImageDetailForAnthropicConversion(t *testing.T) {
-	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":false}}]}]}`
-	_, err := ParseRelayRequest([]byte(raw), "chat", "anthropic_messages")
-	var failure *ConversionError
-	if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
-		t.Fatalf("error=%v want invalid detail rejection", err)
-	}
-}
-
 func TestRelayRejectsInvalidImageBlocks(t *testing.T) {
 	cases := []struct{ name, source, target, raw, field string }{
 		{"assistant image", "messages", "gemini", `{"model":"x","messages":[{"role":"assistant","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}]}]}`, "messages[0].content[0].type"},
@@ -206,6 +188,26 @@ func TestRelayRejectsInvalidImageBlocks(t *testing.T) {
 				t.Fatal("image content leaked in error")
 			}
 		})
+	}
+}
+
+func TestRelayRejectsImageDetailForUnsupportedTargets(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":"high"}}]}]}`
+	for _, target := range []string{"openai_chat", "gemini"} {
+		_, err := ParseRelayRequest([]byte(raw), "chat", target)
+		var failure *ConversionError
+		if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
+			t.Fatalf("target=%s error=%v want detail field rejection", target, err)
+		}
+	}
+}
+
+func TestRelayRejectsInvalidImageDetailForAnthropicConversion(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":false}}]}]}`
+	_, err := ParseRelayRequest([]byte(raw), "chat", "anthropic_messages")
+	var failure *ConversionError
+	if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
+		t.Fatalf("error=%v want invalid detail rejection", err)
 	}
 }
 

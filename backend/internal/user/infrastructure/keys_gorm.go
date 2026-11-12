@@ -64,6 +64,61 @@ type KeyRepository struct {
 	adminUsageCache *snapshot.Cache
 }
 
+// gatewayQuotaRetryRecord is the durable outbox used when a gateway request
+// has completed but its organization quota settlement could not be committed.
+// It intentionally stores only the usage metadata required to replay the
+// idempotent settlement; request and provider credentials are never persisted.
+type gatewayQuotaRetryRecord struct {
+	ID                   uint64    `gorm:"primaryKey;index:idx_gateway_quota_retry_org,priority:2"`
+	RequestID            string    `gorm:"size:128;not null;uniqueIndex:uq_gateway_quota_retry,priority:1"`
+	UsageID              string    `gorm:"size:64;not null;uniqueIndex:uq_gateway_quota_retry,priority:2"`
+	OrganizationID       uint64    `gorm:"not null;index:idx_gateway_quota_retry_org,priority:1"`
+	APIKeyID             uint64    `gorm:"not null"`
+	Model                string    `gorm:"size:191;not null"`
+	Endpoint             string    `gorm:"size:128;not null"`
+	StatusCode           uint16    `gorm:"not null"`
+	ErrorCode            string    `gorm:"size:64;not null;default:''"`
+	InputTokens          uint64    `gorm:"not null"`
+	CacheReadTokens      uint64    `gorm:"not null"`
+	CacheWriteTokens     uint64    `gorm:"not null"`
+	CacheReadCostAmount  float64   `gorm:"type:decimal(20,8);not null"`
+	CacheWriteCostAmount float64   `gorm:"type:decimal(20,8);not null"`
+	OutputTokens         uint64    `gorm:"not null"`
+	TotalTokens          uint64    `gorm:"not null"`
+	CostAmount           float64   `gorm:"type:decimal(20,8);not null"`
+	ClientIP             []byte    `gorm:"type:varbinary(16)"`
+	IsStream             bool      `gorm:"not null"`
+	DurationMillis       uint32    `gorm:"column:duration_ms;not null"`
+	FirstTokenMillis     *uint32   `gorm:"column:first_token_ms"`
+	CreatedAt            time.Time `gorm:"not null"`
+}
+
+func (gatewayQuotaRetryRecord) TableName() string { return "gateway_quota_retries" }
+
+func newGatewayQuotaRetryRecord(value GatewayUsageRecord) gatewayQuotaRetryRecord {
+	return gatewayQuotaRetryRecord{
+		RequestID: value.RequestID, UsageID: value.UsageID, OrganizationID: value.OrganizationID, APIKeyID: value.APIKeyID,
+		Model: value.Model, Endpoint: value.Endpoint, StatusCode: value.StatusCode, ErrorCode: value.ErrorCode,
+		InputTokens: value.InputTokens, CacheReadTokens: value.CacheReadTokens, CacheWriteTokens: value.CacheWriteTokens,
+		CacheReadCostAmount: value.CacheReadCostAmount, CacheWriteCostAmount: value.CacheWriteCostAmount,
+		OutputTokens: value.OutputTokens, TotalTokens: value.TotalTokens, CostAmount: value.CostAmount,
+		ClientIP: append([]byte(nil), value.ClientIP...), IsStream: value.IsStream, DurationMillis: value.DurationMillis,
+		FirstTokenMillis: value.FirstTokenMillis, CreatedAt: value.CreatedAt,
+	}
+}
+
+func (record gatewayQuotaRetryRecord) gatewayUsageRecord() GatewayUsageRecord {
+	return GatewayUsageRecord{
+		RequestID: record.RequestID, UsageID: record.UsageID, OrganizationID: record.OrganizationID, APIKeyID: record.APIKeyID,
+		Model: record.Model, Endpoint: record.Endpoint, StatusCode: record.StatusCode, ErrorCode: record.ErrorCode,
+		InputTokens: record.InputTokens, CacheReadTokens: record.CacheReadTokens, CacheWriteTokens: record.CacheWriteTokens,
+		CacheReadCostAmount: record.CacheReadCostAmount, CacheWriteCostAmount: record.CacheWriteCostAmount,
+		OutputTokens: record.OutputTokens, TotalTokens: record.TotalTokens, CostAmount: record.CostAmount,
+		ClientIP: append([]byte(nil), record.ClientIP...), IsStream: record.IsStream, DurationMillis: record.DurationMillis,
+		FirstTokenMillis: record.FirstTokenMillis, CreatedAt: record.CreatedAt,
+	}
+}
+
 // NewKeyRepository constructs a Gorm key repository.
 func NewKeyRepository(database *gorm.DB) *KeyRepository { return &KeyRepository{database: database} }
 
@@ -122,6 +177,71 @@ func (repository *KeyRepository) RecordGatewayUsageAndQuota(ctx context.Context,
 		return false, nil
 	}
 	return inserted && err == nil, err
+}
+
+// SaveGatewayQuotaRetry records a failed settlement in an idempotent outbox.
+// The unique request/usage identity makes repeated saves safe after ambiguous
+// commits and process restarts.
+func (repository *KeyRepository) SaveGatewayQuotaRetry(ctx context.Context, value GatewayUsageRecord) error {
+	if repository == nil || repository.database == nil || value.APIKeyID == 0 || value.OrganizationID == 0 || value.RequestID == "" || value.UsageID == "" {
+		return errors.New("invalid gateway quota retry")
+	}
+	if value.CreatedAt.IsZero() {
+		value.CreatedAt = time.Now().UTC()
+	}
+	retry := newGatewayQuotaRetryRecord(value)
+	return repository.database.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "request_id"}, {Name: "usage_id"}},
+		DoNothing: true,
+	}).Create(&retry).Error
+}
+
+// ListGatewayQuotaRetries returns pending receipts for one organization in
+// creation order so admission can preserve the original billing period.
+func (repository *KeyRepository) ListGatewayQuotaRetries(ctx context.Context, organizationID uint64, limit int) ([]GatewayUsageRecord, error) {
+	rows, _, err := repository.gatewayQuotaRetries(ctx, organizationID, 0, limit)
+	return rows, err
+}
+
+// ScanGatewayQuotaRetries advances past failed rows so an unavailable tenant
+// cannot monopolize the first page on every recovery pass.
+func (repository *KeyRepository) ScanGatewayQuotaRetries(ctx context.Context, afterID uint64, limit int) ([]GatewayUsageRecord, uint64, error) {
+	return repository.gatewayQuotaRetries(ctx, 0, afterID, limit)
+}
+
+func (repository *KeyRepository) gatewayQuotaRetries(ctx context.Context, organizationID, afterID uint64, limit int) ([]GatewayUsageRecord, uint64, error) {
+	if repository == nil || repository.database == nil {
+		return nil, afterID, errors.New("invalid gateway quota retry repository")
+	}
+	if limit <= 0 || limit > 256 {
+		limit = 256
+	}
+	var rows []gatewayQuotaRetryRecord
+	query := repository.database.WithContext(ctx)
+	if organizationID > 0 {
+		query = query.Where("organization_id = ?", organizationID)
+	}
+	if afterID > 0 {
+		query = query.Where("id > ?", afterID)
+	}
+	if err := query.Order("id ASC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, afterID, err
+	}
+	result := make([]GatewayUsageRecord, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, row.gatewayUsageRecord())
+		afterID = row.ID
+	}
+	return result, afterID, nil
+}
+
+// DeleteGatewayQuotaRetry removes a receipt only after its idempotent usage
+// and quota transaction has committed successfully.
+func (repository *KeyRepository) DeleteGatewayQuotaRetry(ctx context.Context, requestID, usageID string) error {
+	if repository == nil || repository.database == nil || requestID == "" || usageID == "" {
+		return errors.New("invalid gateway quota retry identity")
+	}
+	return repository.database.WithContext(ctx).Where("request_id = ? AND usage_id = ?", requestID, usageID).Delete(&gatewayQuotaRetryRecord{}).Error
 }
 
 // FindGatewayKey validates key and organization state before returning the credential.

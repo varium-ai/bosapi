@@ -32,6 +32,7 @@ func TestUpstreamTransportDiagnosticsRetainHTTPStatusAndIDWithoutConsumingBody(t
 	const responseBody = `{"error":{"message":"PRIVATE_UPSTREAM_BODY"}}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Request-ID", "upstream-123")
+		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Authorization", "Bearer PRIVATE_RESPONSE_SECRET")
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = io.WriteString(w, responseBody)
@@ -54,7 +55,7 @@ func TestUpstreamTransportDiagnosticsRetainHTTPStatusAndIDWithoutConsumingBody(t
 		t.Fatalf("response changed: status=%d body=%q err=%v", response.StatusCode, body, err)
 	}
 	logs := output.String()
-	for _, wanted := range []string{"event=gateway.upstream.request_started", "event=gateway.upstream.response_received", "upstream_status=401", `upstream_request_id="upstream-123"`, "provider_id=7", `provider_name="Channel with spaces"`, `model="test-model"`, "duration_ms="} {
+	for _, wanted := range []string{"event=gateway.upstream.request_started", "event=gateway.upstream.response_received", "upstream_status=401", `upstream_request_id="upstream-123"`, `upstream_content_type="application/json"`, "provider_id=7", `provider_name="Channel with spaces"`, `model="test-model"`, "duration_ms="} {
 		if !strings.Contains(logs, wanted) {
 			t.Fatalf("missing %q in %s", wanted, logs)
 		}

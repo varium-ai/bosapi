@@ -56,8 +56,6 @@ import (
 const clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
 const redirectURI = "http://localhost:1455/auth/callback"
 const upstream = "https://chatgpt.com/backend-api/codex"
-const codexVersion = "0.146.0"
-const codexUserAgent = "codex-tui/0.146.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
 
 type oauthSession struct {
 	Verifier string
@@ -120,6 +118,16 @@ type gatewayKeyRepository interface {
 	RecordGatewayUsageAndQuota(context.Context, userinfra.GatewayUsageRecord) (bool, error)
 }
 
+// gatewayQuotaRetryRepository is optional so in-memory gateway tests and
+// legacy adapters keep their existing behavior while database-backed gateways
+// gain a durable settlement outbox.
+type gatewayQuotaRetryRepository interface {
+	SaveGatewayQuotaRetry(context.Context, userinfra.GatewayUsageRecord) error
+	ListGatewayQuotaRetries(context.Context, uint64, int) ([]userinfra.GatewayUsageRecord, error)
+	ScanGatewayQuotaRetries(context.Context, uint64, int) ([]userinfra.GatewayUsageRecord, uint64, error)
+	DeleteGatewayQuotaRetry(context.Context, string, string) error
+}
+
 type app struct {
 	usageReporting       *analyticsapp.Service
 	usageReportingWorker *analyticsinfra.Worker
@@ -152,8 +160,13 @@ type app struct {
 	organizationQuota    organizationQuotaRuntime
 	monitorClose         func()
 
-	organizationPendingMu sync.Mutex
-	organizationPending   map[uint64]*organizationPendingReceipts
+	organizationPendingMu    sync.Mutex
+	organizationPending      map[uint64]*organizationPendingReceipts
+	organizationPendingProbe map[uint64]*organizationReceiptProbe
+	quotaRetryCursor         uint64
+	quotaRetryBackoffs       map[uint64]quotaRetryBackoff
+	quotaRetryDone           chan struct{}
+	quotaRetryWG             sync.WaitGroup
 }
 
 // Config is kept as a compatibility alias for the application-layer startup configuration.
@@ -236,6 +249,7 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 		return nil, err
 	}
 	a.startUsageQueue()
+	a.startGatewayQuotaRetryWorker()
 	if a.database != nil {
 		a.keyExpiryWorker = userinfra.NewKeyExpiryWorker(userinfra.NewKeyRepository(a.database))
 		a.usageReporting = analyticsapp.New(analyticsinfra.NewRepository(a.database), c.UsageReporting, analyticsinfra.NewHTTPSender(c.UsageReporting.Timeout), analyticsapp.BuildVersion())
@@ -258,6 +272,7 @@ func (g *Gateway) Close() error {
 	if g.app.keyExpiryWorker != nil {
 		g.app.keyExpiryWorker.Close()
 	}
+	g.app.stopGatewayQuotaRetryWorker()
 	g.app.stopUsageQueue()
 	if g.app.organizationQuota != nil {
 		g.app.organizationQuota.Close()
@@ -1412,6 +1427,7 @@ func (a *app) recordRequest(r *http.Request, provider provider, status int, dura
 		}
 		if event.Persistent && key.OrgID > 0 && a.organizationQuota != nil {
 			a.retainOrganizationReceipt(event)
+			a.persistOrganizationReceipt(event)
 		}
 	}
 	if metrics.Known {
@@ -2002,7 +2018,7 @@ func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	case path == "responses" && r.Method == "POST":
 		a.responses(w, r, p)
 	case path == "chat/completions" && r.Method == "POST":
-		a.compat(w, r, p, "chat")
+		a.codexChat(w, r, p)
 	case path == "messages" && r.Method == "POST":
 		a.compat(w, r, p, "messages")
 	case path == "messages/count_tokens" && r.Method == "POST":
@@ -2030,6 +2046,9 @@ func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *app) upstreamRequest(ctx context.Context, p provider, path string, payload []byte) (*http.Response, error) {
+	return a.upstreamRequestWithClient(ctx, p, path, payload, a.client)
+}
+func (a *app) upstreamRequestWithClient(ctx context.Context, p provider, path string, payload []byte, upstreamClient *http.Client) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "POST", upstream+path, bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
@@ -2038,10 +2057,8 @@ func (a *app) upstreamRequest(ctx context.Context, p provider, path string, payl
 	req.Header.Set("ChatGPT-Account-ID", p.AccountID)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("originator", "codex-tui")
-	req.Header.Set("User-Agent", codexUserAgent)
-	req.Header.Set("version", codexVersion)
-	client := *a.client
+	subscription.ApplyCodexClientHeaders(req.Header)
+	client := *upstreamClient
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	res, err := a.doUpstream(&client, req, p, payload, a.client.Timeout)
 	observeUpstreamResult(ctx, p, res, err)
@@ -2078,6 +2095,10 @@ func (a *app) responses(w http.ResponseWriter, r *http.Request, p provider) {
 	q["store"] = json.RawMessage("false")
 	if len(q["instructions"]) == 0 {
 		q["instructions"] = json.RawMessage(`""`)
+	}
+	if err := gatewayinfra.NormalizeCodexInstructions(q); err != nil {
+		crossFailure(w, r, "chat", 400, errorcode.UnsupportedConversion, err)
+		return
 	}
 	var inputText string
 	if json.Unmarshal(q["input"], &inputText) == nil {

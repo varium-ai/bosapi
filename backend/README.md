@@ -20,6 +20,11 @@ Tests needing MySQL, Redis or live upstream access require explicit test
 configuration and otherwise skip those integrations. Use disposable services and
 synthetic credentials. Unit and protocol tests use local fixtures.
 
+ChatGPT/Codex OAuth channels support a bounded Chat Completions bridge for text,
+images, and function tools in JSON/SSE. Unsupported controls and output return
+conversion errors. Use Responses for full Codex capabilities; see the
+[subscription account guide](docs/subscription-accounts.md).
+
 Community resource limits are implemented in `internal/platform/edition` and
 checked in the creation transaction. The shared settings lock prevents concurrent
 creators and batch imports from exceeding capacity. SQL migrations in this source

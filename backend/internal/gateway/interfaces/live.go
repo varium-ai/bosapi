@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"bosapi/backend/internal/platform/errorcode"
+	"bosapi/backend/internal/platform/subscription"
 )
 
 type liveCall struct {
@@ -87,9 +88,7 @@ func (a *app) live(w http.ResponseWriter, r *http.Request, p provider) {
 		request.Header.Set("Content-Type", "application/json")
 		request.Header.Set("x-oai-attestation", attestation)
 		request.Header.Set("OpenAI-Alpha", "quicksilver=v2")
-		request.Header.Set("Version", codexVersion)
-		request.Header.Set("Originator", "codex-tui")
-		request.Header.Set("User-Agent", codexUserAgent)
+		subscription.ApplyCodexClientHeaders(request.Header)
 	}
 	request.Header.Set("Accept", "application/sdp")
 	response, err := a.client.Do(request)
@@ -185,8 +184,6 @@ func (a *app) liveSideband(w http.ResponseWriter, r *http.Request, p provider, i
 	headers.Set("ChatGPT-Account-ID", p.AccountID)
 	headers.Set("x-oai-attestation", call.Attestation)
 	headers.Set("OpenAI-Alpha", "quicksilver=v2")
-	headers.Set("Version", codexVersion)
-	headers.Set("Originator", "codex-tui")
-	headers.Set("User-Agent", codexUserAgent)
+	subscription.ApplyCodexClientHeaders(headers)
 	a.bridgeWebSocket(w, r, "wss://chatgpt.com/backend-api/codex/"+url.PathEscape(id), headers)
 }

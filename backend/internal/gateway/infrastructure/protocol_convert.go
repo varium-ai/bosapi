@@ -52,6 +52,7 @@ type RelayBlock struct {
 	Input                map[string]any
 	IsError              bool
 	MediaType, ImageData string
+	ImageDetail          string
 	URL                  string
 }
 type RelayMessage struct {
@@ -64,12 +65,16 @@ type RelayTool struct {
 }
 type RelayRequest struct {
 	Model                string
+	PromptCacheKey       string
+	SystemRole           string
+	ReasoningEffort      string
 	Stream, IncludeUsage bool
 	System               []string
 	Messages             []RelayMessage
 	Tools                []RelayTool
 	Controls             map[string]any
 	OutputSchema         map[string]any
+	CodexTextFormat      map[string]any
 	Choice, ChoiceName   string
 	DisableParallel      bool
 }
@@ -133,7 +138,12 @@ func relayImageFromURLPart(block map[string]any, path string, allowDetail bool) 
 			return RelayBlock{}, conversionError(path+"image_url.detail", "expected auto, low, or high")
 		}
 	}
-	return relayImageFromURL(source["url"], path+"image_url")
+	image, err := relayImageFromURL(source["url"], path+"image_url")
+	if err != nil {
+		return RelayBlock{}, err
+	}
+	image.ImageDetail, _ = source["detail"].(string)
+	return image, nil
 }
 func relayImageFromURL(value any, path string) (RelayBlock, error) {
 	url, ok := value.(string)
@@ -232,6 +242,75 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 	if source == "chat" && target == "anthropic_messages" {
 		if err := q.normalizeAnthropicThinking(root); err != nil {
 			return q, err
+		}
+	}
+	if source == "chat" {
+		if target == "openai_responses" {
+			// BOS Agent/OpenAI-compatible clients may send the Responses
+			// persistence hint on Chat Completions requests. The OAuth bridge is
+			// stateless and always sends store:false upstream, so consume the
+			// compatible false value instead of rejecting the turn.
+			if value, exists := root["store"]; exists {
+				stored, ok := value.(bool)
+				if !ok {
+					return q, conversionError("store", "expected a boolean")
+				}
+				if stored {
+					return q, conversionError("store", "store=true cannot be preserved by the stateless Codex OAuth bridge")
+				}
+				delete(root, "store")
+			}
+			if value, exists := root["response_format"]; exists {
+				q.CodexTextFormat, err = codexTextFormat(value)
+				if err != nil {
+					return q, err
+				}
+				delete(root, "response_format")
+			}
+			if value, exists := root["reasoning_effort"]; exists {
+				if value != nil {
+					effort, ok := value.(string)
+					if !ok {
+						return q, conversionError("reasoning_effort", "expected a supported effort string or null")
+					}
+					switch effort {
+					case "none", "minimal", "low", "medium", "high", "xhigh", "max":
+						q.ReasoningEffort = effort
+					default:
+						return q, conversionError("reasoning_effort", "unsupported reasoning effort")
+					}
+				}
+				delete(root, "reasoning_effort")
+			}
+			if value, exists := root["prompt_cache_key"]; exists {
+				if value != nil {
+					key, ok := value.(string)
+					if !ok || key == "" {
+						return q, conversionError("prompt_cache_key", "expected a non-empty string or null")
+					}
+					q.PromptCacheKey = key
+				}
+				// Responses accepts this cache partition key directly. Keep it
+				// out of the common Chat field allowlist after validating it.
+				delete(root, "prompt_cache_key")
+			}
+		}
+		if value, exists := root["max_completion_tokens"]; exists {
+			number, ok := value.(json.Number)
+			if !ok {
+				return q, conversionError("max_completion_tokens", "expected a positive integer")
+			}
+			if n, err := number.Int64(); err != nil || n <= 0 {
+				return q, conversionError("max_completion_tokens", "expected a positive integer")
+			}
+			if old, present := root["max_tokens"]; present {
+				previous, ok := old.(json.Number)
+				if !ok || previous != number {
+					return q, conversionError("max_completion_tokens", "conflicts with max_tokens")
+				}
+			}
+			root["max_tokens"] = value
+			delete(root, "max_completion_tokens")
 		}
 	}
 	allowed := []string{"model", "messages", "stream", "max_tokens", "temperature", "top_p", "tools", "tool_choice"}
@@ -348,6 +427,9 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			if target == "anthropic_messages" {
 				messageFields = append(messageFields, "reasoning_content", "anthropic_thinking")
 			}
+			if target == "openai_responses" {
+				messageFields = append(messageFields, "reasoning_content", "codex_reasoning")
+			}
 		}
 		if err = fieldsOnly(message, path, messageFields...); err != nil {
 			return q, err
@@ -373,6 +455,12 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			return q, conversionError(path+"role", "unsupported Messages role")
 		}
 		if role == "system" || role == "developer" {
+			if source == "chat" && target == "openai_responses" {
+				instruction := RelayMessage{Role: role}
+				if err := restoreCodexReasoning(&instruction, message, path); err != nil {
+					return q, err
+				}
+			}
 			if source == "chat" && target == "anthropic_messages" {
 				instruction := RelayMessage{Role: role}
 				if err := restoreAnthropicThinking(&instruction, message, path); err != nil {
@@ -389,6 +477,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 				return q, conversionError(path+"tool_call_id", "not valid on instruction messages")
 			}
 			systemRole = role
+			q.SystemRole = role
 			blocks, err := textBlocks(message["content"], path+"content", false, false)
 			if err != nil {
 				return q, err
@@ -409,7 +498,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			if role != "user" && role != "assistant" && role != "tool" {
 				return q, conversionError(path+"role", "unsupported Chat role")
 			}
-			blocks, err := textBlocks(message["content"], path+"content", role == "user", target == "anthropic_messages")
+			blocks, err := textBlocks(message["content"], path+"content", role == "user", target == "anthropic_messages" || target == "openai_responses")
 			if err != nil {
 				return q, err
 			}
@@ -480,6 +569,11 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 					}
 					calls[id] = name
 					turn.Blocks = append(turn.Blocks, RelayBlock{Type: "tool_use", ID: id, Name: name, Input: input})
+				}
+			}
+			if target == "openai_responses" {
+				if err := restoreCodexReasoning(&turn, message, path); err != nil {
+					return q, err
 				}
 			}
 		} else {

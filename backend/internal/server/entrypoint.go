@@ -20,6 +20,7 @@ import (
 	"bosapi/backend/internal/gateway"
 	"bosapi/backend/internal/platform/database"
 	"bosapi/backend/internal/platform/logging"
+	"bosapi/backend/internal/platform/subscription"
 	"bosapi/backend/migrations"
 )
 
@@ -30,6 +31,11 @@ func Run(ctx context.Context, services gateway.BackgroundServices) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	stopCodexVersionSync, err := subscription.StartCodexVersionSync(ctx)
+	if err != nil {
+		return fmt.Errorf("configure Codex client version: %w", err)
+	}
+	defer stopCodexVersionSync()
 	if cfg.DatabaseDSN != "" {
 		if err := database.ApplyMigrations(ctx, cfg.DatabaseDSN, migrations.Files, database.InitialAdmin{
 			Email: os.Getenv("BOS_ADMIN_EMAIL"), Password: os.Getenv("BOS_ADMIN_PASSWORD"),

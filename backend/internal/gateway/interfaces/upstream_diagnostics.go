@@ -90,7 +90,7 @@ func (a *app) doUpstream(client *http.Client, req *http.Request, p provider, pay
 	if res.StatusCode >= 400 {
 		level = "WARN"
 	}
-	logging.Printf(ctx, level, "gateway.upstream.response_received", "%s phase=response_headers upstream_status=%d upstream_request_id=%q duration_ms=%d", details, res.StatusCode, safeUpstreamText(upstreamID, p), time.Since(start).Milliseconds())
+	logging.Printf(ctx, level, "gateway.upstream.response_received", "%s phase=response_headers upstream_status=%d upstream_request_id=%q upstream_content_type=%q duration_ms=%d", details, res.StatusCode, safeUpstreamText(upstreamID, p), safeUpstreamText(res.Header.Get("Content-Type"), p), time.Since(start).Milliseconds())
 	return res, nil
 }
 

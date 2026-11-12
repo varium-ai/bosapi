@@ -305,9 +305,15 @@ func (reply RelayReply) JSON(source, model string) ([]byte, error) {
 	var text strings.Builder
 	reasoning := map[string]string{}
 	thinking := []any{}
+	codexReasoning := []any{}
 	calls := []any{}
 	for _, block := range reply.Blocks {
 		switch block.Type {
+		case "codex_reasoning":
+			codexReasoning = append(codexReasoning, block.ChatCodexReasoning(text.Len(), len(calls)))
+			if block.Text != "" {
+				reasoning["reasoning_content"] += block.Text
+			}
 		case "thinking":
 			reasoning[block.ReasoningField] += block.Text
 			if block.Signature != "" {
@@ -325,6 +331,9 @@ func (reply RelayReply) JSON(source, model string) ([]byte, error) {
 	message := map[string]any{"role": "assistant", "content": text.String()}
 	if len(thinking) > 0 {
 		message["anthropic_thinking"] = thinking
+	}
+	if len(codexReasoning) > 0 {
+		message["codex_reasoning"] = codexReasoning
 	}
 	for field, value := range reasoning {
 		message[field] = value
