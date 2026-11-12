@@ -186,11 +186,12 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 			return reply, responseFieldError("output.type", "output item cannot be represented in Chat")
 		}
 	}
-	blocks, err := gatewayinfra.ChatRelayToolCalls(calls)
-	if err != nil {
+	// Calls were appended in output order above. Validate the complete set for
+	// duplicate IDs and the call limit without appending or reordering it.
+	if _, err := gatewayinfra.ChatRelayToolCalls(calls); err != nil {
 		return reply, err
 	}
-	if len(blocks) > 0 && reply.Stop != "length" {
+	if len(calls) > 0 && reply.Stop != "length" {
 		reply.Stop = "tool_calls"
 	}
 	if usage, ok := root["usage"].(map[string]any); ok {

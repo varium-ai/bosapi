@@ -5,6 +5,7 @@ import (
 	"bosapi/backend/internal/platform/subscription"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -155,6 +156,9 @@ func TestCodexChatConversion(t *testing.T) {
 			if streaming && (!strings.Contains(body, "[DONE]") || !strings.Contains(body, `"prompt_tokens":10`)) {
 				t.Fatalf("stream %s", body)
 			}
+			if count := strings.Count(body, `"id":"new"`); count != 1 {
+				t.Fatalf("tool call emitted %d times, want exactly once: %s", count, body)
+			}
 		})
 	}
 }
@@ -180,6 +184,58 @@ func TestCodexChatRejectsUnsupportedAndTruncated(t *testing.T) {
 	a.codexChat(w, r, p)
 	if !strings.Contains(w.Body.String(), "unsupported_upstream_feature") || strings.Contains(w.Body.String(), "[DONE]") {
 		t.Fatalf("truncated: %s", w.Body.String())
+	}
+}
+
+func TestCodexReplyToolCallOrderAndValidation(t *testing.T) {
+	call := func(id string) any {
+		return map[string]any{"type": "function_call", "call_id": id, "name": "read", "arguments": `{"n":9007199254740993}`}
+	}
+	output := []any{
+		call("first"),
+		map[string]any{"type": "reasoning", "id": "reasoning", "summary": []any{}},
+		map[string]any{"type": "message", "content": []any{map[string]any{"type": "output_text", "text": "next"}}},
+		call("second"),
+	}
+	for _, status := range []string{"completed", "incomplete"} {
+		t.Run(status, func(t *testing.T) {
+			root := map[string]any{"status": status, "output": output}
+			wantStop := "tool_calls"
+			if status == "incomplete" {
+				root["incomplete_details"] = map[string]any{"reason": "max_output_tokens"}
+				wantStop = "length"
+			}
+			reply, err := codexReply(root, "reply")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reply.Stop != wantStop || len(reply.Blocks) != 4 {
+				t.Fatalf("unexpected stop or duplicated blocks: %+v", reply)
+			}
+			for i, kind := range []string{"tool_use", "codex_reasoning", "text", "tool_use"} {
+				if reply.Blocks[i].Type != kind {
+					t.Fatalf("output order changed: %+v", reply.Blocks)
+				}
+			}
+			if reply.Blocks[0].ID != "first" || reply.Blocks[3].ID != "second" || reply.Blocks[0].Input["n"] != json.Number("9007199254740993") {
+				t.Fatalf("tool identity or arguments changed: %+v", reply.Blocks)
+			}
+		})
+	}
+	for _, count := range []int{2, 129} {
+		t.Run(fmt.Sprintf("reject_%d_calls", count), func(t *testing.T) {
+			calls := make([]any, count)
+			for i := range calls {
+				id := "duplicate"
+				if count > 128 {
+					id = fmt.Sprintf("call_%d", i)
+				}
+				calls[i] = call(id)
+			}
+			if _, err := codexReply(map[string]any{"status": "completed", "output": calls}, "reply"); err == nil {
+				t.Fatal("accepted duplicate IDs or excessive tool calls")
+			}
+		})
 	}
 }
 
