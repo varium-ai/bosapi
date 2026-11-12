@@ -103,10 +103,24 @@ with reason `max_output_tokens` returns the available representable output and
 usage with Chat `finish_reason: "length"`. Truncated, invalid function arguments
 still fail conversion rather than being delivered as executable calls.
 Sampling and stop sequences remain unsupported;
-other unsupported fields return an explicit conversion error. Output types that
-cannot be represented in Chat, including opaque reasoning items, remain rejected.
+other unsupported fields return an explicit conversion error. Chat `response_format`
+supports `text`, `json_object` and `json_schema`, mapped to Responses `text.format`
+without rewriting the schema or its name, description and strict option.
+Unknown native output types remain rejected.
 Chat `reasoning_effort` maps unchanged to Responses `reasoning.effort`; actual
 effort availability depends on the selected upstream model.
+Codex reasoning summaries are returned separately as `reasoning_content`, never
+mixed with answer text. The original reasoning items, including opaque encrypted
+content, are returned in the `codex_reasoning` extension with byte `text_offset`
+and `tool_offset` positions. Streaming clients concatenate these extension arrays
+and summary strings. Return the extension on assistant history turns to replay
+the original reasoning in order, especially across tool calls. Summary text alone
+cannot replace the encrypted item. The bridge requests
+`include: ["reasoning.encrypted_content"]` for stateless continuation, keeps
+ciphertext opaque and reports reasoning tokens in completion token details.
+Summaries and extensions are delivered once after terminal validation; answer
+text can still stream as it arrives. Clients requiring the complete native
+Responses event stream should use `/v1/responses`.
 Chat system-message prefixes are promoted once to Codex `instructions`; developer
 messages retain their role. Native OAuth Responses also promotes a prefix of
 text-only system input messages, prepending their text to existing instructions.

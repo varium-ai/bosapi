@@ -72,6 +72,7 @@ type RelayRequest struct {
 	Tools                []RelayTool
 	Controls             map[string]any
 	OutputSchema         map[string]any
+	CodexTextFormat      map[string]any
 	Choice, ChoiceName   string
 	DisableParallel      bool
 }
@@ -238,6 +239,13 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 	}
 	if source == "chat" {
 		if target == "openai_responses" {
+			if value, exists := root["response_format"]; exists {
+				q.CodexTextFormat, err = codexTextFormat(value)
+				if err != nil {
+					return q, err
+				}
+				delete(root, "response_format")
+			}
 			if value, exists := root["reasoning_effort"]; exists {
 				if value != nil {
 					effort, ok := value.(string)
@@ -386,6 +394,9 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			if target == "anthropic_messages" {
 				messageFields = append(messageFields, "reasoning_content", "anthropic_thinking")
 			}
+			if target == "openai_responses" {
+				messageFields = append(messageFields, "reasoning_content", "codex_reasoning")
+			}
 		}
 		if err = fieldsOnly(message, path, messageFields...); err != nil {
 			return q, err
@@ -411,6 +422,12 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			return q, conversionError(path+"role", "unsupported Messages role")
 		}
 		if role == "system" || role == "developer" {
+			if source == "chat" && target == "openai_responses" {
+				instruction := RelayMessage{Role: role}
+				if err := restoreCodexReasoning(&instruction, message, path); err != nil {
+					return q, err
+				}
+			}
 			if source == "chat" && target == "anthropic_messages" {
 				instruction := RelayMessage{Role: role}
 				if err := restoreAnthropicThinking(&instruction, message, path); err != nil {
@@ -519,6 +536,11 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 					}
 					calls[id] = name
 					turn.Blocks = append(turn.Blocks, RelayBlock{Type: "tool_use", ID: id, Name: name, Input: input})
+				}
+			}
+			if target == "openai_responses" {
+				if err := restoreCodexReasoning(&turn, message, path); err != nil {
+					return q, err
 				}
 			}
 		} else {

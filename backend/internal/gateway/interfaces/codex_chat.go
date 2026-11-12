@@ -142,6 +142,12 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 			return reply, responseFieldError("output", "invalid output item")
 		}
 		switch item["type"] {
+		case "reasoning":
+			block, err := gatewayinfra.CodexReasoningBlock(item, "response.output.")
+			if err != nil {
+				return reply, err
+			}
+			reply.Blocks = append(reply.Blocks, block)
 		case "message":
 			content, ok := item["content"].([]any)
 			if !ok {
@@ -171,6 +177,11 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 			name, _ := item["name"].(string)
 			args, _ := item["arguments"].(string)
 			calls = append(calls, map[string]any{"id": id, "type": "function", "function": map[string]any{"name": name, "arguments": args}})
+			blocks, err := gatewayinfra.ChatRelayToolCalls(calls[len(calls)-1:])
+			if err != nil {
+				return reply, err
+			}
+			reply.Blocks = append(reply.Blocks, blocks...)
 		default:
 			return reply, responseFieldError("output.type", "output item cannot be represented in Chat")
 		}
@@ -179,7 +190,6 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 	if err != nil {
 		return reply, err
 	}
-	reply.Blocks = append(reply.Blocks, blocks...)
 	if len(blocks) > 0 && reply.Stop != "length" {
 		reply.Stop = "tool_calls"
 	}
@@ -203,6 +213,17 @@ func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, 
 		reply.Input = in
 		reply.Output = out
 		reply.HasUsage = true
+		if details, ok := usage["output_tokens_details"].(map[string]any); ok && details["reasoning_tokens"] != nil {
+			n, ok := details["reasoning_tokens"].(json.Number)
+			if !ok {
+				return reply, responseFieldError("usage.reasoning_tokens", "invalid reasoning token count")
+			}
+			thoughts, err := n.Int64()
+			if err != nil || thoughts < 0 || thoughts > out {
+				return reply, responseFieldError("usage.reasoning_tokens", "invalid reasoning token count")
+			}
+			reply.Thoughts = thoughts
+		}
 		if details, ok := usage["input_tokens_details"].(map[string]any); ok && details["cached_tokens"] != nil {
 			n, ok := details["cached_tokens"].(json.Number)
 			if !ok {
@@ -260,6 +281,10 @@ func (a *app) convertCodexChat(w http.ResponseWriter, r *http.Request, body io.R
 			// Codex may send auxiliary moderation metadata between text events.
 			// It carries no Chat content or completion/usage semantics. Keep
 			// requiring response.completed and rejecting unknown event types.
+			return nil
+		case "response.reasoning_summary_part.added", "response.reasoning_summary_part.done", "response.reasoning_summary_text.delta", "response.reasoning_summary_text.done", "response.reasoning_text.delta", "response.reasoning_text.done":
+			// Deliver verified summaries and opaque history from the terminal
+			// reasoning items together, once. Never expose encrypted data as text.
 			return nil
 		case "response.created", "response.in_progress", "response.output_item.added", "response.content_part.added", "response.content_part.done", "response.output_item.done", "response.output_text.done", "response.function_call_arguments.delta", "response.function_call_arguments.done":
 			if kind == "response.output_item.done" {
@@ -421,8 +446,27 @@ func (a *app) convertCodexChat(w http.ResponseWriter, r *http.Request, body io.R
 			}
 		}
 	}
+	textOffset, toolOffset := 0, 0
 	for _, block := range reply.Blocks {
+		if block.Type == "text" {
+			textOffset += len(block.Text)
+		}
+		if block.Type == "codex_reasoning" {
+			if err := renderer.start(); err != nil {
+				failConversion(err)
+				return
+			}
+			delta := map[string]any{"codex_reasoning": []any{block.ChatCodexReasoning(textOffset, toolOffset)}}
+			if block.Text != "" {
+				delta["reasoning_content"] = block.Text
+			}
+			if err := renderer.chat(delta, nil); err != nil {
+				failConversion(err)
+				return
+			}
+		}
 		if block.Type == "tool_use" {
+			toolOffset++
 			index, err := renderer.toolStart(block)
 			if err != nil {
 				failConversion(err)

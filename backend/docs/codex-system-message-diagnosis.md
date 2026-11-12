@@ -41,8 +41,8 @@ Responses 的请求转换，不能继续归因于模型列表或旧版本声明�
    消息返回明确的字段错误，避免丢失数据或重排对话。
 3. Codex 转 Chat：识别并跳过辅助 `response.metadata`；流式和非流式共用
    处理。仍须收到 `response.completed` 才能成功结束并记录终态用量。
-4. API Key 渠道及其他厂商协议不在本次修改范围内。无法在 Chat 中表达的
-   不透明推理输出仍保持原有限制。后续 token 限制的验证与修改见下文。
+4. API Key 渠道及其他厂商协议不在本次修改范围内。此阶段仍拒绝不透明推理
+   输出；11 月 12 日补齐的推理历史扩展与结构化输出支持见文末。
 
 ```text
 Chat -> Codex:
@@ -93,7 +93,8 @@ Codex SSE -> Chat:
 上游 budget 包括推理 token，不承诺单独的可见文本 token 上限。
 仅将原因明确为 `max_output_tokens` 的 incomplete 终态转换为 Chat
 `finish_reason: "length"`，保留可表达的已生成输出和用量。其他 incomplete
-原因、不透明推理输出或无效的截断工具参数仍明确报错。
+原因或无效的截断工具参数仍明确报错。此阶段不透明推理输出仍报错，后续
+补齐方案见文末。
 
 ```text
 limit = validated_alias(max_tokens, max_completion_tokens)
@@ -150,3 +151,75 @@ else:
 下的 Chat JSON 和 SSE 输出、分片读取、用量、结束标记、错误页拒绝、未知事件、
 截断流、首 token 计时和 body 关闭。修复未部署；更新后的远端 Chat 实测仍是
 上线后的验收步骤，不能将本地回归通过等同于远端请求已经恢复。
+
+## 11 月 12 日：结构化输出与推理输出项
+
+修复分支：`hotfix/codex_reasoning_output`。
+
+测试环境已切换到 `bosapi-bg-75aef0444f56`，09:34 的版本同步为 `0.167.2`。
+最新日志确认 SSE 修复生效：上游确实不声明 Content-Type，并且已出现成功的
+Chat 调用。剩余两类错误为：
+
+| 请求 | 阶段 | 错误 |
+| --- | --- | --- |
+| `req_174ca971a2815c821c9820583042c683` | 请求转换，HTTP 400 | `response_format: unsupported in this protocol conversion` |
+| `req_70c9952a555a8e796f1e366790b069df` | 响应转换，上游 200 | `response.output.type: output item cannot be represented in Chat` |
+
+使用相同测试密钥和 `gpt-6.1-terra` 直接验证原生 Responses：
+
+- `text.format.type=json_object` 和严格 `json_schema` 均返回 HTTP 200，正文
+  为预期 JSON，完成响应保留传入的格式定义。
+- 较复杂的高推理请求返回 `reasoning` 项、摘要事件及加密内容。该输出项在
+  旧转换器中走了默认拒绝分支，导致回答末尾报错并触发客户端重试。
+
+修改范围：
+
+1. Chat `response_format` 支持 null/text/json_object/json_schema，转换为
+   Responses `text.format`。保留 schema、name、description、strict，明确
+   拒绝非法结构和无法转换的额外字段。
+2. 接收已知推理摘要事件，以终态 reasoning 项为准一次交付摘要。
+   摘要返回 `reasoning_content`，正文仍只包含模型答案。
+3. 原始 reasoning 项通过 `codex_reasoning` 数组扩展返回，包含 `item`、
+   UTF-8 字节偏移 `text_offset` 和调用偏移 `tool_offset`。客户端合并流式
+   数组并在 assistant 历史中回传，网关据此恢复原始顺序。加密内容不解密，
+   不拼接进正文，不构造虚假的 provider 签名。
+4. 上游请求加入 `include: ["reasoning.encrypted_content"]`，支持 store=false
+   的历史续接。推理 token 计入 completion_tokens，并单独出现在
+   completion_tokens_details.reasoning_tokens，避免重复收费。
+5. 未知输出类型、非法推理历史偏移、摘要与原项不一致、非法工具参数仍报错。
+
+```text
+Chat.response_format -> Responses.text.format
+  json_schema: flatten json_schema envelope, preserve every schema value
+
+Responses.output:
+  reasoning -> preserve original item and its position as codex_reasoning
+               expose summary text separately as reasoning_content
+  message -> answer content
+  function_call -> validated Chat tool call
+
+Chat assistant history:
+  validate codex_reasoning item types, offsets and summary consistency
+  interleave original reasoning items with answer and tool history
+  replay unchanged encrypted_content to Codex
+```
+
+验证结果：基础设施与接口两个包完整测试通过；新增基于实测事件序列、经脱敏
+处理的 SSE fixture，覆盖流式/非流式、历史回传、精确整数、工具顺序、UTF-8
+偏移、参数拒绝和用量记录。
+
+另用临时测试适配器，将本地新转换器的上游请求通过测试环境原生 Responses
+路径发送给真实上游（未提取 provider 凭据，未部署）：
+
+| 本地新 Chat 转换器的请求 | 真实上游验证 |
+| --- | --- |
+| 非流式 text 格式、高推理、token 限制 | 成功，答案包含 4046，返回 1 个推理历史项；prompt 43 / completion 231（其中 reasoning 130）/ total 274 |
+| 流式严格 JSON Schema、高推理、token 限制 | 成功，合并正文为 `{"n":4046}`，收到 `[DONE]` |
+
+测试环境上的 Chat 仍需部署本次分支后验收；上述真实上游验证不等于远端 Chat
+已经运行新代码。临时联网测试适配器已移除，仓库仅保留离线回归与脱敏 fixture。
+
+官方字段说明：
+
+- [Responses 迁移：response_format 改为 text.format](https://developers.openai.com/api/docs/guides/migrate-to-responses)
+- [推理指南：stateless 模式下的 encrypted_content 与历史保留](https://developers.openai.com/api/docs/guides/reasoning)

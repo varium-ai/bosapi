@@ -64,6 +64,9 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 			case "tool_result":
 				flush()
 				input = append(input, map[string]any{"type": "function_call_output", "call_id": block.ID, "output": block.Text})
+			case "codex_reasoning":
+				flush()
+				input = append(input, block.Input)
 			default:
 				return nil, conversionError(fmt.Sprintf("messages[%d].content", i), "content cannot be represented by Codex")
 			}
@@ -71,6 +74,11 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 		flush()
 	}
 	root := map[string]any{"model": q.Model, "input": input, "instructions": instructions, "stream": true, "store": false}
+	// Preserve encrypted reasoning for stateless tool/history continuation.
+	root["include"] = []string{"reasoning.encrypted_content"}
+	if q.CodexTextFormat != nil {
+		root["text"] = map[string]any{"format": q.CodexTextFormat}
+	}
 	if limit, exists := q.Controls["max_tokens"]; exists {
 		root["max_output_tokens"] = limit
 	}
