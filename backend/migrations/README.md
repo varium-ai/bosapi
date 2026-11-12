@@ -356,8 +356,6 @@ seconds. A previously confirmed empty result can cover a transient read failure
 for at most 30 seconds. Cold starts and known pending settlements fail closed.
 
 Historical `001_initial_schema.sql` and `023_usage_log_transition.sql` retain
-their deployed community bytes. UTC partition alignment is applied through
-`028_usage_partitions_utc.sql`; this file must remain present even on hosts that
-already applied it. The community schema has no commercial report-job table and
-does not use the commercial report timezone migration. Do not update database
-checksums to accommodate rewritten historical SQL.
+their deployed community bytes. The community schema has no commercial
+report-job table and does not use the commercial report timezone migration. Do
+not update database checksums to accommodate rewritten historical SQL.
