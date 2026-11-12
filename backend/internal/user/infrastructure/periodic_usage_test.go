@@ -17,14 +17,14 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
-func TestFindGatewayKeyPeriodicUsageUsesShanghaiBoundaries(t *testing.T) {
+func TestFindGatewayKeyPeriodicUsageUsesUTCBoundaries(t *testing.T) {
 	for _, test := range []struct {
 		name, now, day, week, month, earliest string
 	}{
-		{"before midnight", "2026-10-12T15:59:59Z", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z"},
-		{"after midnight", "2026-10-12T16:00:00Z", "2026-10-12T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z"},
-		{"Monday", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z"},
-		{"week spans previous month", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-27T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-27T16:00:00Z"},
+		{"before midnight", "2026-10-11T23:59:59Z", "2026-10-11T00:00:00Z", "2026-10-05T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z"},
+		{"after midnight", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z"},
+		{"Monday", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z"},
+		{"week spans previous month", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", "2026-09-28T00:00:00Z", "2026-10-01T00:00:00Z", "2026-09-28T00:00:00Z"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository, mock := quotaRepository(t)
@@ -78,9 +78,9 @@ func TestFindActiveKeyByIDPopulatesPortalUsage(t *testing.T) {
 			repository, mock := quotaRepository(t)
 			now := time.Date(2026, 10, 14, 10, 15, 0, 0, time.UTC)
 			expectActivePortalKey(mock, now, limited)
-			day := time.Date(2026, 10, 13, 16, 0, 0, 0, time.UTC)
-			week := time.Date(2026, 10, 11, 16, 0, 0, 0, time.UTC)
-			month := time.Date(2026, 9, 30, 16, 0, 0, 0, time.UTC)
+			day := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+			week := time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)
+			month := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 			mock.ExpectQuery(`SELECT api_key_id, .*FROM \(SELECT .*usage_daily_rollups FORCE INDEX .*UNION ALL SELECT .*usage_logs_v2 FORCE INDEX .*rollup_applied = 0.*UNION ALL SELECT .*usage_logs FORCE INDEX .*rollup_applied = 0`).
 				WithArgs(periodicBoundaryArgs(134, day, week, month, month)...).
 				WillReturnRows(periodicRows().AddRow(134, 506476, 0.506476, 506476, 0.506476, 506476, 0.506476))
@@ -187,7 +187,7 @@ func TestPeriodicUsageResetsWhenNewPeriodHasNoRows(t *testing.T) {
 	repository, mock := quotaRepository(t)
 	keys := []domain.APIKey{{ID: 7, DailyUsedTokens: 10, WeeklyUsedTokens: 20, MonthlyUsedTokens: 30, DailyUsedAmount: 1, WeeklyUsedAmount: 2, MonthlyUsedAmount: 3}}
 	// A Monday which is also the first of the month resets all three periods.
-	now := time.Date(2026, 5, 31, 16, 0, 0, 0, time.UTC)
+	now := time.Date(2018, 10, 1, 0, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(`SELECT api_key_id, .*FROM \(SELECT .*usage_daily_rollups FORCE INDEX .*UNION ALL SELECT .*usage_logs_v2 FORCE INDEX .*rollup_applied = 0.*UNION ALL SELECT .*usage_logs FORCE INDEX .*rollup_applied = 0`).
 		WithArgs(periodicBoundaryArgs(7, now, now, now, now)...).
 		WillReturnRows(periodicRows())
@@ -218,7 +218,7 @@ func periodicRows() *sqlmock.Rows {
 }
 
 func periodicBoundaryArgs(id uint64, day, week, month, start time.Time) []driver.Value {
-	date := func(at time.Time) string { return at.In(time.FixedZone("UTC+8", 8*60*60)).Format("2006-01-02") }
+	date := func(at time.Time) string { return at.UTC().Format("2006-01-02") }
 	return []driver.Value{date(day), date(day), date(week), date(week), date(month), date(month), id, date(start),
 		day, day, week, week, month, month, id, start,
 		day, day, week, week, month, month, id, start}
@@ -232,13 +232,13 @@ func TestOrganizationPeriodicUsageBoundariesAndEmptyPeriods(t *testing.T) {
 		name, now, day, week, month, earliest string
 		empty                                 bool
 	}{
-		{"before midnight", "2026-10-12T15:59:59Z", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
-		{"after midnight", "2026-10-12T16:00:00Z", "2026-10-12T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
-		{"Sunday", "2026-10-11T15:59:59Z", "2026-10-10T16:00:00Z", "2026-10-04T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
-		{"Monday", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-10-11T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", false},
-		{"week spans previous month", "2026-09-30T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-27T16:00:00Z", "2026-09-30T16:00:00Z", "2026-09-27T16:00:00Z", false},
-		{"year rollover", "2026-12-31T16:00:00Z", "2026-12-31T16:00:00Z", "2026-12-27T16:00:00Z", "2026-12-31T16:00:00Z", "2026-12-27T16:00:00Z", false},
-		{"all periods reset", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", "2026-05-31T16:00:00Z", true},
+		{"before midnight", "2026-10-11T23:59:59Z", "2026-10-11T00:00:00Z", "2026-10-05T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", false},
+		{"after midnight", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", false},
+		{"Sunday", "2026-10-11T23:59:59Z", "2026-10-11T00:00:00Z", "2026-10-05T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", false},
+		{"Monday", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-12T00:00:00Z", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", false},
+		{"week spans previous month", "2026-10-01T00:00:00Z", "2026-10-01T00:00:00Z", "2026-09-28T00:00:00Z", "2026-10-01T00:00:00Z", "2026-09-28T00:00:00Z", false},
+		{"year rollover", "2027-01-01T00:00:00Z", "2027-01-01T00:00:00Z", "2026-12-28T00:00:00Z", "2027-01-01T00:00:00Z", "2026-12-28T00:00:00Z", false},
+		{"all periods reset", "2018-10-01T00:00:00Z", "2018-10-01T00:00:00Z", "2018-10-01T00:00:00Z", "2018-10-01T00:00:00Z", "2018-10-01T00:00:00Z", true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			repository, mock := quotaRepository(t)

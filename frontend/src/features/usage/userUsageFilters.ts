@@ -1,5 +1,5 @@
 export function businessToday(now = new Date()): string {
-  return new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return now.toISOString().slice(0, 10);
 }
 
 export function defaultUsageRange(now = new Date(), days: 1 | 7 = 1): { from: string; to: string } {

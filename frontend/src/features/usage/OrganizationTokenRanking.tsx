@@ -36,7 +36,7 @@ export function OrganizationTokenRanking({
   return (
     <Card size="small" title={t('usage.ranking_dashboard_title')} className="user-token-ranking">
       <p className="user-token-ranking-caption">
-        <span>{from === to ? from : `${from} — ${to}`} · UTC+8</span>
+        <span>{from === to ? from : `${from} — ${to}`} · UTC</span>
         <span>{t('usage.ranking_note')}</span>
       </p>
       <Tabs

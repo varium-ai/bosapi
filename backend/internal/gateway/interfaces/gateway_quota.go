@@ -279,7 +279,7 @@ type quotaDenial struct {
 	limit      string
 }
 
-// gatewayQuotaDenial uses the same UTC+8 calendar as persisted usage. When
+// gatewayQuotaDenial uses the same UTC calendar as persisted usage. When
 // multiple budgets are exhausted, report the one that blocks retries longest.
 func gatewayQuotaDenial(key apiKey, now time.Time) *quotaDenial {
 	day, week, month := usagetime.PeriodStarts(now)

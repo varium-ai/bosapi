@@ -1,5 +1,5 @@
 // Package usagerollup incrementally materializes immutable usage logs into
-// UTC+8 day/organization/key/model counters without changing gateway writes.
+// UTC day/organization/key/model counters without changing gateway writes.
 package usagerollup
 
 import (
@@ -74,7 +74,7 @@ const accumulateSQL = `INSERT INTO usage_daily_rollups
 		add_input, add_cache_read, add_cache_write,
 		add_cache_read_cost, add_cache_write_cost,
 		add_output, add_tokens, add_cost FROM (
-		SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+08:00')) AS usage_date,
+		SELECT DATE(created_at) AS usage_date,
 			organization_id, api_key_id, model, COUNT(*) AS add_requests,
 			SUM(status_code >= 400) AS add_errors, SUM(input_tokens) AS add_input,
 			SUM(cache_read_tokens) AS add_cache_read,

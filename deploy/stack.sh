@@ -210,7 +210,7 @@ BOS_GEMINI_OAUTH_CLIENT_SECRET=
 # Operator-supplied client required for Antigravity subscription sign-in and refresh.
 BOS_ANTIGRAVITY_OAUTH_CLIENT_ID=
 BOS_ANTIGRAVITY_OAUTH_CLIENT_SECRET=
-TZ=Asia/Shanghai
+TZ=UTC
 EOF
   printf 'Created %s (mode 600)\n' "$env_file"
   printf 'Keep %s and its encryption key across restarts.\n' "$env_file"

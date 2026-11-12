@@ -256,7 +256,7 @@ requires explicit repair; retiring it never marks an interrupted DDL complete.
 `023_usage_log_transition.sql` creates an empty date-partitioned usage destination
 and durable retry receipts. Compatibility writes remain in the source until all
 instances have upgraded and partition writes/draining are explicitly activated.
-Raw data then retains 30 complete UTC+8 business days plus today; acknowledged
+Raw data then retains 30 complete UTC business days plus today; acknowledged
 daily summaries and quota counters survive expiry. See
 [usage log retention](../docs/usage-log-retention.md) for activation, bounded
 history movement, diagnostics and application rollback constraints.
@@ -335,5 +335,5 @@ JSON.
 
 Unit coverage in `organization_quota_indexes_test.go` checks forward and rollback
 SQL and index column order. The user infrastructure periodic-usage unit tests
-check generated MySQL SQL, bound UTC+8 boundaries, organization scope, query
+check generated MySQL SQL, bound UTC boundaries, organization scope, query
 isolation, cancellation, and error propagation with SQL mocks.

@@ -6,8 +6,8 @@ ALTER TABLE usage_logs_v2
   DROP PRIMARY KEY, DROP INDEX uq_usage_request_usage,
   ADD PRIMARY KEY (id, created_at);
 
--- Usage partitions follow the UTC+8 quota calendar; stored timestamps stay UTC.
-SET @usage_day = DATE(UTC_TIMESTAMP() + INTERVAL 8 HOUR);
+-- Usage partitions follow the UTC quota calendar; stored timestamps stay UTC.
+SET @usage_day = DATE(UTC_TIMESTAMP());
 SET @usage_old_group_concat_max_len = @@SESSION.group_concat_max_len;
 SET SESSION group_concat_max_len = 16384;
 WITH RECURSIVE days AS (
@@ -15,9 +15,9 @@ WITH RECURSIVE days AS (
   UNION ALL SELECT day + INTERVAL 1 DAY FROM days WHERE day < @usage_day + INTERVAL 7 DAY
 )
 SELECT CONCAT('ALTER TABLE usage_logs_v2 PARTITION BY RANGE COLUMNS (created_at) (',
-  'PARTITION p_before VALUES LESS THAN (''', DATE_FORMAT(@usage_day - INTERVAL 30 DAY - INTERVAL 8 HOUR, '%Y-%m-%d %H:%i:%s'), '''), ',
+  'PARTITION p_before VALUES LESS THAN (''', DATE_FORMAT(@usage_day - INTERVAL 30 DAY, '%Y-%m-%d %H:%i:%s'), '''), ',
   GROUP_CONCAT(CONCAT('PARTITION p', DATE_FORMAT(day, '%Y%m%d'), ' VALUES LESS THAN (''',
-    DATE_FORMAT(day + INTERVAL 1 DAY - INTERVAL 8 HOUR, '%Y-%m-%d %H:%i:%s'), ''')') ORDER BY day SEPARATOR ', '),
+    DATE_FORMAT(day + INTERVAL 1 DAY, '%Y-%m-%d %H:%i:%s'), ''')') ORDER BY day SEPARATOR ', '),
   ', PARTITION p_future VALUES LESS THAN (MAXVALUE))') INTO @usage_partition_sql FROM days;
 PREPARE usage_partition_statement FROM @usage_partition_sql;
 EXECUTE usage_partition_statement;
@@ -39,7 +39,7 @@ CREATE TABLE usage_log_retention (
   legacy_high_watermark BIGINT UNSIGNED NOT NULL DEFAULT 0,
   partition_writes TINYINT(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB;
-INSERT INTO usage_log_retention (id, retained_from) VALUES (1, @usage_day - INTERVAL 30 DAY - INTERVAL 8 HOUR);
+INSERT INTO usage_log_retention (id, retained_from) VALUES (1, @usage_day - INTERVAL 30 DAY);
 CREATE TABLE usage_log_backfill (
   id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
   enabled TINYINT(1) NOT NULL DEFAULT 0,

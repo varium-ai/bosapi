@@ -117,7 +117,7 @@ test('Key detail usage cursors survive next/previous and reset for Key, IP, and 
     () => render(150),
     () => render(150, '127.0.0.1'),
     () => {
-      states[0] = new Date('2026-11-02T16:01:00Z');
+      states[0] = new Date('2026-11-03T00:01:00Z');
       return render(150, '127.0.0.1');
     },
   ]) {

@@ -48,14 +48,14 @@ export interface RuntimeStatus {
   draining: boolean;
 }
 
-// Existing admin usage filters accept calendar dates in Asia/Shanghai, not a timezone parameter.
+// Existing admin usage filters accept UTC calendar dates, not a timezone parameter.
 export function getUsageRange(
   range: OverviewRange,
   now = new Date(),
 ): { from?: string; to?: string } {
   if (range === 'total') return {};
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
+    timeZone: 'UTC',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

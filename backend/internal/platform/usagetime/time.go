@@ -1,14 +1,14 @@
-// Package usagetime defines the UTC+8 business calendar used by usage and quotas.
+// Package usagetime defines the UTC business calendar used by usage and quotas.
 package usagetime
 
 import "time"
 
 // SQLTimestamp converts UTC DATETIME values without MySQL time zone tables.
-const SQLTimestamp = "CONVERT_TZ(created_at, '+00:00', '+08:00')"
+const SQLTimestamp = "created_at"
 
-var location = time.FixedZone("Asia/Shanghai", 8*60*60)
+var location = time.UTC
 
-// Location returns the business calendar's fixed UTC+8 time zone.
+// Location returns the business calendar's UTC time zone.
 func Location() *time.Location { return location }
 
 // DayStart returns the start of the current business day as a UTC instant.

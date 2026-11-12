@@ -118,8 +118,8 @@ test('key viewer navigation contains only key portal routes and nested key detai
   assert.equal(getSelectedNavigationPath('/admin/usage'), '/admin/usage');
 });
 
-test('usage windows match existing UTC+8 calendar filters, including month and year boundaries', () => {
-  assert.deepEqual(getUsageRange('7d', new Date('2026-10-12T16:30:00Z')), {
+test('usage windows use UTC calendar filters, including month and year boundaries', () => {
+  assert.deepEqual(getUsageRange('7d', new Date('2026-10-13T00:30:00Z')), {
     from: '2026-10-07',
     to: '2026-10-13',
   });

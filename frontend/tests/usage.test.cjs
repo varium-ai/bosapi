@@ -116,23 +116,23 @@ test('first token latency labels and measurement guidance are available in both 
   );
 });
 
-test('default date follows the UTC+8 business calendar across midnight and years', () => {
+test('default date follows the UTC business calendar across midnight and years', () => {
   for (const [instant, day] of [
-    ['2026-10-15T15:59:59Z', '2026-10-15'],
-    ['2026-10-15T16:00:00Z', '2026-10-16'],
-    ['2026-12-31T16:00:00Z', '2027-01-01'],
-    ['2024-02-28T16:00:00Z', '2024-02-29'],
+    ['2026-10-15T23:59:59Z', '2026-10-15'],
+    ['2026-10-16T00:00:00Z', '2026-10-16'],
+    ['2026-12-31T23:59:59Z', '2026-12-31'],
+    ['2024-02-29T00:00:00Z', '2024-02-29'],
   ])
     assert.equal(businessToday(new Date(instant)), day);
 });
 
-test('daily organization defaults cover only today while other views retain seven UTC+8 dates', () => {
+test('daily organization defaults cover only today while other views retain seven UTC dates', () => {
   for (const [instant, from, to] of [
     ['2026-10-22T03:00:00Z', '2026-10-16', '2026-10-22'],
-    ['2026-10-22T15:59:59Z', '2026-10-16', '2026-10-22'],
-    ['2026-10-22T16:00:00Z', '2026-10-17', '2026-10-23'],
-    ['2026-12-31T16:00:00Z', '2026-12-26', '2027-01-01'],
-    ['2024-02-29T16:00:00Z', '2024-02-24', '2024-03-01'],
+    ['2026-10-22T23:59:59Z', '2026-10-16', '2026-10-22'],
+    ['2026-10-23T00:00:00Z', '2026-10-17', '2026-10-23'],
+    ['2026-12-31T23:59:59Z', '2026-12-25', '2026-12-31'],
+    ['2024-02-29T00:00:00Z', '2024-02-23', '2024-02-29'],
   ]) {
     assert.deepEqual(defaultUsageRange(new Date(instant), 7), { from, to }, instant);
     assert.deepEqual(defaultUsageRange(new Date(instant)), { from: to, to }, instant);
@@ -189,7 +189,7 @@ test('organization dashboard translations describe ownership, scope, and calenda
     assert.equal(typeof english.usage[key], 'string', key);
     assert.equal(typeof chinese.usage[key], 'string', key);
   }
-  assert.match(english.usage.users_note, /UTC\+8/);
+  assert.match(english.usage.users_note, /UTC/);
   assert.match(english.usage.users_note, /all pages/);
   assert.match(english.usage.users_note, /organization/);
 });

@@ -57,7 +57,7 @@ and `X-RateLimit-Remaining: 0` describe the exhausted policy when its limit is k
 
 Automatically resetting policies return `Retry-After` as remaining seconds,
 rounded up to at least one second. Redis windows use the exhausted counter's
-TTL; calendar budgets use UTC+8 midnight, Monday, or the first of the month.
+TTL; calendar budgets use UTC midnight, Monday, or the first of the month.
 If multiple policies in one check are exhausted, the longest blocker is reported.
 Total and zero budgets require a budget change and return `retryable: false`
 without `Retry-After`, because waiting alone cannot restore them.

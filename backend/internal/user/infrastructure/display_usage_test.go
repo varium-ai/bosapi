@@ -13,7 +13,7 @@ import (
 func TestDisplayUsageBatchesKeysWithRollingWindow(t *testing.T) {
 	repository, mock := quotaRepository(t)
 	now := time.Date(2026, 10, 13, 7, 0, 0, 0, time.UTC)
-	day := time.Date(2026, 10, 12, 16, 0, 0, 0, time.UTC)
+	day := time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)
 	mock.ExpectQuery(`SELECT api_key_id, .*FROM \(SELECT .*FROM usage_logs_v2 FORCE INDEX .*UNION ALL .*FROM usage_logs FORCE INDEX .*AS usage_source WHERE created_at <= \? GROUP BY api_key_id`).
 		WithArgs(day, uint64(7), uint64(8), now.Add(-720*time.Hour), uint64(7), uint64(8), now.Add(-720*time.Hour), now).
 		WillReturnRows(sqlmock.NewRows([]string{"api_key_id", "today_amount", "recent_amount"}).AddRow(7, 0.125, 12.3456))

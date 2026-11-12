@@ -14,7 +14,7 @@ import (
 )
 
 func TestAdminUsageShanghaiCalendarBucketsKeepUTCFilter(t *testing.T) {
-	localTime := "CONVERT_TZ(created_at, '+00:00', '+08:00')"
+	localTime := "created_at"
 	for _, test := range []struct {
 		period   string
 		grouping string

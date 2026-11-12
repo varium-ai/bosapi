@@ -195,7 +195,7 @@ const RequestTrend: React.FC<{ points: UsagePoint[] }> = ({ points }) => {
       <figcaption>
         <span className="overview-chart-legend" />
         {t('overview.requests')}
-        <span className="overview-muted">UTC+8</span>
+        <span className="overview-muted">UTC</span>
       </figcaption>
     </figure>
   );

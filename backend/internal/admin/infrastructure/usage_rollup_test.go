@@ -8,7 +8,7 @@ import (
 )
 
 func TestUsageRollupsRequireWholeBusinessDaysAndNoIPFilter(t *testing.T) {
-	from := time.Date(2026, 9, 30, 16, 0, 0, 0, time.UTC)
+	from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	to := from.Add(48 * time.Hour)
 	partial := from.Add(time.Millisecond)
 	for _, test := range []struct {
