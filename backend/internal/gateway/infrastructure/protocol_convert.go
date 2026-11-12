@@ -239,6 +239,20 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 	}
 	if source == "chat" {
 		if target == "openai_responses" {
+			// BOS Agent/OpenAI-compatible clients may send the Responses
+			// persistence hint on Chat Completions requests. The OAuth bridge is
+			// stateless and always sends store:false upstream, so consume the
+			// compatible false value instead of rejecting the turn.
+			if value, exists := root["store"]; exists {
+				stored, ok := value.(bool)
+				if !ok {
+					return q, conversionError("store", "expected a boolean")
+				}
+				if stored {
+					return q, conversionError("store", "store=true cannot be preserved by the stateless Codex OAuth bridge")
+				}
+				delete(root, "store")
+			}
 			if value, exists := root["response_format"]; exists {
 				q.CodexTextFormat, err = codexTextFormat(value)
 				if err != nil {

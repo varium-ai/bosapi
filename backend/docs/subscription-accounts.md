@@ -102,6 +102,9 @@ than a separate visible-text-only limit. A `response.incomplete` terminal event
 with reason `max_output_tokens` returns the available representable output and
 usage with Chat `finish_reason: "length"`. Truncated, invalid function arguments
 still fail conversion rather than being delivered as executable calls.
+The Chat bridge consumes `store:false` sent by BOS Agent/OpenAI-compatible clients;
+the OAuth path is stateless and always sends `store:false` upstream. `store:true`
+is rejected because persistence cannot be provided by this bridge.
 Sampling and stop sequences remain unsupported;
 other unsupported fields return an explicit conversion error. Chat `response_format`
 supports `text`, `json_object` and `json_schema`, mapped to Responses `text.format`

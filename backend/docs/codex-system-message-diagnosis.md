@@ -223,3 +223,30 @@ Chat assistant history:
 
 - [Responses 迁移：response_format 改为 text.format](https://developers.openai.com/api/docs/guides/migrate-to-responses)
 - [推理指南：stateless 模式下的 encrypted_content 与历史保留](https://developers.openai.com/api/docs/guides/reasoning)
+
+## 11 月 12 日：BOS Agent 的 `store` 字段
+
+请求 `req_c1cf28ed3b649b7a7ee27fd5d25c4aab` 的日志明确显示：
+
+```text
+POST chat/completions
+failure_stage=request_conversion
+error_param=store
+error_reason=unsupported in this protocol conversion
+```
+
+它没有到达上游，也不是工具函数参数或 OAuth 账号权限问题。BOS Agent 将
+Responses/OpenAI 的 `store:false` 带到了 Chat Completions 请求；旧白名单只
+接受有限 Chat 字段，因此在转换前直接返回 400。当前 OAuth Codex 转发本来
+就强制 `store:false`，所以这个兼容提示可以安全删除后继续转换。`store:true`
+仍明确拒绝，避免声称提供了不存在的持久化能力。
+
+```text
+if target == openai_responses && source == chat && body.store exists:
+  require boolean
+  require store == false
+  delete body.store
+```
+
+新增测试覆盖 false、null、true、字符串和对象值，并确认删除后的上游 JSON
+不会包含 `store`。修复分支：`hotfix/codex_store_compat`。
