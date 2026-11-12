@@ -64,6 +64,7 @@ type RelayTool struct {
 }
 type RelayRequest struct {
 	Model                string
+	PromptCacheKey       string
 	SystemRole           string
 	ReasoningEffort      string
 	Stream, IncludeUsage bool
@@ -274,6 +275,18 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 					}
 				}
 				delete(root, "reasoning_effort")
+			}
+			if value, exists := root["prompt_cache_key"]; exists {
+				if value != nil {
+					key, ok := value.(string)
+					if !ok || key == "" {
+						return q, conversionError("prompt_cache_key", "expected a non-empty string or null")
+					}
+					q.PromptCacheKey = key
+				}
+				// Responses accepts this cache partition key directly. Keep it
+				// out of the common Chat field allowlist after validating it.
+				delete(root, "prompt_cache_key")
 			}
 		}
 		if value, exists := root["max_completion_tokens"]; exists {

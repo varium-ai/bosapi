@@ -74,6 +74,9 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 		flush()
 	}
 	root := map[string]any{"model": q.Model, "input": input, "instructions": instructions, "stream": true, "store": false}
+	if q.PromptCacheKey != "" {
+		root["prompt_cache_key"] = q.PromptCacheKey
+	}
 	// Preserve encrypted reasoning for stateless tool/history continuation.
 	root["include"] = []string{"reasoning.encrypted_content"}
 	if q.CodexTextFormat != nil {
