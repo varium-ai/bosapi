@@ -11,6 +11,7 @@ import (
 
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	"bosapi/backend/internal/platform/errorcode"
+	"bosapi/backend/internal/platform/logging"
 	"bosapi/backend/internal/platform/usagetime"
 	userinfra "bosapi/backend/internal/user/infrastructure"
 )
@@ -41,6 +42,19 @@ type organizationPendingReceipts struct {
 	retrying chan struct{}
 }
 
+// Concurrent admissions share one bounded probe. Only a confirmed empty scan
+// may be reused briefly after a transient read failure; cold starts fail closed.
+type organizationReceiptProbe struct {
+	checkedAt time.Time
+	emptyAt   time.Time
+	loading   chan struct{}
+}
+
+type quotaRetryBackoff struct {
+	delay time.Duration
+	next  time.Time
+}
+
 func (a *app) retainOrganizationReceipt(event usageEvent) {
 	a.organizationPendingMu.Lock()
 	defer a.organizationPendingMu.Unlock()
@@ -53,13 +67,127 @@ func (a *app) retainOrganizationReceipt(event usageEvent) {
 		pending = &organizationPendingReceipts{}
 		a.organizationPending[id] = pending
 	}
+	for _, existing := range pending.events {
+		if existing.RequestID == event.RequestID && existing.UsageID == event.UsageID {
+			return
+		}
+	}
 	pending.events = append(pending.events, event)
+	delete(a.organizationPendingProbe, id)
+}
+
+func gatewayUsageEvent(value userinfra.GatewayUsageRecord) usageEvent {
+	return usageEvent{
+		Context: context.Background(), RequestID: value.RequestID, UsageID: value.UsageID,
+		Key:   apiKey{ID: int(value.APIKeyID), OrgID: int(value.OrganizationID)},
+		Model: value.Model, Status: int(value.StatusCode), ErrorCode: errorcode.Code(value.ErrorCode),
+		Endpoint: value.Endpoint, IsStream: value.IsStream, ClientIP: append([]byte(nil), value.ClientIP...),
+		Persistent: true, CreatedAt: value.CreatedAt,
+		Duration:         time.Duration(value.DurationMillis) * time.Millisecond,
+		FirstTokenMillis: value.FirstTokenMillis,
+		Metrics: usageMetrics{
+			InputTokens: int64(value.InputTokens), CacheReadTokens: int64(value.CacheReadTokens), CacheWriteTokens: int64(value.CacheWriteTokens),
+			CacheReadCost: value.CacheReadCostAmount, CacheWriteCost: value.CacheWriteCostAmount,
+			OutputTokens: int64(value.OutputTokens), TotalTokens: int64(value.TotalTokens), Cost: value.CostAmount, CostKnown: true, Known: true,
+		},
+	}
+}
+
+func (a *app) quotaRetryRepository() (gatewayQuotaRetryRepository, bool) {
+	repository, ok := a.keyRepository.(gatewayQuotaRetryRepository)
+	return repository, ok && repository != nil
+}
+
+func (a *app) persistOrganizationReceipt(event usageEvent) {
+	repository, ok := a.quotaRetryRepository()
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(event.Context), 2*time.Second)
+	defer cancel()
+	if err := repository.SaveGatewayQuotaRetry(ctx, gatewayUsageRecord(event)); err != nil {
+		logging.Printf(ctx, "ERROR", "gateway.quota.retry_persist_failed", "organization_id=%d request_id=%s usage_id=%s err=%v", event.Key.OrgID, event.RequestID, event.UsageID, err)
+	}
+}
+
+func (a *app) deleteOrganizationReceipt(event usageEvent) {
+	repository, ok := a.quotaRetryRepository()
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(event.Context), 2*time.Second)
+	defer cancel()
+	if err := repository.DeleteGatewayQuotaRetry(ctx, event.RequestID, event.UsageID); err != nil {
+		logging.Printf(ctx, "WARN", "gateway.quota.retry_delete_failed", "organization_id=%d request_id=%s usage_id=%s err=%v", event.Key.OrgID, event.RequestID, event.UsageID, err)
+	}
+}
+
+func (a *app) hydrateOrganizationReceipts(ctx context.Context, id uint64) error {
+	repository, ok := a.quotaRetryRepository()
+	if !ok {
+		return nil
+	}
+	for {
+		a.organizationPendingMu.Lock()
+		if a.organizationPending[id] != nil {
+			a.organizationPendingMu.Unlock()
+			return nil
+		}
+		if a.organizationPendingProbe == nil {
+			a.organizationPendingProbe = make(map[uint64]*organizationReceiptProbe)
+		}
+		probe := a.organizationPendingProbe[id]
+		if probe == nil {
+			probe = &organizationReceiptProbe{}
+			a.organizationPendingProbe[id] = probe
+		}
+		if done := probe.loading; done != nil {
+			a.organizationPendingMu.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-done:
+				continue
+			}
+		}
+		if time.Since(probe.checkedAt) < 5*time.Second && time.Since(probe.emptyAt) < 30*time.Second {
+			a.organizationPendingMu.Unlock()
+			return nil
+		}
+		probe.loading = make(chan struct{})
+		a.organizationPendingMu.Unlock()
+		op, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		records, err := repository.ListGatewayQuotaRetries(op, id, 256)
+		cancel()
+		for _, record := range records {
+			a.retainOrganizationReceipt(gatewayUsageEvent(record))
+		}
+		a.organizationPendingMu.Lock()
+		if err == nil {
+			probe.checkedAt = time.Now()
+			if len(records) == 0 {
+				probe.emptyAt = probe.checkedAt
+			}
+		} else if time.Since(probe.emptyAt) < 30*time.Second && a.organizationPending[id] == nil && ctx.Err() == nil {
+			// Known local failures always take precedence over this grace window.
+			probe.checkedAt = time.Now()
+			logging.Printf(ctx, "WARN", "gateway.quota.retry_probe_stale", "organization_id=%d err=%v", id, err)
+			err = nil
+		}
+		close(probe.loading)
+		probe.loading = nil
+		a.organizationPendingMu.Unlock()
+		return err
+	}
 }
 
 // retryOrganizationReceipts drains failed receipts before any key in the tenant
 // checks its organization balance. The original UsageID and CreatedAt survive
 // failures and ambiguous commits; the ledger owns exactly-once insertion.
 func (a *app) retryOrganizationReceipts(ctx context.Context, id uint64) (retried bool, err error) {
+	if err := a.hydrateOrganizationReceipts(ctx, id); err != nil {
+		return false, err
+	}
 	var pending *organizationPendingReceipts
 	for {
 		if err := ctx.Err(); err != nil {
@@ -111,11 +239,92 @@ func (a *app) retryOrganizationReceipts(ctx context.Context, id uint64) (retried
 		if err := a.settleGatewayQuota(event); err != nil {
 			return retried, err
 		}
+		a.deleteOrganizationReceipt(event)
 		a.organizationPendingMu.Lock()
 		pending.events[0] = usageEvent{}
 		pending.events = pending.events[1:]
 		a.organizationPendingMu.Unlock()
 	}
+}
+
+func (a *app) startGatewayQuotaRetryWorker() {
+	if _, ok := a.quotaRetryRepository(); !ok {
+		return
+	}
+	a.quotaRetryDone = make(chan struct{})
+	a.quotaRetryWG.Add(1)
+	go func() {
+		defer a.quotaRetryWG.Done()
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			a.recoverGatewayQuotaRetries()
+			select {
+			case <-a.quotaRetryDone:
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+}
+
+func (a *app) recoverGatewayQuotaRetries() {
+	repository, ok := a.quotaRetryRepository()
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	records, cursor, err := repository.ScanGatewayQuotaRetries(ctx, a.quotaRetryCursor, 256)
+	if err != nil {
+		logging.Printf(ctx, "WARN", "gateway.quota.retry_scan_failed", "err=%v", err)
+	} else if len(records) < 256 {
+		a.quotaRetryCursor = 0
+	} else {
+		a.quotaRetryCursor = cursor
+	}
+	organizations := make(map[uint64]struct{})
+	for _, record := range records {
+		if record.OrganizationID == 0 {
+			continue
+		}
+		a.retainOrganizationReceipt(gatewayUsageEvent(record))
+		organizations[record.OrganizationID] = struct{}{}
+	}
+	// Failed outbox writes still leave in-memory receipts to recover while the
+	// process is alive, even if the durable scan is empty or temporarily fails.
+	a.organizationPendingMu.Lock()
+	for id := range a.organizationPending {
+		organizations[id] = struct{}{}
+	}
+	a.organizationPendingMu.Unlock()
+	for id := range organizations {
+		if time.Now().Before(a.quotaRetryBackoffs[id].next) {
+			continue
+		}
+		op, stop := context.WithTimeout(ctx, time.Second)
+		_, err := a.retryOrganizationReceipts(op, id)
+		stop()
+		if err != nil {
+			if a.quotaRetryBackoffs == nil {
+				a.quotaRetryBackoffs = make(map[uint64]quotaRetryBackoff)
+			}
+			delay := max(5*time.Second, min(time.Minute, 2*a.quotaRetryBackoffs[id].delay))
+			a.quotaRetryBackoffs[id] = quotaRetryBackoff{delay: delay, next: time.Now().Add(delay)}
+			logging.Printf(ctx, "WARN", "gateway.quota.retry_failed", "organization_id=%d err=%v", id, err)
+		} else {
+			delete(a.quotaRetryBackoffs, id)
+		}
+	}
+}
+
+func (a *app) stopGatewayQuotaRetryWorker() {
+	if a.quotaRetryDone == nil {
+		return
+	}
+	close(a.quotaRetryDone)
+	a.quotaRetryWG.Wait()
+	a.quotaRetryDone = nil
 }
 
 // acquireQuotaAdmission keeps a limited key's next request behind settlement,

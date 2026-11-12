@@ -53,7 +53,11 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 				if message.Role != "user" {
 					return nil, conversionError(fmt.Sprintf("messages[%d].content", i), "images require user role")
 				}
-				parts = append(parts, map[string]any{"type": "input_image", "image_url": relayImageURL(block)})
+				image := map[string]any{"type": "input_image", "image_url": relayImageURL(block)}
+				if block.ImageDetail != "" {
+					image["detail"] = block.ImageDetail
+				}
+				parts = append(parts, image)
 			case "tool_use":
 				flush()
 				args, err := json.Marshal(block.Input)

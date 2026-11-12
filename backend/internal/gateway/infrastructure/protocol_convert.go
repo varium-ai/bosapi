@@ -52,6 +52,7 @@ type RelayBlock struct {
 	Input                map[string]any
 	IsError              bool
 	MediaType, ImageData string
+	ImageDetail          string
 	URL                  string
 }
 type RelayMessage struct {
@@ -137,7 +138,12 @@ func relayImageFromURLPart(block map[string]any, path string, allowDetail bool) 
 			return RelayBlock{}, conversionError(path+"image_url.detail", "expected auto, low, or high")
 		}
 	}
-	return relayImageFromURL(source["url"], path+"image_url")
+	image, err := relayImageFromURL(source["url"], path+"image_url")
+	if err != nil {
+		return RelayBlock{}, err
+	}
+	image.ImageDetail, _ = source["detail"].(string)
+	return image, nil
 }
 func relayImageFromURL(value any, path string) (RelayBlock, error) {
 	url, ok := value.(string)
@@ -492,7 +498,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			if role != "user" && role != "assistant" && role != "tool" {
 				return q, conversionError(path+"role", "unsupported Chat role")
 			}
-			blocks, err := textBlocks(message["content"], path+"content", role == "user", target == "anthropic_messages")
+			blocks, err := textBlocks(message["content"], path+"content", role == "user", target == "anthropic_messages" || target == "openai_responses")
 			if err != nil {
 				return q, err
 			}

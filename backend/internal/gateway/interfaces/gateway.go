@@ -118,6 +118,16 @@ type gatewayKeyRepository interface {
 	RecordGatewayUsageAndQuota(context.Context, userinfra.GatewayUsageRecord) (bool, error)
 }
 
+// gatewayQuotaRetryRepository is optional so in-memory gateway tests and
+// legacy adapters keep their existing behavior while database-backed gateways
+// gain a durable settlement outbox.
+type gatewayQuotaRetryRepository interface {
+	SaveGatewayQuotaRetry(context.Context, userinfra.GatewayUsageRecord) error
+	ListGatewayQuotaRetries(context.Context, uint64, int) ([]userinfra.GatewayUsageRecord, error)
+	ScanGatewayQuotaRetries(context.Context, uint64, int) ([]userinfra.GatewayUsageRecord, uint64, error)
+	DeleteGatewayQuotaRetry(context.Context, string, string) error
+}
+
 type app struct {
 	usageReporting       *analyticsapp.Service
 	usageReportingWorker *analyticsinfra.Worker
@@ -150,8 +160,13 @@ type app struct {
 	organizationQuota    organizationQuotaRuntime
 	monitorClose         func()
 
-	organizationPendingMu sync.Mutex
-	organizationPending   map[uint64]*organizationPendingReceipts
+	organizationPendingMu    sync.Mutex
+	organizationPending      map[uint64]*organizationPendingReceipts
+	organizationPendingProbe map[uint64]*organizationReceiptProbe
+	quotaRetryCursor         uint64
+	quotaRetryBackoffs       map[uint64]quotaRetryBackoff
+	quotaRetryDone           chan struct{}
+	quotaRetryWG             sync.WaitGroup
 }
 
 // Config is kept as a compatibility alias for the application-layer startup configuration.
@@ -234,6 +249,7 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 		return nil, err
 	}
 	a.startUsageQueue()
+	a.startGatewayQuotaRetryWorker()
 	if a.database != nil {
 		a.keyExpiryWorker = userinfra.NewKeyExpiryWorker(userinfra.NewKeyRepository(a.database))
 		a.usageReporting = analyticsapp.New(analyticsinfra.NewRepository(a.database), c.UsageReporting, analyticsinfra.NewHTTPSender(c.UsageReporting.Timeout), analyticsapp.BuildVersion())
@@ -256,6 +272,7 @@ func (g *Gateway) Close() error {
 	if g.app.keyExpiryWorker != nil {
 		g.app.keyExpiryWorker.Close()
 	}
+	g.app.stopGatewayQuotaRetryWorker()
 	g.app.stopUsageQueue()
 	if g.app.organizationQuota != nil {
 		g.app.organizationQuota.Close()
@@ -1410,6 +1427,7 @@ func (a *app) recordRequest(r *http.Request, provider provider, status int, dura
 		}
 		if event.Persistent && key.OrgID > 0 && a.organizationQuota != nil {
 			a.retainOrganizationReceipt(event)
+			a.persistOrganizationReceipt(event)
 		}
 	}
 	if metrics.Known {

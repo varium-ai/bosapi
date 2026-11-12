@@ -209,6 +209,26 @@ func TestRelayRejectsInvalidImageBlocks(t *testing.T) {
 	}
 }
 
+func TestRelayRejectsImageDetailForUnsupportedTargets(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":"high"}}]}]}`
+	for _, target := range []string{"openai_chat", "gemini"} {
+		_, err := ParseRelayRequest([]byte(raw), "chat", target)
+		var failure *ConversionError
+		if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
+			t.Fatalf("target=%s error=%v want detail field rejection", target, err)
+		}
+	}
+}
+
+func TestRelayRejectsInvalidImageDetailForAnthropicConversion(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.com/a.png","detail":false}}]}]}`
+	_, err := ParseRelayRequest([]byte(raw), "chat", "anthropic_messages")
+	var failure *ConversionError
+	if !errors.As(err, &failure) || failure.Field != "messages[0].content[0].image_url.detail" {
+		t.Fatalf("error=%v want invalid detail rejection", err)
+	}
+}
+
 func TestRelayURLImageCannotReachGeminiUpstream(t *testing.T) {
 	raw := []byte(`{"model":"x","messages":[{"role":"user","content":[{"type":"image","source":{"type":"url","url":"https://example.com/a.png"}}]}]}`)
 	q, err := ParseRelayRequest(raw, "messages", "gemini")

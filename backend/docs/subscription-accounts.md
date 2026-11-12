@@ -95,7 +95,9 @@ gateway update. They do not establish model access or guarantee inference succes
 | Antigravity | Google Antigravity with its own OAuth client and managed/project ID | Gemini generateContent JSON, streamGenerateContent SSE; existing Chat/Messages conversion |
 
 OpenAI OAuth Chat accepts text, user images, function tools and matched textual
-tool history in JSON or streaming mode. Positive integer `max_tokens` and
+tool history in JSON or streaming mode. User image URLs and Base64 data URLs
+preserve Chat `image_url.detail` (`auto`, `low`, or `high`) as Responses
+`input_image.detail`; an omitted detail remains omitted. Positive integer `max_tokens` and
 `max_completion_tokens` map to Codex `max_output_tokens`; conflicting aliases are
 rejected. This is an upstream output budget, including reasoning tokens, rather
 than a separate visible-text-only limit. A `response.incomplete` terminal event
