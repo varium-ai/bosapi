@@ -117,6 +117,10 @@ The Chat bridge accepts Codex `response.metadata` as an auxiliary event without
 forwarding it as content. A successful terminal event must be `response.completed`
 or `response.incomplete` with reason `max_output_tokens`;
 unknown events and interrupted streams remain explicit conversion errors.
+If the upstream omits or mislabels its SSE content type, the Chat bridge also
+recognizes a bounded SSE field prefix and passes the complete body through the
+same event validation. JSON/HTML bodies do not qualify. Transport diagnostics
+record `upstream_content_type` without recording response bodies or other headers.
 The separate Messages compatibility path remains limited to plain non-streaming
 conversation; use native Responses for full Codex capabilities.
 Subscription OAuth does not grant OpenAI API embeddings or image API access.

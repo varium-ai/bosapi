@@ -75,14 +75,48 @@ func (a *app) codexChat(w http.ResponseWriter, r *http.Request, p provider) {
 		fail(w, upstreamStatus(res.StatusCode), upstreamCode(res.StatusCode))
 		return
 	}
-	if !strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "text/event-stream") {
-		crossFailure(w, r, "chat", 502, errorcode.UnsupportedUpstreamFeature, responseFieldError("content-type", "expected an SSE stream"))
+	body, err := codexChatStream(res)
+	if err != nil {
+		crossFailure(w, r, "chat", 502, errorcode.UnsupportedUpstreamFeature, err)
 		return
 	}
 	if state := usageState(r); state != nil {
 		state.streaming = q.Stream
 	}
-	a.convertCodexChat(w, r, res.Body, q, public)
+	a.convertCodexChat(w, r, body, q, public)
+}
+
+// Some Codex responses contain a valid SSE body without declaring the SSE media
+// type. Inspect only the bounded first field, replaying every buffered byte. The
+// event parser still validates JSON, known types and a terminal response; HTML,
+// JSON error pages and arbitrary plain text must not become successful streams.
+func codexChatStream(res *http.Response) (io.Reader, error) {
+	if strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "text/event-stream") {
+		return res.Body, nil
+	}
+	// Sniff before first-token observation, then replay through that observer.
+	// Otherwise a mislabelled stream's metadata would count as its first token.
+	body := res.Body
+	observed, _ := body.(*firstTokenBody)
+	if observed != nil {
+		body = observed.ReadCloser
+	}
+	reader := bufio.NewReaderSize(body, 4096)
+	for _, prefix := range []string{"data:", "event:", ":", "id:", "retry:"} {
+		peek, err := reader.Peek(len(prefix))
+		if string(peek) == prefix {
+			if observed != nil {
+				observed.stream = &usageMetricsState{}
+				observed.ReadCloser = &diagnosticResponseBody{Reader: reader, Closer: body}
+				return observed, nil
+			}
+			return reader, nil
+		}
+		if err != nil && err != io.EOF {
+			return nil, responseFieldError("stream", "upstream stream interrupted before its first SSE field")
+		}
+	}
+	return nil, responseFieldError("content-type", "expected an SSE stream or a recognizable SSE body")
 }
 
 func codexReply(root map[string]any, fallback string) (gatewayinfra.RelayReply, error) {

@@ -105,3 +105,48 @@ if terminal.type == response.incomplete:
   chat.finish_reason = length
   finish SSE with [DONE]
 ```
+
+## 补充：更新后上游 200，Chat 仍返回 502
+
+修复分支：`hotfix/codex_response_format`。
+
+确认 11 月 11 日 19:18 启动的新容器为 `bosapi-bg-193c26c4815e`，已自动
+同步版本到 `0.167.1`。19:19–19:20 的多个请求已越过上游请求校验，上游
+返回 HTTP 200，但 Chat 网关在转换前报错：
+
+```text
+request_id=req_c98c80e3f04c64f755dde90c3d8996fc
+upstream_status=200
+failure_stage=response_conversion
+error_param=response.content-type
+error_reason=expected an SSE stream
+```
+
+同环境最小重放确认：原生 Responses 返回完整 SSE，而 Chat 返回上述 502。
+再次用与 Chat 转换器相同的 `type: message`、`content: input_text` 数组输入
+调用原生 Responses，约 3.5 秒返回 HTTP 200，正文以
+`event: response.created` 开头，并有 `response.completed` 终态。
+原生转发路径会设置自己的 SSE 响应头，因此不能据此断言上游实际声明的
+Content-Type 值；旧日志没有记录该字段。
+
+修改方向：解除 Chat 只依据响应头判断格式的限制。声明 SSE 时继续原有路径；
+否则只读取有界缓冲中的首个 SSE 字段前缀（`event:`、`data:`、注释、
+`id:`、`retry:`），识别后完整重放所有字节，交给同一事件解析器验证。
+JSON/HTML 或任意纯文本不能通过格式识别；未知事件、非法 JSON 和缺失终态
+仍失败。保留上游 body 关闭和首 token 计时，并记录经过脱敏处理的
+`upstream_content_type`，不输出正文或其他响应头。
+
+```text
+if upstream Content-Type declares SSE:
+  parse SSE as before
+else if bounded first bytes identify an SSE field:
+  replay buffered bytes + remaining body through first-token observer
+  parse known events and require a valid terminal event
+else:
+  return explicit response format error
+```
+
+本地基础设施、接口两个包完整测试通过。新增测试覆盖缺失/错误 Content-Type
+下的 Chat JSON 和 SSE 输出、分片读取、用量、结束标记、错误页拒绝、未知事件、
+截断流、首 token 计时和 body 关闭。修复未部署；更新后的远端 Chat 实测仍是
+上线后的验收步骤，不能将本地回归通过等同于远端请求已经恢复。
