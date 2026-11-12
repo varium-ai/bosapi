@@ -81,32 +81,9 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		crossFailure(w, r, source, 400, errorcode.InvalidRequest, &gatewayinfra.ConversionError{Field: "body", Reason: "request body could not be read within the request limit"})
 		return
 	}
-	if r.Header.Get("OpenAI-Beta") != "" {
-		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, &gatewayinfra.ConversionError{Field: "headers.OpenAI-Beta", Reason: "OpenAI beta capabilities cannot be mapped to this upstream"})
+	if err := validateRelayHeaders(r, p, source); err != nil {
+		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
-	}
-	if source == "messages" {
-		for name, values := range r.Header {
-			if len(values) == 0 {
-				continue
-			}
-			lower := strings.ToLower(name)
-			// Chat capabilities are validated from the body. Ignore beta hints
-			// so new client releases do not require a header allowlist update;
-			// the OpenAI adapter never forwards these headers upstream.
-			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-beta" {
-				continue
-			}
-			// The SDK sets this CORS hint in terminal requests too. BOS owns its
-			// browser access policy and never forwards this hint upstream.
-			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-dangerous-direct-browser-access" && len(values) == 1 && values[0] == "true" {
-				continue
-			}
-			if strings.HasPrefix(lower, "anthropic-") && (lower != "anthropic-version" || len(values) != 1 || values[0] != "2023-06-01") {
-				crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, &gatewayinfra.ConversionError{Field: "headers." + lower, Reason: "Anthropic capability/version headers require an Anthropic upstream"})
-				return
-			}
-		}
 	}
 	q, err := gatewayinfra.ParseRelayRequest(raw, source, p.APIFormat)
 	if err != nil {
@@ -237,6 +214,35 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		return
 	}
 	a.writeToolJSON(w, r, 200, converted)
+}
+
+func validateRelayHeaders(r *http.Request, p provider, source string) error {
+	if r.Header.Get("OpenAI-Beta") != "" {
+		return &gatewayinfra.ConversionError{Field: "headers.OpenAI-Beta", Reason: "OpenAI beta capabilities cannot be mapped to this upstream"}
+	}
+	if source == "messages" {
+		for name, values := range r.Header {
+			if len(values) == 0 {
+				continue
+			}
+			lower := strings.ToLower(name)
+			// Chat capabilities are validated from the body. Ignore beta hints
+			// so new client releases do not require a header allowlist update;
+			// the OpenAI adapter never forwards these headers upstream.
+			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-beta" {
+				continue
+			}
+			// The SDK sets this CORS hint in terminal requests too. BOS owns its
+			// browser access policy and never forwards this hint upstream.
+			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-dangerous-direct-browser-access" && len(values) == 1 && values[0] == "true" {
+				continue
+			}
+			if strings.HasPrefix(lower, "anthropic-") && (lower != "anthropic-version" || len(values) != 1 || values[0] != "2023-06-01") {
+				return &gatewayinfra.ConversionError{Field: "headers." + lower, Reason: "Anthropic capability/version headers require an Anthropic upstream"}
+			}
+		}
+	}
+	return nil
 }
 
 // crossProtocolStream is implemented separately from the native byte relay so

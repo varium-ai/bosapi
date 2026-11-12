@@ -204,8 +204,12 @@ func (a *app) apiKeyGateway(w http.ResponseWriter, r *http.Request, p provider, 
 	case path == "responses" && r.Method == "GET":
 		a.responsesWebSocket(w, r, p)
 	case path == "messages/count_tokens" && r.Method == "POST":
+		if p.APIFormat == "openai_chat" || p.APIFormat == "" {
+			a.countChatMessageTokens(w, r, p)
+			return
+		}
 		crossFailure(w, r, "messages", http.StatusBadRequest, errorcode.UnsupportedConversion,
-			&gatewayinfra.ConversionError{Field: "endpoint", Reason: "Messages token counting requires an anthropic_messages upstream"})
+			&gatewayinfra.ConversionError{Field: "endpoint", Reason: "Messages token counting requires an anthropic_messages or openai_chat upstream"})
 	case path == "messages" && r.Method == "POST":
 		a.apiMessages(w, r, p)
 	case path == "live" && r.Method == "POST":
