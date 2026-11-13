@@ -310,6 +310,10 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 	}
 	if source == "chat" {
 		if target == "openai_responses" {
+			// Some Chat clients send this extension when bridging from Responses.
+			// Ignore the hint without changing the upstream summary default.
+			delete(root, "reasoning_summary")
+
 			// BOS Agent/OpenAI-compatible clients may send the Responses
 			// persistence hint on Chat Completions requests. The OAuth bridge is
 			// stateless and always sends store:false upstream, so consume the
