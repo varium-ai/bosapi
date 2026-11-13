@@ -54,6 +54,7 @@ type RelayBlock struct {
 	MediaType, ImageData string
 	ImageDetail          string
 	URL                  string
+	ToolContent          []RelayBlock
 }
 type RelayMessage struct {
 	Role   string
@@ -113,6 +114,60 @@ func textBlocks(value any, path string, allowImage, allowImageDetail bool) ([]Re
 			return nil, conversionError(field+"type", "only text blocks are supported")
 		}
 		result = append(result, RelayBlock{Type: "text", Text: text})
+	}
+	return result, nil
+}
+
+// toolResultBlocks preserves Anthropic tool-result text and images. Images are
+// accepted only for Chat upstreams, where they are emitted in a following user
+// message because standard Chat tool messages carry text content only.
+func toolResultBlocks(value any, path string, allowImage bool) ([]RelayBlock, error) {
+	if value == nil {
+		return []RelayBlock{}, nil
+	}
+	if text, ok := value.(string); ok {
+		return []RelayBlock{{Type: "text", Text: text}}, nil
+	}
+	list, ok := value.([]any)
+	if !ok {
+		return nil, conversionError(path, "expected text or content blocks")
+	}
+	result := make([]RelayBlock, 0, len(list))
+	for index, entry := range list {
+		field := fmt.Sprintf("%s[%d].", path, index)
+		block, ok := entry.(map[string]any)
+		if !ok {
+			return nil, conversionError(field, "expected a content block")
+		}
+		switch block["type"] {
+		case "text":
+			if err := fieldsOnly(block, field, "type", "text"); err != nil {
+				return nil, err
+			}
+			text, ok := block["text"].(string)
+			if !ok {
+				return nil, conversionError(field+"text", "expected text")
+			}
+			result = append(result, RelayBlock{Type: "text", Text: text})
+		case "image":
+			if !allowImage {
+				return nil, conversionError(field+"type", "tool-result images require an image-capable Chat upstream")
+			}
+			if err := fieldsOnly(block, field, "type", "source"); err != nil {
+				return nil, err
+			}
+			source, ok := block["source"].(map[string]any)
+			if !ok {
+				return nil, conversionError(field+"source", "expected an object")
+			}
+			image, err := relayImageSource(source, field+"source")
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, image)
+		default:
+			return nil, conversionError(field+"type", "only text and image tool-result blocks are supported")
+		}
 	}
 	return result, nil
 }
@@ -667,15 +722,21 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 							return q, conversionError(field+"tool_use_id", "missing or duplicate historical invocation")
 						}
 						answered[id] = true
-						text, err := textBlocks(block["content"], field+"content", false, false)
+						content, err := toolResultBlocks(block["content"], field+"content", target == "openai_chat" || target == "")
 						if err != nil {
 							return q, err
+						}
+						text := make([]RelayBlock, 0, len(content))
+						for _, item := range content {
+							if item.Type == "text" {
+								text = append(text, item)
+							}
 						}
 						isError, err := boolField(block, "is_error")
 						if err != nil {
 							return q, err
 						}
-						turn.Blocks = append(turn.Blocks, RelayBlock{Type: "tool_result", ID: id, Name: calls[id], Text: joinRelayText(text), IsError: isError})
+						turn.Blocks = append(turn.Blocks, RelayBlock{Type: "tool_result", ID: id, Name: calls[id], Text: joinRelayText(text), ToolContent: content, IsError: isError})
 					default:
 						return q, conversionError(field+"type", "only text, tool_use and tool_result blocks are supported")
 					}

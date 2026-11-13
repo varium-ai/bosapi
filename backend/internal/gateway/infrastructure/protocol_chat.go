@@ -49,12 +49,16 @@ func (q RelayRequest) chatUpstream() ([]byte, string, error) {
 	if len(q.System) > 0 {
 		messages = append(messages, map[string]any{"role": "system", "content": strings.Join(q.System, "\n\n")})
 	}
+	deferredImages := []any{}
 	for _, message := range q.Messages {
-		converted, err := chatMessages(message)
+		converted, err := chatMessagesWithDeferredImages(message, &deferredImages)
 		if err != nil {
 			return nil, "", err
 		}
 		messages = append(messages, converted...)
+	}
+	if len(deferredImages) > 0 {
+		messages = append(messages, map[string]any{"role": "user", "content": deferredImages})
 	}
 	root := map[string]any{"model": q.Model, "messages": messages, "stream": q.Stream}
 	for key, value := range q.Controls {
@@ -97,12 +101,31 @@ func (q RelayRequest) chatUpstream() ([]byte, string, error) {
 }
 
 func chatMessages(message RelayMessage) ([]any, error) {
+	deferredImages := []any{}
+	result, err := chatMessagesWithDeferredImages(message, &deferredImages)
+	if err != nil {
+		return nil, err
+	}
+	if len(deferredImages) > 0 {
+		result = append(result, map[string]any{"role": "user", "content": deferredImages})
+	}
+	return result, nil
+}
+
+func chatMessagesWithDeferredImages(message RelayMessage, deferredImages *[]any) ([]any, error) {
 	result := []any{}
 	builder := &chatHistoryBuilder{role: message.Role}
 	flush := func() {
 		if value := builder.flush(); value != nil {
 			result = append(result, value)
 		}
+	}
+	flushToolImages := func() {
+		if len(*deferredImages) == 0 {
+			return
+		}
+		result = append(result, map[string]any{"role": "user", "content": *deferredImages})
+		*deferredImages = nil
 	}
 	for _, block := range message.Blocks {
 		if block.Type == "tool_result" {
@@ -111,9 +134,29 @@ func chatMessages(message RelayMessage) ([]any, error) {
 			if block.IsError {
 				content = "Tool error:\n" + content
 			}
+			hasImages := false
+			for _, item := range block.ToolContent {
+				if item.Type == "image" {
+					hasImages = true
+					break
+				}
+			}
+			if hasImages {
+				*deferredImages = append(*deferredImages, map[string]any{"type": "text", "text": "Images returned by tool " + block.Name + " (" + block.ID + "):"})
+			}
+			for _, item := range block.ToolContent {
+				if item.Type != "image" {
+					continue
+				}
+				*deferredImages = append(*deferredImages, map[string]any{"type": "image_url", "image_url": map[string]any{"url": relayImageURL(item)}})
+			}
+			if content == "" && hasImages {
+				content = "Image output is attached in the following user message."
+			}
 			result = append(result, map[string]any{"role": "tool", "tool_call_id": block.ID, "content": content})
 			continue
 		}
+		flushToolImages()
 		if err := builder.append(block); err != nil {
 			return nil, err
 		}
