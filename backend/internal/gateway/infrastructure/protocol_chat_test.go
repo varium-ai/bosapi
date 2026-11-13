@@ -72,6 +72,49 @@ func TestMessagesToChatPreservesImagesFromParallelToolResults(t *testing.T) {
 	}
 }
 
+func TestMessagesToChatDefersImagesAcrossToolResultMessages(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"a","name":"read_a","input":{}},{"type":"tool_use","id":"b","name":"read_b","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"a","content":[{"type":"image","source":{"type":"url","url":"https://example.test/a.png"}}]}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"b","content":""}]},{"role":"user","content":[{"type":"text","text":"continue"}]}]}`
+	q, err := ParseRelayRequest([]byte(raw), "messages", "openai_chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := q.Upstream("openai_chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, _ := DecodeProtocolJSON(payload)
+	messages := root["messages"].([]any)
+	if len(messages) != 5 || messages[1].(map[string]any)["tool_call_id"] != "a" || messages[2].(map[string]any)["tool_call_id"] != "b" {
+		t.Fatalf("tool results must stay adjacent and ordered: %s", payload)
+	}
+	if messages[2].(map[string]any)["content"] != "" {
+		t.Fatalf("an image from another tool changed this result: %s", payload)
+	}
+	if messages[3].(map[string]any)["role"] != "user" || messages[4].(map[string]any)["content"] != "continue" {
+		t.Fatalf("images must follow all tool results and precede continuation: %s", payload)
+	}
+}
+
+func TestMessagesToChatAcceptsOmittedToolResultContent(t *testing.T) {
+	raw := `{"model":"x","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"a","name":"read","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"a"}]}]}`
+	q, err := ParseRelayRequest([]byte(raw), "messages", "openai_chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := q.Upstream("openai_chat")
+	if err != nil {
+		t.Fatalf("omitted tool content should preserve the empty result: %s err=%v", payload, err)
+	}
+	root, err := DecodeProtocolJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := root["messages"].([]any)
+	if messages[1].(map[string]any)["tool_call_id"] != "a" || messages[1].(map[string]any)["content"] != "" {
+		t.Fatalf("omitted tool content should preserve the empty result: %s", payload)
+	}
+}
+
 func TestMessagesChatHintsAreValidatedWithoutTouchingArguments(t *testing.T) {
 	raw := strings.Replace(messagesRelayFixture, `"system":`, `"metadata":{"user_id":"local-user"},"thinking":{"type":"disabled"},"cache_control":{"type":"ephemeral"},"system":`, 1)
 	raw = strings.ReplaceAll(raw, `"type":"text",`, `"type":"text","cache_control":{"type":"ephemeral","ttl":"1h"},`)

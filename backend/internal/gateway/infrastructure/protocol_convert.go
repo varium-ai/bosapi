@@ -122,6 +122,9 @@ func textBlocks(value any, path string, allowImage, allowImageDetail bool) ([]Re
 // accepted only for Chat upstreams, where they are emitted in a following user
 // message because standard Chat tool messages carry text content only.
 func toolResultBlocks(value any, path string, allowImage bool) ([]RelayBlock, error) {
+	if value == nil {
+		return []RelayBlock{}, nil
+	}
 	if text, ok := value.(string); ok {
 		return []RelayBlock{{Type: "text", Text: text}}, nil
 	}
