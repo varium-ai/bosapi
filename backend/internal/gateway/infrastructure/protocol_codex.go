@@ -78,6 +78,9 @@ func (q RelayRequest) CodexUpstream() ([]byte, error) {
 		flush()
 	}
 	root := map[string]any{"model": q.Model, "input": input, "instructions": instructions, "stream": true, "store": false}
+	if q.ServiceTier != "" {
+		root["service_tier"] = q.ServiceTier
+	}
 	if q.PromptCacheKey != "" {
 		root["prompt_cache_key"] = q.PromptCacheKey
 	}

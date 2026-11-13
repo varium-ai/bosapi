@@ -70,6 +70,7 @@ type RelayRequest struct {
 	PromptCacheKey       string
 	SystemRole           string
 	ReasoningEffort      string
+	ServiceTier          string
 	Stream, IncludeUsage bool
 	ContinuousUsageStats bool
 	IncludeThoughts      bool
@@ -350,6 +351,16 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 				}
 				delete(root, "reasoning_effort")
 			}
+			if value := root["service_tier"]; value != nil {
+				tier, _ := value.(string)
+				switch tier {
+				case "auto", "default", "flex", "scale", "priority", "fast":
+					q.ServiceTier = tier
+				default:
+					return q, conversionError("service_tier", "expected a supported service tier string or null")
+				}
+			}
+			delete(root, "service_tier")
 			if value, exists := root["prompt_cache_key"]; exists {
 				if value != nil {
 					key, ok := value.(string)

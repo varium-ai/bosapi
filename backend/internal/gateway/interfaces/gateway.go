@@ -1264,34 +1264,43 @@ func gatewayPath(r *http.Request) string {
 }
 
 func requestModel(r *http.Request) string {
+	model, _ := readRequestModel(r)
+	return model
+}
+
+func readRequestModel(r *http.Request) (string, error) {
 	if model, ok := r.Context().Value(gatewayModelRequestKey{}).(string); ok {
-		return model
+		return model, nil
 	}
 	if geminiNativePath(r) != "" {
 		metadata, ok := requestGemini(r)
 		if ok {
-			return metadata.Model
+			return metadata.Model, nil
 		}
-		return ""
+		return "", nil
 	}
 	if value := r.URL.Query().Get("model"); value != "" {
-		return value
+		return value, nil
 	}
 	if r.Body == nil || r.Method != http.MethodPost {
-		return ""
+		return "", nil
 	}
-	payload, err := io.ReadAll(io.LimitReader(r.Body, requestBodyLimit(r)))
+	limit := requestBodyLimit(r)
+	payload, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
-		return ""
+		return "", err
+	}
+	if int64(len(payload)) > limit {
+		return "", &http.MaxBytesError{Limit: limit}
 	}
 	r.Body = io.NopCloser(bytes.NewReader(payload))
 	var fields struct {
 		Model string `json:"model"`
 	}
 	if json.Unmarshal(payload, &fields) != nil {
-		return ""
+		return "", nil
 	}
-	return fields.Model
+	return fields.Model, nil
 }
 
 func (a *app) securityEvent(r *http.Request, key apiKey, ruleID, action string, status int, counts ...uint32) {

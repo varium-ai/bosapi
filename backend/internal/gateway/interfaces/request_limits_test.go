@@ -1,14 +1,63 @@
 package interfaces
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 )
+
+func TestRequestBodyReadFailureStopsBeforeQuota(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"timeout", os.ErrDeadlineExceeded, http.StatusRequestTimeout, "request_timeout"},
+		{"incomplete", io.ErrUnexpectedEOF, http.StatusBadRequest, "invalid_request"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, secret := setupToolGateway(t, &toolRecordingSink{}, "", "application/json")
+			quota := &organizationQuotaStub{allowed: true}
+			a.organizationQuota = quota
+			r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			ctx, cancel := context.WithCancel(r.Context())
+			defer cancel()
+			r = r.WithContext(ctx)
+			body := &failedRequestBody{err: tc.err, cancel: cancel}
+			r.Body = body
+			r.Header.Set("Authorization", "Bearer "+secret)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != tc.status || !strings.Contains(w.Body.String(), `"code":"`+tc.code+`"`) {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			if len(quota.checked) != 0 || body.reads != 1 {
+				t.Fatalf("quota checks=%v body reads=%d", quota.checked, body.reads)
+			}
+		})
+	}
+}
+
+type failedRequestBody struct {
+	err    error
+	cancel context.CancelFunc
+	reads  int
+}
+
+func (b *failedRequestBody) Read([]byte) (int, error) {
+	b.reads++
+	b.cancel()
+	return 0, b.err
+}
+
+func (*failedRequestBody) Close() error { return nil }
 
 func TestRequestBodyLimitBoundaries(t *testing.T) {
 	for _, tt := range []struct {
