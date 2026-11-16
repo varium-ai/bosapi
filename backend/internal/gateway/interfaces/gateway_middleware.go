@@ -397,7 +397,8 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 		model := requestModel(c.Request)
 		keyValue, _ := c.Get(gatewayAPIKeyContext)
 		apiKey := keyValue.(apiKey)
-		if _, native := requestGemini(c.Request); native && (p.APIFormat != "gemini" || len(p.Models) > 0 && !providerSupportsModel(p, model)) {
+		_, nativeGemini := requestGemini(c.Request)
+		if nativeGemini && (p.APIFormat != "gemini" || len(p.Models) > 0 && !providerSupportsModel(p, model)) {
 			selected, ok := a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "gemini")
 			if !ok {
 				nativeError(c.Writer, "gemini", http.StatusForbidden, errorcode.ModelNotAllowed)
@@ -421,7 +422,11 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if len(p.Models) > 0 && model != "" && !providerSupportsModel(p, model) {
+		// Native Gemini already selected a provider through the database-backed
+		// model catalog and passed API-key, organization, and binding policy
+		// checks above. Do not apply the stale in-memory provider model list a
+		// second time; it can reject models that are present in provider_models.
+		if !nativeGemini && len(p.Models) > 0 && model != "" && !providerSupportsModel(p, model) {
 			logging.Printf(c.Request.Context(), "WARN", "gateway.model.denied", "provider_id=%d model=%s reason=model_not_allowed", p.ID, model)
 			fail(c.Writer, http.StatusForbidden, errorcode.ModelNotAllowed)
 			c.Abort()
