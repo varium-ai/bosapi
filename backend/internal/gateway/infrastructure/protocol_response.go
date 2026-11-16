@@ -285,6 +285,14 @@ func (reply RelayReply) JSON(source, model string) ([]byte, error) {
 			switch block.Type {
 			case "text":
 				parts = append(parts, map[string]any{"text": block.Text})
+			case "thinking":
+				// OpenAI Chat reasoning fields have no Gemini-compatible, signed
+				// representation. Keep them out of user-visible output; preserve
+				// other thinking blocks only through their native protocol.
+				if block.Signature == "" && (block.ReasoningField == "reasoning" || block.ReasoningField == "reasoning_content") {
+					continue
+				}
+				return nil, conversionError("response.content", "thinking block cannot be represented in Gemini")
 			case "tool_use":
 				if !relayFunctionName(block.Name, "gemini") {
 					return nil, conversionError("response.tool_calls.function.name", "function name is invalid for Gemini")
@@ -293,6 +301,9 @@ func (reply RelayReply) JSON(source, model string) ([]byte, error) {
 			default:
 				return nil, conversionError("response.content", "response block cannot be represented in Gemini")
 			}
+		}
+		if len(parts) == 0 {
+			return nil, conversionError("response.content", "response contains no Gemini-compatible visible content")
 		}
 		finishReason := "STOP"
 		switch reply.Stop {

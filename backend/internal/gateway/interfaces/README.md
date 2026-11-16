@@ -381,8 +381,11 @@ Examples include thought/signature blocks, Gemini `thoughtSignature`, media,
 provider-hosted tool output, citations/grounding metadata, unknown finish reasons,
 and malformed/incomplete tool arguments. Gemini thinking signatures cannot be
 silently removed because the next tool turn may require them; use native Gemini
-for models returning those signatures. This is a common-subset Messages bridge,
-not full Claude Code feature compatibility on Gemini.
+for models returning those signatures. For an OpenAI Chat upstream, unsigned
+`reasoning` and `reasoning_content` fields are omitted from Gemini output while
+visible text and function calls are preserved; these provider-specific reasoning
+fields are not Gemini thought parts. This is a common-subset Messages bridge, not
+full Claude Code feature compatibility on Gemini.
 
 On a stream that has already started, conversion failures are SSE error events;
 no `[DONE]` or `message_stop` success marker is synthesized. Request audit records
