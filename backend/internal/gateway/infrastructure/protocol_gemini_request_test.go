@@ -55,6 +55,48 @@ func TestGeminiRelayRequestPreservesAutoModeAndRejectsUnsupportedFields(t *testi
 	}
 }
 
+func TestGeminiRelayRequestConvertsToAnthropicMessages(t *testing.T) {
+	raw := `{"systemInstruction":{"parts":[{"text":"follow policy"}]},"contents":[{"role":"user","parts":[{"text":"inspect"},{"inlineData":{"mimeType":"image/png","data":"aGVsbG8="}}]},{"role":"model","parts":[{"functionCall":{"id":"call-old","name":"lookup","args":{"q":"x"}}}]},{"role":"user","parts":[{"text":"function result follows"},{"functionResponse":{"id":"call-old","name":"lookup","response":{"result":"found"}}}]}],"generationConfig":{"maxOutputTokens":512,"temperature":0.8,"topP":0.7,"stopSequences":["END"]},"tools":[{"functionDeclarations":[{"name":"lookup","description":"find data","parameters":{"type":"object","properties":{"q":{"type":"string"}}}}]}],"toolConfig":{"functionCallingConfig":{"mode":"ANY"}}}`
+	q, err := ParseRelayRequest([]byte(raw), "gemini", "anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.Model = "actual"
+	q.Stream = true
+	payload, path, err := q.Upstream("anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "messages" {
+		t.Fatalf("path=%s", path)
+	}
+	root, err := DecodeProtocolJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root["model"] != "actual" || root["stream"] != true || root["max_tokens"] != json.Number("512") || root["temperature"] != json.Number("0.8") || root["top_p"] != json.Number("0.7") || root["stop_sequences"].([]any)[0] != "END" {
+		t.Fatalf("wrong Anthropic controls: %s", payload)
+	}
+	choice, _ := root["tool_choice"].(map[string]any)
+	messages := root["messages"].([]any)
+	lastMessage := messages[len(messages)-1].(map[string]any)
+	lastContent := lastMessage["content"].([]any)
+	firstPart := lastContent[0].(map[string]any)
+	if choice["type"] != "any" || firstPart["type"] != "tool_result" || !strings.Contains(string(payload), `"media_type":"image/png"`) || !strings.Contains(string(payload), `"type":"base64"`) || !strings.Contains(string(payload), `"id":"call-old"`) || !strings.Contains(string(payload), `"type":"tool_use"`) || !strings.Contains(string(payload), `"tool_use_id":"call-old"`) || !strings.Contains(string(payload), `"type":"tool_result"`) || !strings.Contains(string(payload), `"system"`) || !strings.Contains(string(payload), `follow policy`) {
+		t.Fatalf("Gemini request semantics lost: %s", payload)
+	}
+}
+
+func TestGeminiAnthropicRangeAndAssistantPrefill(t *testing.T) {
+	if _, err := ParseRelayRequest([]byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"temperature":1.2}}`), "gemini", "anthropic_messages"); err == nil {
+		t.Fatal("temperature outside the Anthropic range was accepted")
+	}
+	q, err := ParseRelayRequest([]byte(`{"contents":[{"role":"model","parts":[{"text":"prefill"}]}]}`), "gemini", "anthropic_messages")
+	if err != nil || len(q.Messages) != 1 || q.Messages[0].Role != "assistant" {
+		t.Fatalf("Anthropic assistant prefill was not preserved: %+v err=%v", q, err)
+	}
+}
+
 func TestOpenAIChatRelayReplyRendersGeminiResponse(t *testing.T) {
 	chat := `{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":"hello","tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"x\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":3},"completion_tokens_details":{"reasoning_tokens":2}}}`
 	reply, err := ParseRelayReply([]byte(chat), "openai_chat", "fallback")

@@ -16,6 +16,7 @@ import (
 
 type crossStreamBlock struct {
 	kind                   string
+	id, name               string
 	tool                   int
 	hasArguments           bool
 	initialArguments       bool
@@ -471,9 +472,12 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 						return responseFieldError("content_block", "invalid invocation")
 					}
 					seenCalls[callID] = true
-					entry.tool, err = renderer.toolStart(gatewayinfra.RelayBlock{ID: callID, Name: name})
-					if err != nil {
-						return err
+					entry.id, entry.name = callID, name
+					if source != "gemini" {
+						entry.tool, err = renderer.toolStart(gatewayinfra.RelayBlock{ID: callID, Name: name})
+						if err != nil {
+							return err
+						}
 					}
 					if len(input) > 0 {
 						args, _ := json.Marshal(input)
@@ -484,7 +488,10 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 						if argumentBytes > 8<<20 {
 							return responseFieldError("tool_use.input", "tool arguments exceed conversion limit")
 						}
-						return renderer.toolArguments(entry.tool, string(args))
+						if source != "gemini" {
+							return renderer.toolArguments(entry.tool, string(args))
+						}
+						return nil
 					}
 					return nil
 				default:
@@ -507,10 +514,20 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					return renderer.chat(map[string]any{"anthropic_thinking": []any{entry.thinking.ChatThinking(entry.textOffset, entry.toolOffset)}}, nil)
 				}
 				if entry.kind == "tool_use" {
+					arguments := map[string]any{}
 					if entry.hasArguments {
-						if _, err := gatewayinfra.DecodeProtocolJSON(entry.arguments); err != nil {
+						parsed, err := gatewayinfra.DecodeProtocolJSON(entry.arguments)
+						if err != nil {
 							return responseFieldError("tool_use.input", "incomplete or invalid JSON tool arguments")
 						}
+						arguments = parsed
+					}
+					if source == "gemini" {
+						toolIndex, err := renderer.toolStart(gatewayinfra.RelayBlock{ID: entry.id, Name: entry.name, Input: arguments})
+						if err != nil {
+							return err
+						}
+						return renderer.toolStop(toolIndex)
 					}
 					if !entry.hasArguments {
 						if err := renderer.toolArguments(entry.tool, "{}"); err != nil {
@@ -576,7 +593,10 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					return responseFieldError("tool_use.input", "tool arguments exceed conversion limit")
 				}
 				entry.arguments = append(entry.arguments, args...)
-				return renderer.toolArguments(entry.tool, args)
+				if source != "gemini" {
+					return renderer.toolArguments(entry.tool, args)
+				}
+				return nil
 			}
 			return responseFieldError("delta.type", "unsupported content delta")
 		default:

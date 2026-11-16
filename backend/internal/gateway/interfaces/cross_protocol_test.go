@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 )
 
 const crossChatRequest = `{"model":"alias","max_tokens":512,"messages":[{"role":"system","content":"instructions"},{"role":"user","content":"read a file"}],"tools":[{"type":"function","function":{"name":"read","parameters":{"type":"object"}}}]}`
@@ -230,6 +232,63 @@ func TestNativeGeminiToOpenAIChatMapsUpstreamErrors(t *testing.T) {
 	a.routes().ServeHTTP(w, r)
 	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"status":"INVALID_ARGUMENT"`) || strings.Contains(w.Body.String(), "private upstream detail") {
 		t.Fatalf("upstream error was not safely mapped to Gemini: status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestNativeGeminiToAnthropicMessagesJSONAndSSE(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "sse"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			p := &a.data.Providers[0]
+			p.APIFormat = "anthropic_messages"
+			p.Platform = "anthropic"
+			p.BaseURL = "https://anthropic.example/v1"
+			var upstreamBody string
+			contentType, response := "application/json", crossClaudeResponse
+			operation := "generateContent"
+			if streaming {
+				contentType, response, operation = "text/event-stream", crossClaudeStream, "streamGenerateContent"
+			}
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				body, _ := io.ReadAll(r.Body)
+				upstreamBody = string(body)
+				if r.URL.Path != "/v1/messages" || r.Header.Get("x-api-key") != "provider-key" || r.Header.Get("anthropic-version") != "2023-06-01" || r.Header.Get("x-goog-api-key") != "" {
+					t.Fatalf("wrong Anthropic request: %s headers=%v", r.URL, r.Header)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(byteFragmentReader{strings.NewReader(response)})}, nil
+			})}
+			request := `{"systemInstruction":{"parts":[{"text":"instructions"}]},"contents":[{"role":"user","parts":[{"text":"read a file"},{"inlineData":{"mimeType":"image/png","data":"aGVsbG8="}}]}],"generationConfig":{"maxOutputTokens":99,"temperature":0.7,"topP":0.8},"tools":[{"functionDeclarations":[{"name":"read","parameters":{"type":"object"}}]}],"toolConfig":{"functionCallingConfig":{"mode":"ANY"}}}`
+			r := httptest.NewRequest(http.MethodPost, "/v1beta/models/alias:"+operation, strings.NewReader(request))
+			r.Header.Set("x-goog-api-key", key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"functionCall"`) || !strings.Contains(w.Body.String(), `"name":"read"`) || !strings.Contains(w.Body.String(), `9007199254740993`) || !strings.Contains(w.Body.String(), "usageMetadata") {
+				t.Fatalf("Gemini response conversion: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if !strings.Contains(upstreamBody, `"model":"actual"`) || !strings.Contains(upstreamBody, `"max_tokens":99`) || !strings.Contains(upstreamBody, `"temperature":0.7`) || !strings.Contains(upstreamBody, `"top_p":0.8`) || !strings.Contains(upstreamBody, `"system"`) || !strings.Contains(upstreamBody, `"type":"image"`) || !strings.Contains(upstreamBody, `"input_schema"`) || !strings.Contains(upstreamBody, `"tool_choice":{"type":"any"}`) || !strings.Contains(upstreamBody, `"stream":`+map[bool]string{false: "false", true: "true"}[streaming]) {
+				t.Fatalf("Gemini request was not converted to Anthropic Messages: %s", upstreamBody)
+			}
+			if streaming && (!w.Flushed || !strings.Contains(w.Body.String(), `"finishReason":"STOP"`)) {
+				t.Fatalf("Gemini SSE terminal chunk missing: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeGeminiToAnthropicMessagesMapsUpstreamErrors(t *testing.T) {
+	a, key := geminiTestApp(t)
+	a.data.Providers[0].APIFormat = "anthropic_messages"
+	a.data.Providers[0].Platform = "anthropic"
+	a.data.Providers[0].BaseURL = "https://anthropic.example/v1"
+	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"private upstream detail"}}`))}, nil
+	})}
+	r := httptest.NewRequest(http.MethodPost, "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`))
+	r.Header.Set("x-goog-api-key", key)
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"status":"INVALID_ARGUMENT"`) || strings.Contains(w.Body.String(), "private upstream detail") {
+		t.Fatalf("Anthropic error was not safely mapped to Gemini: status=%d body=%s", w.Code, w.Body.String())
 	}
 }
 
@@ -518,5 +577,24 @@ func TestCrossProtocolUsageDoesNotDependOnClientUsageOption(t *testing.T) {
 		}
 	default:
 		t.Fatal("missing usage")
+	}
+}
+
+func TestRelayReplyShapeContainsOnlyBoundedStructure(t *testing.T) {
+	shape := relayReplyShape([]gatewayinfra.RelayBlock{
+		{Type: "thinking", Text: "PRIVATE_REASONING"},
+		{Type: "text", Text: "PRIVATE_ANSWER"},
+		{Type: "tool_use", Name: "PRIVATE_TOOL", Input: map[string]any{"secret": "PRIVATE_ARGUMENT"}},
+		{Type: "future-provider-block", Text: "PRIVATE_BLOCK"},
+	})
+	for _, want := range []string{"response_block_count=4", "response_block_types=text:1,tool_use:1,thinking:1,other:1", "response_text_bytes=31"} {
+		if !strings.Contains(shape, want) {
+			t.Fatalf("missing %q in %q", want, shape)
+		}
+	}
+	for _, secret := range []string{"PRIVATE_", "PRIVATE_TOOL", "PRIVATE_ARGUMENT", "future-provider-block"} {
+		if strings.Contains(shape, secret) {
+			t.Fatalf("response shape leaked %q: %s", secret, shape)
+		}
 	}
 }

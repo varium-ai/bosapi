@@ -172,7 +172,7 @@ func (a *app) testProvider(w http.ResponseWriter, r *http.Request, path string) 
 
 func (a *app) apiKeyGateway(w http.ResponseWriter, r *http.Request, p provider, path string) {
 	p = normalizeGeminiProvider(p)
-	if metadata, nativeGemini := requestGemini(r); nativeGemini && (p.APIFormat == "openai_chat" || p.APIFormat == "") {
+	if metadata, nativeGemini := requestGemini(r); nativeGemini && (p.APIFormat == "openai_chat" || p.APIFormat == "anthropic_messages" || p.APIFormat == "") {
 		if metadata.Operation != "generateContent" && metadata.Operation != "streamGenerateContent" {
 			nativeError(w, "gemini", http.StatusBadRequest, errorcode.UnsupportedConversion)
 			return

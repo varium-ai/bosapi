@@ -405,9 +405,12 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 			selected, ok := a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "gemini")
 			if !ok {
 				// A native Gemini client may target a model routed through an
-				// OpenAI Chat provider. Prefer a native Gemini channel when one
-				// advertises the model, then use the explicit cross-protocol path.
+				// OpenAI Chat or Anthropic Messages provider. Prefer native Gemini,
+				// then the established Chat bridge, before the Messages bridge.
 				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "openai_chat")
+			}
+			if !ok {
+				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "anthropic_messages")
 			}
 			if nativeGemini {
 				logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=provider_select_result selected=%t selected_provider_id=%d selected_api_format=%s selected_model_count=%d selected_model_match=%t", ok, selected.ID, selected.APIFormat, len(selected.Models), providerSupportsModel(selected, model))

@@ -992,6 +992,20 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 			}
 		}
 		if target == "anthropic_messages" {
+			// Anthropic requires tool_result blocks to precede other content in
+			// a user message. Gemini parts may interleave them with text.
+			ordered := make([]any, 0, len(parts))
+			for _, part := range parts {
+				if block, ok := part.(map[string]any); ok && block["type"] == "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			for _, part := range parts {
+				if block, ok := part.(map[string]any); !ok || block["type"] != "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			parts = ordered
 			messages = append(messages, map[string]any{"role": role, "content": parts})
 		} else {
 			if role == "assistant" {
@@ -1023,6 +1037,11 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 	}
 	path := "messages"
 	if target == "anthropic_messages" {
+		// Anthropic has no tool_choice="none" mode. Omitting the declarations
+		// is the protocol-equivalent way to disable tools for this turn.
+		if q.Choice == "none" {
+			tools = nil
+		}
 		root["model"], root["messages"], root["stream"] = q.Model, messages, q.Stream
 		root["max_tokens"] = 4096
 		if len(system) > 0 {
@@ -1037,7 +1056,7 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 			}
 			root[key] = value
 		}
-		if len(tools) > 0 || q.Choice != "auto" {
+		if len(tools) > 0 && q.Choice != "auto" {
 			choice := map[string]any{"type": q.Choice}
 			if q.Choice == "tool" {
 				choice["name"] = q.ChoiceName

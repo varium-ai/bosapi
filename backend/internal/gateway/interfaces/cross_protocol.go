@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,6 +47,31 @@ func conversionEnvelope(source string, code errorcode.Code, err error) map[strin
 func crossFailure(w http.ResponseWriter, r *http.Request, source string, status int, code errorcode.Code, err error) {
 	recordConversionFailure(r, code, err)
 	respond(w, status, conversionEnvelope(source, code, err))
+}
+
+// relayReplyShape reports only normalized block categories and text byte counts;
+// provider output, tool arguments, identifiers and names are intentionally omitted.
+func relayReplyShape(blocks []gatewayinfra.RelayBlock) string {
+	counts := map[string]int{"text": 0, "tool_use": 0, "thinking": 0, "image": 0, "tool_result": 0, "other": 0}
+	textBytes := 0
+	for _, block := range blocks {
+		kind := block.Type
+		if _, ok := counts[kind]; !ok {
+			kind = "other"
+		}
+		counts[kind]++
+		if kind == "text" || kind == "thinking" || kind == "tool_result" {
+			textBytes += len(block.Text)
+		}
+	}
+	order := []string{"text", "tool_use", "thinking", "image", "tool_result", "other"}
+	types := make([]string, 0, len(order))
+	for _, kind := range order {
+		if counts[kind] > 0 {
+			types = append(types, kind+":"+strconv.Itoa(counts[kind]))
+		}
+	}
+	return "response_block_count=" + strconv.Itoa(len(blocks)) + " response_block_types=" + strings.Join(types, ",") + " response_text_bytes=" + strconv.Itoa(textBytes)
 }
 
 func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provider, source string) {
@@ -94,9 +120,15 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		}
 		q.Model = metadata.Model
 		q.Stream = metadata.Operation == "streamGenerateContent"
-		if p.APIFormat == "openai_chat" || p.APIFormat == "" {
+		switch p.APIFormat {
+		case "openai_chat", "":
 			if authorization, ok := r.Context().Value(gatewayToolAuthorizationRequestKey{}).(gatewayinfra.ToolAuthorization); ok {
 				ctx := context.WithValue(r.Context(), gatewayToolAuthorizationRequestKey{}, authorization.WithProtocolAlias(domain.ToolProtocolGemini, domain.ToolProtocolOpenAI))
+				r = r.WithContext(ctx)
+			}
+		case "anthropic_messages":
+			if authorization, ok := r.Context().Value(gatewayToolAuthorizationRequestKey{}).(gatewayinfra.ToolAuthorization); ok {
+				ctx := context.WithValue(r.Context(), gatewayToolAuthorizationRequestKey{}, authorization.WithProtocolAlias(domain.ToolProtocolGemini, domain.ToolProtocolAnthropic))
 				r = r.WithContext(ctx)
 			}
 		}
@@ -195,6 +227,7 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 	}
 	converted, err := reply.JSON(source, publicModel)
 	if err != nil {
+		setGatewayResponseShapeDiagnostic(r.Context(), relayReplyShape(reply.Blocks))
 		crossFailure(w, r, source, 502, errorcode.UnsupportedUpstreamFeature, err)
 		return
 	}

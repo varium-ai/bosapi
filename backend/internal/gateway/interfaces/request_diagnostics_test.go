@@ -136,6 +136,23 @@ func TestGatewayDiagnosticRedactsBothCredentialsAndUnknownErrors(t *testing.T) {
 	}
 }
 
+func TestResponseShapeDiagnosticIsIncludedWithoutContent(t *testing.T) {
+	logs := captureUpstreamLogs(t)
+	r := httptest.NewRequest(http.MethodPost, "/v1beta/models/alias:generateContent", nil)
+	r = r.WithContext(context.WithValue(r.Context(), gatewayDiagnosticKey{}, &gatewayDiagnosticState{}))
+	setGatewayResponseShapeDiagnostic(r.Context(), "response_block_count=2 response_block_types=text:1,thinking:1 response_text_bytes=42")
+	recordConversionFailure(r, errorcode.UnsupportedUpstreamFeature, &gatewayinfra.ConversionError{Field: "response.content", Reason: "unsupported block"})
+	line := logs.String()
+	for _, want := range []string{"response_block_count=2", "response_block_types=text:1,thinking:1", "response_text_bytes=42"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("missing %q in diagnostic: %s", want, line)
+		}
+	}
+	if strings.Contains(line, "PRIVATE") || strings.Contains(line, "response text") {
+		t.Fatalf("response content leaked in diagnostic: %s", line)
+	}
+}
+
 func TestSuccessfulStreamCompletionHasNoFailureDiagnostic(t *testing.T) {
 	logs := captureUpstreamLogs(t)
 	a, key := crossTestApp(t, "openai_chat")

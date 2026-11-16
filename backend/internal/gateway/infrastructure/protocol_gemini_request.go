@@ -8,11 +8,11 @@ import (
 )
 
 // parseGeminiRelayRequest converts the bounded native Gemini request subset
-// into the shared relay representation used by OpenAI Chat.
+// into the shared relay representation used by supported chat protocols.
 func parseGeminiRelayRequest(raw []byte, target string) (RelayRequest, error) {
 	q := RelayRequest{Controls: map[string]any{}, Choice: "auto"}
-	if target != "openai_chat" && target != "" {
-		return q, conversionError("endpoint", "Gemini requests can only be converted to an OpenAI Chat upstream")
+	if target != "openai_chat" && target != "anthropic_messages" && target != "" {
+		return q, conversionError("endpoint", "Gemini requests can only be converted to OpenAI Chat or Anthropic Messages upstreams")
 	}
 	root, err := DecodeProtocolJSON(raw)
 	if err != nil {
@@ -78,8 +78,8 @@ func parseGeminiRelayRequest(raw []byte, target string) (RelayRequest, error) {
 					if integer, err := number.Int64(); err != nil || integer <= 0 {
 						return q, conversionError("generationConfig."+sourceName, "expected a positive integer")
 					}
-				} else if targetName == "temperature" && (n < 0 || n > 2) || targetName == "top_p" && (n < 0 || n > 1) {
-					return q, conversionError("generationConfig."+sourceName, "outside the OpenAI Chat range")
+				} else if targetName == "temperature" && (n < 0 || n > 2 || target == "anthropic_messages" && n > 1) || targetName == "top_p" && (n < 0 || n > 1) {
+					return q, conversionError("generationConfig."+sourceName, "outside the target protocol range")
 				}
 				q.Controls[targetName] = value
 			}
@@ -251,7 +251,11 @@ func parseGeminiRelayRequest(raw []byte, target string) (RelayRequest, error) {
 			return q, conversionError("contents", "historical function calls require matching function responses")
 		}
 	}
-	if err := q.validateChat(); err != nil {
+	if target == "anthropic_messages" {
+		if err := q.validateToolHistory(true); err != nil {
+			return q, err
+		}
+	} else if err := q.validateChat(); err != nil {
 		return q, err
 	}
 	return q, nil

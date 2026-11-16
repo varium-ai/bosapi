@@ -18,10 +18,11 @@ import (
 type gatewayDiagnosticKey struct{}
 
 type gatewayDiagnosticState struct {
-	mu      sync.Mutex
-	code    errorcode.Code
-	summary string
-	stream  string
+	mu            sync.Mutex
+	code          errorcode.Code
+	summary       string
+	stream        string
+	responseShape string
 }
 
 func gatewayFailureDiagnostic(ctx context.Context) (errorcode.Code, string) {
@@ -107,6 +108,43 @@ func setGatewayStreamDiagnostic(ctx context.Context, frame int, event string, ro
 	state.mu.Unlock()
 }
 
+// setGatewayResponseShapeDiagnostic records bounded structural metadata only.
+// Callers must pass generated values, never provider text or raw JSON fields.
+func setGatewayResponseShapeDiagnostic(ctx context.Context, summary string) {
+	if state, _ := ctx.Value(gatewayDiagnosticKey{}).(*gatewayDiagnosticState); state != nil {
+		state.mu.Lock()
+		state.responseShape = logging.Sanitize(summary, 256)
+		state.mu.Unlock()
+	}
+}
+
+// setGatewayUnknownResponsesEventDiagnostic records only the bounded event token
+// and frame number, never the provider's SSE payload or response content.
+func setGatewayUnknownResponsesEventDiagnostic(ctx context.Context, frame int, eventType string) {
+	state, _ := ctx.Value(gatewayDiagnosticKey{}).(*gatewayDiagnosticState)
+	if state == nil {
+		return
+	}
+	if frame < 1 {
+		frame = 1
+	}
+	if len(eventType) == 0 || len(eventType) > 96 {
+		eventType = "unknown"
+	} else {
+		for _, char := range eventType {
+			if char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '.' || char == '_' || char == '-' {
+				continue
+			}
+			eventType = "unknown"
+			break
+		}
+	}
+	summary := fmt.Sprintf("stream_frame=%d stream_event=\"unknown\" stream_event_type=%q", frame, eventType)
+	state.mu.Lock()
+	state.stream = summary
+	state.mu.Unlock()
+}
+
 func recordResponseReadFailure(r *http.Request, param string, err error) errorcode.Code {
 	reason := upstreamFailureReason(r.Context(), err)
 	code := errorcode.UpstreamError
@@ -159,6 +197,16 @@ func recordConversionFailure(r *http.Request, code errorcode.Code, err error) {
 	stage := "request_conversion"
 	if code == errorcode.UnsupportedUpstreamFeature {
 		stage = "response_conversion"
+	}
+	responseShape := ""
+	if state, _ := r.Context().Value(gatewayDiagnosticKey{}).(*gatewayDiagnosticState); state != nil {
+		state.mu.Lock()
+		responseShape = state.responseShape
+		state.mu.Unlock()
+	}
+	if responseShape != "" {
+		recordGatewayFailure(r, stage, code, param, reason+" "+responseShape)
+		return
 	}
 	recordGatewayFailure(r, stage, code, param, reason)
 }

@@ -205,6 +205,14 @@ generation controls, function declarations/history and inline images into Chat
 Completions, then returns Gemini JSON or SSE. The requested model remains the
 public/audit model while configured aliases select the OpenAI upstream model.
 
+The same native Gemini operations can use an `anthropic_messages` provider.
+BOS converts Gemini parts, system instructions, sampling controls, function
+declarations/history and inline images into `/v1/messages`, then converts
+Anthropic JSON or SSE replies, usage and tool calls back to Gemini. Gemini
+temperature values above Anthropic's supported range are rejected, and
+Anthropic streamed tool arguments are delivered to Gemini only after the full
+argument object has been validated.
+
 API-key providers expose these explicitly bounded conversion paths:
 
 | Client endpoint | Provider `api_format` | Upstream operation | JSON / SSE |
@@ -215,6 +223,8 @@ API-key providers expose these explicitly bounded conversion paths:
 | `/v1/messages` | `openai_chat` | `/chat/completions` | Both |
 | `/v1beta/models/{model}:generateContent` | `openai_chat` | `/chat/completions` | JSON |
 | `/v1beta/models/{model}:streamGenerateContent` | `openai_chat` | `/chat/completions` | SSE |
+| `/v1beta/models/{model}:generateContent` | `anthropic_messages` | `/v1/messages` | JSON |
+| `/v1beta/models/{model}:streamGenerateContent` | `anthropic_messages` | `/v1/messages` | SSE |
 
 The public model is authorized and retained in responses/audit records; aliases
 select the upstream model and its configured pricing. Transport, provider API-key
@@ -347,9 +357,9 @@ unknown fields, non-advisory thinking/reasoning controls, compaction,
 server-hosted tools, OpenAI beta capabilities, and Anthropic capability/workspace
 headers on a Gemini provider (only the standard Messages version header is
 accepted). Cache-control hints are rejected outside the Chat bridge. Gemini
-assistant prefill is also rejected. Conversion of Responses, OpenAI embeddings
-and Messages count_tokens to these upstream protocols is not implemented; use
-native endpoints for those operations.
+assistant prefill is also rejected for OpenAI Chat conversion. Conversion of Responses and OpenAI embeddings
+to these upstream protocols is not implemented. Messages count_tokens to Gemini is also unsupported;
+use native endpoints for those operations.
 
 Chat `max_completion_tokens` is accepted as an alias for `max_tokens` on the
 Anthropic and Gemini relay. When both are present, they must be equal positive
