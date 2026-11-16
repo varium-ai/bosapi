@@ -139,7 +139,7 @@ func TestGeminiURLModelAcrossGatewayPipeline(t *testing.T) {
 }
 
 func TestGeminiRejectsMalformedPathsBeforeBodyModelFallback(t *testing.T) {
-	for _, path := range []string{"/v1beta/models", "/v1beta/models/", "/v1beta/models/:generateContent", "/v1beta/models/alias", "/v1beta/models/alias:unknown", "/v1beta/models/alias:generateContent/", "/v1beta/models/folder/alias:generateContent", "/v1beta/models/..:generateContent", "/v1beta/models/alias:generateContent:countTokens", "/v1beta/models/alias%20name:generateContent"} {
+	for _, path := range []string{"/v1beta/models", "/v1beta/models/", "/v1beta/models/:generateContent", "/v1beta/models/alias", "/v1beta/models/alias:unknown", "/v1beta/models/alias:generateContent/", "/v1beta/models/folder//alias:generateContent", "/v1beta/models/folder/../alias:generateContent", "/v1beta/models/..:generateContent", "/v1beta/models/alias:generateContent:countTokens", "/v1beta/models/alias%20name:generateContent"} {
 		t.Run(path, func(t *testing.T) {
 			a, key := geminiTestApp(t)
 			limiter := &geminiMetadataLimiter{}
@@ -155,6 +155,26 @@ func TestGeminiRejectsMalformedPathsBeforeBodyModelFallback(t *testing.T) {
 				t.Fatalf("invalid path admitted: %d %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestGeminiQualifiedModelNamePassesThrough(t *testing.T) {
+	a, key := geminiTestApp(t)
+	model := "zai-org/GLM-5-FP8"
+	a.data.Providers[0].Models = []string{model}
+	a.data.Providers[0].ModelMapping = nil
+	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/v1beta/models/"+model+":streamGenerateContent" || r.URL.Query().Get("alt") != "sse" {
+			t.Fatalf("qualified model route: %s", r.URL.String())
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader("data: {}\n\n"))}, nil
+	})}
+	r := httptest.NewRequest("POST", "/v1/models/"+model+":streamGenerateContent?alt=sse", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"Reply with only OK."}]}]}`))
+	r.Header.Set("x-goog-api-key", key)
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("qualified model rejected: %d %s", w.Code, w.Body.String())
 	}
 }
 
