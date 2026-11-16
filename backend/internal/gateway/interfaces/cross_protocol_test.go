@@ -132,6 +132,107 @@ func TestCrossProtocolJSONAndSSEPairs(t *testing.T) {
 	}
 }
 
+func TestNativeGeminiToOpenAIChatJSONAndSSE(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "sse"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			a.data.Providers[0].APIFormat = "openai_chat"
+			a.data.Providers[0].Platform = "openai"
+			a.data.Providers[0].BaseURL = "https://openai.example/v1"
+			var upstreamBody string
+			contentType := "application/json"
+			response := `{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":3}}}`
+			operation := "generateContent"
+			if streaming {
+				operation = "streamGenerateContent"
+				contentType = "text/event-stream"
+				response = "data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":null}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-1\",\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17,\"prompt_tokens_details\":{\"cached_tokens\":3}}}\n\n" +
+					"data: [DONE]\n\n"
+			}
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				body, _ := io.ReadAll(r.Body)
+				upstreamBody = string(body)
+				if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer provider-key" || r.Header.Get("x-goog-api-key") != "" {
+					t.Fatalf("wrong OpenAI request: %s headers=%v", r.URL, r.Header)
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(response))}, nil
+			})}
+			body := `{"systemInstruction":{"parts":[{"text":"instructions"}]},"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"maxOutputTokens":99,"temperature":0.4,"topP":0.8}}`
+			r := httptest.NewRequest("POST", "/v1beta/models/alias:"+operation, strings.NewReader(body))
+			r.Header.Set("x-goog-api-key", key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "hello") || !strings.Contains(w.Body.String(), "usageMetadata") {
+				t.Fatalf("Gemini response conversion: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if !strings.Contains(upstreamBody, `"max_tokens":99`) || !strings.Contains(upstreamBody, `"top_p":0.8`) || !strings.Contains(upstreamBody, "instructions") || !strings.Contains(upstreamBody, `"model":"actual"`) {
+				t.Fatalf("Gemini request conversion lost fields: %s", upstreamBody)
+			}
+			if streaming && !strings.Contains(w.Body.String(), `"finishReason":"STOP"`) {
+				t.Fatalf("Gemini finish reason missing: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeGeminiToolCallSurvivesOpenAIChatBridgeAuthorization(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "sse"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			a.data.Providers[0].APIFormat = "openai_chat"
+			a.data.Providers[0].Platform = "openai"
+			a.data.Providers[0].BaseURL = "https://openai.example/v1"
+			response := `{"id":"chatcmpl-tool","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"x\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}`
+			contentType, operation := "application/json", "generateContent"
+			if streaming {
+				contentType, operation = "text/event-stream", "streamGenerateContent"
+				response = "data: {\"id\":\"chatcmpl-tool\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\":\\\"x\\\"}\"}}]},\"finish_reason\":null}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-tool\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-tool\",\"choices\":[],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":4,\"total_tokens\":12}}\n\n" +
+					"data: [DONE]\n\n"
+			}
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				var body map[string]any
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				if body["tools"] == nil || body["tool_choice"] == nil || body["stream"] != streaming {
+					t.Fatalf("Gemini tool declaration or stream mode was not converted: %+v", body)
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(response))}, nil
+			})}
+			request := `{"contents":[{"role":"user","parts":[{"text":"look up x"}]}],"tools":[{"functionDeclarations":[{"name":"lookup","parameters":{"type":"object"}}]}],"toolConfig":{"functionCallingConfig":{"mode":"ANY"}}}`
+			r := httptest.NewRequest("POST", "/v1beta/models/alias:"+operation, strings.NewReader(request))
+			r.Header.Set("x-goog-api-key", key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"functionCall"`) || !strings.Contains(w.Body.String(), `"name":"lookup"`) || !strings.Contains(w.Body.String(), `"args":{"q":"x"}`) {
+				t.Fatalf("tool call did not reach Gemini response: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if streaming && !strings.Contains(w.Body.String(), `"finishReason":"STOP"`) {
+				t.Fatalf("streamed tool call missing Gemini finish: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeGeminiToOpenAIChatMapsUpstreamErrors(t *testing.T) {
+	a, key := geminiTestApp(t)
+	a.data.Providers[0].APIFormat = "openai_chat"
+	a.data.Providers[0].Platform = "openai"
+	a.data.Providers[0].BaseURL = "https://openai.example/v1"
+	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"private upstream detail"}}`))}, nil
+	})}
+	r := httptest.NewRequest("POST", "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`))
+	r.Header.Set("x-goog-api-key", key)
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"status":"INVALID_ARGUMENT"`) || strings.Contains(w.Body.String(), "private upstream detail") {
+		t.Fatalf("upstream error was not safely mapped to Gemini: status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestCrossProtocolUnsupportedRequestsNeverReachUpstream(t *testing.T) {
 	for _, test := range []struct{ source, target, extra, field string }{{"chat", "gemini", `,"response_format":{"type":"json_schema"}`, "response_format"}, {"chat", "anthropic_messages", `,"logprobs":true`, "logprobs"}, {"messages", "gemini", `,"thinking":{"type":"adaptive"}`, "thinking"}, {"messages", "gemini", `,"cache_control":{"type":"ephemeral"}`, "cache_control"}} {
 		t.Run(test.field, func(t *testing.T) {

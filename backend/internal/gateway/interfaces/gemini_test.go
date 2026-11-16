@@ -216,18 +216,21 @@ func TestGeminiSameModelNameChoosesNativeProvider(t *testing.T) {
 	if !ok || selected.ID != 1 || selected.APIFormat != "gemini" {
 		t.Fatalf("wrong protocol provider: %+v", selected)
 	}
-	// A key explicitly bound to an OpenAI provider cannot cross that binding to
-	// reach a Gemini provider, even when both advertise the requested model.
+	// A key explicitly bound to an OpenAI Chat provider can use the native
+	// Gemini endpoint through the dedicated adapter on that same provider.
 	a.data.Keys[0].ProviderID = 2
-	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Fatal("Gemini request sent to wrong protocol provider")
-		return nil, nil
+	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body, _ := io.ReadAll(r.Body)
+		if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer wrong-key" || strings.Contains(string(body), "contents") {
+			t.Fatalf("request was not converted through the bound OpenAI provider: %s %s", r.URL, body)
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))}, nil
 	})}
-	r := httptest.NewRequest("POST", "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[]}`))
+	r := httptest.NewRequest("POST", "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`))
 	r.Header.Set("Authorization", "Bearer "+key)
 	w := httptest.NewRecorder()
 	a.routes().ServeHTTP(w, r)
-	if w.Code != 403 {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"candidates"`) || !strings.Contains(w.Body.String(), "hello") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 }

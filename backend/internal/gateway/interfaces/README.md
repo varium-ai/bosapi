@@ -199,6 +199,12 @@ provider using an OpenAI-compatible API should keep `api_format=openai_chat`;
 configure its Chat base URL, provider credential, allowed models and optional
 model mapping normally. No upstream `/messages` endpoint is required.
 
+Native Gemini `generateContent` and `streamGenerateContent` requests can also
+use an `openai_chat` provider. BOS converts Gemini contents, system instructions,
+generation controls, function declarations/history and inline images into Chat
+Completions, then returns Gemini JSON or SSE. The requested model remains the
+public/audit model while configured aliases select the OpenAI upstream model.
+
 API-key providers expose these explicitly bounded conversion paths:
 
 | Client endpoint | Provider `api_format` | Upstream operation | JSON / SSE |
@@ -207,6 +213,8 @@ API-key providers expose these explicitly bounded conversion paths:
 | `/v1/chat/completions` | `gemini` | `generateContent` / `streamGenerateContent` | Both |
 | `/v1/messages` | `gemini` | `generateContent` / `streamGenerateContent` | Both |
 | `/v1/messages` | `openai_chat` | `/chat/completions` | Both |
+| `/v1beta/models/{model}:generateContent` | `openai_chat` | `/chat/completions` | JSON |
+| `/v1beta/models/{model}:streamGenerateContent` | `openai_chat` | `/chat/completions` | SSE |
 
 The public model is authorized and retained in responses/audit records; aliases
 select the upstream model and its configured pricing. Transport, provider API-key

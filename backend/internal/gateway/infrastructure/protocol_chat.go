@@ -175,6 +175,8 @@ func (reply *RelayReply) observeChatUsage(value map[string]any) {
 	reply.CacheRead = relayInt(details["cached_tokens"])
 	reply.Input = relayInt(usage["prompt_tokens"]) - reply.CacheRead
 	reply.Output = relayInt(usage["completion_tokens"])
+	completionDetails, _ := usage["completion_tokens_details"].(map[string]any)
+	reply.Thoughts = relayInt(completionDetails["reasoning_tokens"])
 }
 
 // ChatRelayStop rejects unknown reasons so an incomplete turn never becomes a success.
@@ -251,6 +253,20 @@ func ValidateChatRelayUsage(root map[string]any) error {
 			}
 			if relayInt(value) > relayInt(usage["prompt_tokens"]) {
 				return conversionError("response.usage.prompt_tokens_details.cached_tokens", "cached tokens exceed prompt tokens")
+			}
+		}
+	}
+	if value := usage["completion_tokens_details"]; value != nil {
+		details, ok := value.(map[string]any)
+		if !ok {
+			return conversionError("response.usage.completion_tokens_details", "expected token details")
+		}
+		if value, exists := details["reasoning_tokens"]; exists {
+			if err := validateChatTokenCount(value, "response.usage.completion_tokens_details.reasoning_tokens"); err != nil {
+				return err
+			}
+			if relayInt(value) > relayInt(usage["completion_tokens"]) {
+				return conversionError("response.usage.completion_tokens_details.reasoning_tokens", "reasoning tokens exceed completion tokens")
 			}
 		}
 	}

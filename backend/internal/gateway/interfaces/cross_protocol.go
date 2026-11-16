@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"bosapi/backend/internal/gateway/domain"
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	"bosapi/backend/internal/platform/errorcode"
 )
@@ -27,6 +29,17 @@ func conversionEnvelope(source string, code errorcode.Code, err error) map[strin
 	envelope := map[string]any{"error": detail}
 	if source == "messages" {
 		envelope["type"] = "error"
+	} else if source == "gemini" {
+		status, name := http.StatusBadGateway, "INTERNAL"
+		switch code {
+		case errorcode.InvalidRequest, errorcode.UnsupportedConversion:
+			status, name = http.StatusBadRequest, "INVALID_ARGUMENT"
+		case errorcode.RateLimited, errorcode.QuotaExceeded:
+			status, name = http.StatusTooManyRequests, "RESOURCE_EXHAUSTED"
+		case errorcode.UpstreamTimeout:
+			status, name = http.StatusGatewayTimeout, "DEADLINE_EXCEEDED"
+		}
+		envelope = map[string]any{"error": map[string]any{"code": status, "status": name, "message": field + ": " + reason, "bos_code": string(code)}}
 	}
 	return envelope
 }
@@ -73,6 +86,21 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
 	}
+	if source == "gemini" {
+		metadata, ok := requestGemini(r)
+		if !ok {
+			crossFailure(w, r, source, 400, errorcode.InvalidRequest, &gatewayinfra.ConversionError{Field: "endpoint", Reason: "invalid Gemini operation"})
+			return
+		}
+		q.Model = metadata.Model
+		q.Stream = metadata.Operation == "streamGenerateContent"
+		if p.APIFormat == "openai_chat" || p.APIFormat == "" {
+			if authorization, ok := r.Context().Value(gatewayToolAuthorizationRequestKey{}).(gatewayinfra.ToolAuthorization); ok {
+				ctx := context.WithValue(r.Context(), gatewayToolAuthorizationRequestKey{}, authorization.WithProtocolAlias(domain.ToolProtocolGemini, domain.ToolProtocolOpenAI))
+				r = r.WithContext(ctx)
+			}
+		}
+	}
 	publicModel := q.Model
 	if model := requestModel(r); model != "" && model != q.Model {
 		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, &gatewayinfra.ConversionError{Field: "model", Reason: "body model must match the authorized request model"})
@@ -97,7 +125,9 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 	upstreamRequest.URL = &upstreamURL
 	res, cancel, err := a.nativeRoundTrip(upstreamRequest, p, path, payload)
 	if err != nil {
-		if source == "messages" {
+		if source == "gemini" {
+			nativeError(w, "gemini", upstreamErrorStatus(r.Context(), err), upstreamErrorCode(r.Context(), err))
+		} else if source == "messages" {
 			nativeError(w, "anthropic_messages", upstreamErrorStatus(r.Context(), err), upstreamErrorCode(r.Context(), err))
 		} else {
 			fail(w, upstreamErrorStatus(r.Context(), err), upstreamErrorCode(r.Context(), err))
@@ -110,7 +140,9 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		w.Header().Set("Retry-After", retry)
 	}
 	if res.StatusCode == 429 {
-		if source == "messages" {
+		if source == "gemini" {
+			writeUpstreamLimitError(&nativeLimitWriter{ResponseWriter: w, format: "gemini"}, res, time.Now())
+		} else if source == "messages" {
 			writeUpstreamLimitError(&nativeLimitWriter{ResponseWriter: w, format: "anthropic_messages"}, res, time.Now())
 		} else {
 			writeUpstreamLimitError(w, res, time.Now())
@@ -122,7 +154,9 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		if res.StatusCode == 400 {
 			status = 400
 		}
-		if source == "messages" {
+		if source == "gemini" {
+			nativeError(w, "gemini", status, upstreamCode(res.StatusCode))
+		} else if source == "messages" {
 			nativeError(w, "anthropic_messages", status, upstreamCode(res.StatusCode))
 		} else {
 			fail(w, status, upstreamCode(res.StatusCode))

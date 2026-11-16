@@ -398,8 +398,20 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 		keyValue, _ := c.Get(gatewayAPIKeyContext)
 		apiKey := keyValue.(apiKey)
 		_, nativeGemini := requestGemini(c.Request)
+		if nativeGemini {
+			logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=before_provider_select provider_id=%d provider_api_format=%s model=%s runtime_model_count=%d runtime_model_match=%t", p.ID, p.APIFormat, model, len(p.Models), providerSupportsModel(p, model))
+		}
 		if nativeGemini && (p.APIFormat != "gemini" || len(p.Models) > 0 && !providerSupportsModel(p, model)) {
 			selected, ok := a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "gemini")
+			if !ok {
+				// A native Gemini client may target a model routed through an
+				// OpenAI Chat provider. Prefer a native Gemini channel when one
+				// advertises the model, then use the explicit cross-protocol path.
+				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "openai_chat")
+			}
+			if nativeGemini {
+				logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=provider_select_result selected=%t selected_provider_id=%d selected_api_format=%s selected_model_count=%d selected_model_match=%t", ok, selected.ID, selected.APIFormat, len(selected.Models), providerSupportsModel(selected, model))
+			}
 			if !ok {
 				nativeError(c.Writer, "gemini", http.StatusForbidden, errorcode.ModelNotAllowed)
 				c.Abort()
@@ -416,7 +428,14 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 				c.Request = withGatewayProvider(c.Request, p)
 			}
 		}
-		if denial := a.databasePolicyDenial(c.Request.Context(), apiKey, p.ID, model, p.APIFormat); denial != "" {
+		policyFormat := p.APIFormat
+		if nativeGemini {
+			policyFormat = "gemini"
+		}
+		if denial := a.databasePolicyDenial(c.Request.Context(), apiKey, p.ID, model, policyFormat); denial != "" {
+			if nativeGemini {
+				logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=database_policy_denied provider_id=%d denial=%s", p.ID, denial)
+			}
 			logging.Printf(c.Request.Context(), "WARN", "gateway.policy.denied", "provider_id=%d model=%s reason=%s", p.ID, model, denial)
 			fail(c.Writer, http.StatusForbidden, denial)
 			c.Abort()
@@ -431,6 +450,9 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 			fail(c.Writer, http.StatusForbidden, errorcode.ModelNotAllowed)
 			c.Abort()
 			return
+		}
+		if nativeGemini {
+			logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=admitted provider_id=%d provider_api_format=%s model=%s runtime_model_count=%d runtime_model_match=%t", p.ID, p.APIFormat, model, len(p.Models), providerSupportsModel(p, model))
 		}
 		c.Set(gatewayModelContext, model)
 		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), gatewayModelRequestKey{}, model))

@@ -71,6 +71,28 @@ func (stream *crossStreamRenderer) emit(event string, value any) error {
 func (stream *crossStreamRenderer) chat(delta map[string]any, finish any) error {
 	return stream.emit("", map[string]any{"id": stream.reply.ID, "object": "chat.completion.chunk", "created": time.Now().Unix(), "model": stream.model, "choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}}})
 }
+func (stream *crossStreamRenderer) geminiChunk(parts []any, finish string, usage bool) error {
+	candidate := map[string]any{"index": 0, "content": map[string]any{"role": "model", "parts": parts}}
+	if finish != "" {
+		candidate["finishReason"] = finish
+	}
+	root := map[string]any{"candidates": []any{candidate}}
+	if stream.reply.ID != "" {
+		root["responseId"] = stream.reply.ID
+	}
+	if usage && stream.reply.HasUsage {
+		input := stream.reply.Input + stream.reply.CacheRead + stream.reply.CacheWrite
+		metrics := map[string]any{"promptTokenCount": input, "candidatesTokenCount": max(int64(0), stream.reply.Output-stream.reply.Thoughts), "totalTokenCount": input + stream.reply.Output}
+		if stream.reply.CacheRead > 0 {
+			metrics["cachedContentTokenCount"] = stream.reply.CacheRead
+		}
+		if stream.reply.Thoughts > 0 {
+			metrics["thoughtsTokenCount"] = stream.reply.Thoughts
+		}
+		root["usageMetadata"] = metrics
+	}
+	return stream.emit("", root)
+}
 func (stream *crossStreamRenderer) start() error {
 	if stream.started {
 		return nil
@@ -78,6 +100,9 @@ func (stream *crossStreamRenderer) start() error {
 	stream.started = true
 	if stream.source == "chat" {
 		return stream.chat(map[string]any{"role": "assistant", "content": ""}, nil)
+	}
+	if stream.source == "gemini" {
+		return nil
 	}
 	return stream.emit("message_start", map[string]any{"type": "message_start", "message": map[string]any{"id": stream.reply.ID, "type": "message", "role": "assistant", "model": stream.model, "content": []any{}, "stop_reason": nil, "stop_sequence": nil, "usage": stream.reply.MessagesUsage()}})
 }
@@ -91,6 +116,9 @@ func (stream *crossStreamRenderer) text(text string) error {
 	if stream.source == "chat" {
 		stream.textBytes += len(text)
 		return stream.chat(map[string]any{"content": text}, nil)
+	}
+	if stream.source == "gemini" {
+		return stream.geminiChunk([]any{map[string]any{"text": text}}, "", false)
 	}
 	if !stream.textOpen {
 		stream.textOpen = true
@@ -126,6 +154,9 @@ func (stream *crossStreamRenderer) toolStart(block gatewayinfra.RelayBlock) (int
 	if stream.source == "chat" {
 		return index, stream.chat(map[string]any{"tool_calls": []any{map[string]any{"index": index, "id": block.ID, "type": "function", "function": map[string]any{"name": block.Name, "arguments": ""}}}}, nil)
 	}
+	if stream.source == "gemini" {
+		return index, stream.geminiChunk([]any{map[string]any{"functionCall": map[string]any{"id": block.ID, "name": block.Name, "args": block.Input}}}, "", false)
+	}
 	index = stream.nextBlock
 	stream.nextBlock++
 	return index, stream.emit("content_block_start", map[string]any{"type": "content_block_start", "index": index, "content_block": map[string]any{"type": "tool_use", "id": block.ID, "name": block.Name, "input": map[string]any{}}})
@@ -134,10 +165,13 @@ func (stream *crossStreamRenderer) toolArguments(index int, args string) error {
 	if stream.source == "chat" {
 		return stream.chat(map[string]any{"tool_calls": []any{map[string]any{"index": index, "function": map[string]any{"arguments": args}}}}, nil)
 	}
+	if stream.source == "gemini" {
+		return nil
+	}
 	return stream.emit("content_block_delta", map[string]any{"type": "content_block_delta", "index": index, "delta": map[string]any{"type": "input_json_delta", "partial_json": args}})
 }
 func (stream *crossStreamRenderer) toolStop(index int) error {
-	if stream.source == "chat" {
+	if stream.source == "chat" || stream.source == "gemini" {
 		return nil
 	}
 	return stream.emit("content_block_stop", map[string]any{"type": "content_block_stop", "index": index})
@@ -160,6 +194,19 @@ func (stream *crossStreamRenderer) finish() error {
 			return err
 		}
 		return stream.emit("message_stop", map[string]any{"type": "message_stop"})
+	}
+	if stream.source == "gemini" {
+		finishReason := "STOP"
+		switch stream.reply.Stop {
+		case "length":
+			finishReason = "MAX_TOKENS"
+		case "content_filter":
+			finishReason = "SAFETY"
+		case "stop", "tool_calls":
+		default:
+			return responseFieldError("finish_reason", "OpenAI Chat finish reason cannot be represented in Gemini")
+		}
+		return stream.geminiChunk([]any{}, finishReason, true)
 	}
 	if err := stream.chat(map[string]any{}, stream.reply.Stop); err != nil {
 		return err

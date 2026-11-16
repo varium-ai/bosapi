@@ -284,6 +284,9 @@ func boolField(value map[string]any, key string) (bool, error) {
 // ParseRelayRequest implements a deliberately bounded common subset. Unknown
 // fields are rejected at every protocol envelope; JSON schemas stay opaque.
 func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) {
+	if source == "gemini" {
+		return parseGeminiRelayRequest(raw, target)
+	}
 	q := RelayRequest{Controls: map[string]any{}, Choice: "auto"}
 	root, err := DecodeProtocolJSON(raw)
 	if err != nil {
