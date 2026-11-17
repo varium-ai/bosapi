@@ -19,6 +19,8 @@ func TestGatewayChatStreamCollectsUsageAndSettlesQuota(t *testing.T) {
 		{"empty", `,"stream_options":{}`},
 		{"disabled", `,"stream_options":{"include_usage":false}`},
 		{"enabled", `,"stream_options":{"include_usage":true}`},
+		{"continuous", `,"stream_options":{"include_usage":true,"continuous_usage_stats":true}`},
+		{"continuous disabled", `,"stream_options":{"include_usage":true,"continuous_usage_stats":false}`},
 		{"extensions", `,"stream_options":{"include_usage":false,"vendor_id":9007199254740993}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -59,8 +61,14 @@ func TestGatewayChatStreamCollectsUsageAndSettlesQuota(t *testing.T) {
 				if tc.name == "extensions" && string(request.StreamOptions["vendor_id"]) != "9007199254740993" {
 					t.Fatalf("stream options extension changed: %s", raw)
 				}
+				if tc.name == "continuous" && string(request.StreamOptions["continuous_usage_stats"]) != "true" || tc.name == "continuous disabled" && string(request.StreamOptions["continuous_usage_stats"]) != "false" {
+					t.Fatalf("continuous usage option changed: %s", raw)
+				}
 				// Match the production upstream: it emits counts only on opt-in.
 				response := text
+				if tc.name == "continuous" {
+					response = strings.Replace(text, `"finish_reason":"stop"}]}`, `"finish_reason":"stop"}],"usage":{"prompt_tokens":15,"completion_tokens":2,"total_tokens":17}}`, 1)
+				}
 				if string(request.StreamOptions["include_usage"]) == "true" {
 					response += usage
 				}
@@ -74,6 +82,9 @@ func TestGatewayChatStreamCollectsUsageAndSettlesQuota(t *testing.T) {
 			a.routes().ServeHTTP(w, r)
 			if w.Code != http.StatusOK || !w.Flushed || !strings.Contains(w.Body.String(), "OK") || !strings.Contains(w.Body.String(), "[DONE]") {
 				t.Fatalf("stream not delivered: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if tc.name == "continuous" && !strings.Contains(w.Body.String(), `"completion_tokens":2`) {
+				t.Fatalf("continuous usage not delivered: %s", w.Body.String())
 			}
 			select {
 			case event := <-a.usageQueue:

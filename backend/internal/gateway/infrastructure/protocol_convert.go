@@ -70,6 +70,7 @@ type RelayRequest struct {
 	SystemRole           string
 	ReasoningEffort      string
 	Stream, IncludeUsage bool
+	ContinuousUsageStats bool
 	System               []string
 	Messages             []RelayMessage
 	Tools                []RelayTool
@@ -436,12 +437,16 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 		if !ok {
 			return q, conversionError("stream_options", "expected an object")
 		}
-		if err = fieldsOnly(options, "stream_options.", "include_usage"); err != nil {
+		if err = fieldsOnly(options, "stream_options.", "include_usage", "continuous_usage_stats"); err != nil {
 			return q, err
 		}
 		q.IncludeUsage, err = boolField(options, "include_usage")
 		if err != nil {
 			return q, err
+		}
+		q.ContinuousUsageStats, err = boolField(options, "continuous_usage_stats")
+		if err != nil {
+			return q, conversionError("stream_options.continuous_usage_stats", "expected a boolean")
 		}
 		if !q.Stream {
 			return q, conversionError("stream_options", "requires stream=true")

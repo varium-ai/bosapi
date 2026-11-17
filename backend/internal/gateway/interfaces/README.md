@@ -253,7 +253,12 @@ Supported request semantics:
   Gemini turns of the same role are merged with part order preserved, so parallel
   tool results remain in one user turn; incomplete historical calls are rejected.
 - JSON replies and incremental SSE text/tool events. Chat `stream_options` supports
-  only `include_usage`; Gemini function calls must arrive as complete objects.
+  `include_usage` and `continuous_usage_stats`. With both enabled, converted Chat
+  chunks include the latest available cumulative upstream usage, in addition to
+  the terminal usage chunk. Counts are omitted until the upstream provides them;
+  providers that report usage only at completion cannot provide intermediate
+  counts. Neither option changes accounting or estimates tokens. Gemini function
+  calls must arrive as complete objects.
   Anthropic serial tool selection is supported; Gemini serial-call guarantees are
   rejected. Converted tools still pass source-protocol authorization/security
   checks before executable content is delivered.

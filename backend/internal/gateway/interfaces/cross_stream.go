@@ -70,7 +70,13 @@ func (stream *crossStreamRenderer) emit(event string, value any) error {
 	return nil
 }
 func (stream *crossStreamRenderer) chat(delta map[string]any, finish any) error {
-	return stream.emit("", map[string]any{"id": stream.reply.ID, "object": "chat.completion.chunk", "created": time.Now().Unix(), "model": stream.model, "choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}}})
+	// Text, reasoning, and tool deltas have different shapes in this protocol envelope.
+	chunk := map[string]any{"id": stream.reply.ID, "object": "chat.completion.chunk", "created": time.Now().Unix(), "model": stream.model, "choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}}}
+	if stream.q.IncludeUsage && stream.q.ContinuousUsageStats && stream.reply.HasUsage {
+		// Reuse the latest upstream snapshot rather than estimating token counts.
+		chunk["usage"] = stream.reply.ChatUsage()
+	}
+	return stream.emit("", chunk)
 }
 func (stream *crossStreamRenderer) geminiChunk(parts []any, finish string, usage bool) error {
 	candidate := map[string]any{"index": 0, "content": map[string]any{"role": "model", "parts": parts}}
