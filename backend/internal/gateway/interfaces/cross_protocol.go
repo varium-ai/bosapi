@@ -225,6 +225,7 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		crossFailure(w, r, source, 502, errorcode.UnsupportedUpstreamFeature, err)
 		return
 	}
+	reply.IncludeThoughts = q.IncludeThoughts
 	converted, err := reply.JSON(source, publicModel)
 	if err != nil {
 		setGatewayResponseShapeDiagnostic(r.Context(), relayReplyShape(reply.Blocks))

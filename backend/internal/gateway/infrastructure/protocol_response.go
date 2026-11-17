@@ -13,6 +13,7 @@ type RelayReply struct {
 	Stop, StopSequence                             string
 	Input, Output, CacheRead, CacheWrite, Thoughts int64
 	HasUsage                                       bool
+	IncludeThoughts                                bool
 }
 
 func relayInt(value any) int64 {
@@ -286,10 +287,13 @@ func (reply RelayReply) JSON(source, model string) ([]byte, error) {
 			case "text":
 				parts = append(parts, map[string]any{"text": block.Text})
 			case "thinking":
-				// OpenAI Chat reasoning fields have no Gemini-compatible, signed
-				// representation. Keep them out of user-visible output; preserve
-				// other thinking blocks only through their native protocol.
+				// Explicitly requested unsigned Chat reasoning is emitted as
+				// thought text, separately from the answer. Never synthesize
+				// signatures or discard native signed thinking.
 				if block.Signature == "" && (block.ReasoningField == "reasoning" || block.ReasoningField == "reasoning_content") {
+					if reply.IncludeThoughts {
+						parts = append(parts, map[string]any{"text": block.Text, "thought": true})
+					}
 					continue
 				}
 				return nil, conversionError("response.content", "thinking block cannot be represented in Gemini")

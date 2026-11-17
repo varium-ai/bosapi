@@ -71,6 +71,7 @@ type RelayRequest struct {
 	ReasoningEffort      string
 	Stream, IncludeUsage bool
 	ContinuousUsageStats bool
+	IncludeThoughts      bool
 	System               []string
 	Messages             []RelayMessage
 	Tools                []RelayTool

@@ -376,6 +376,21 @@ the upstream validates which effort values its selected model supports. A null
 value is treated as absent. Responses-specific opaque reasoning and other unrepresentable output still
 require the native Responses endpoint.
 
+Gemini `generationConfig.thinkingConfig` is converted on the Chat/Messages relay:
+
+| Gemini control | OpenAI Chat upstream | Anthropic Messages upstream |
+| --- | --- | --- |
+| `thinkingBudget: 0` | `thinking.type: disabled` (GLM-compatible extension) | `thinking.type: disabled` |
+| `thinkingBudget: -1` | `thinking.type: enabled` (GLM-compatible extension) | `thinking.type: adaptive` |
+| Positive `thinkingBudget` | Rejected: Chat has no equivalent numeric budget | `thinking.type: enabled`, `budget_tokens`; at least 1024 and below `maxOutputTokens` (default 4096) |
+| `thinkingLevel` (`minimal`, `low`, `medium`, `high`; uppercase accepted) | `reasoning_effort` | Adaptive thinking plus `output_config.effort`; `minimal` rejected |
+| `includeThoughts` | Controls unsigned reasoning visibility locally in JSON and SSE; defaults to false | False accepted; true requires native Messages to preserve signed thinking |
+
+Budget and level are mutually exclusive. Unknown fields and invalid types are
+rejected with the precise field path. Provider/model support for mapped controls
+is validated by the upstream; GLM's `thinking` extension is not a universal Chat
+capability. Positive budgets are never silently approximated with effort levels.
+
 Unsupported upstream content returns HTTP 502 `unsupported_upstream_feature`.
 Anthropic text blocks with absent, null or empty `citations`, and tool blocks
 with absent/null `caller` or `caller: {"type":"direct"}`, convert to Chat JSON
@@ -387,9 +402,11 @@ provider-hosted tool output, citations/grounding metadata, unknown finish reason
 and malformed/incomplete tool arguments. Gemini thinking signatures cannot be
 silently removed because the next tool turn may require them; use native Gemini
 for models returning those signatures. For an OpenAI Chat upstream, unsigned
-`reasoning` and `reasoning_content` fields are omitted from Gemini output while
-visible text and function calls are preserved; these provider-specific reasoning
-fields are not Gemini thought parts. This is a common-subset Messages bridge, not
+`reasoning` and `reasoning_content` fields are omitted from Gemini output by
+default while visible text and function calls are preserved. When
+`includeThoughts: true` is requested, they are emitted separately as text parts
+with `thought: true`, without synthesizing a Gemini signature. This applies to
+both JSON and SSE responses. This is a common-subset Messages bridge, not
 full Claude Code feature compatibility on Gemini.
 
 On a stream that has already started, conversion failures are SSE error events;

@@ -56,7 +56,7 @@ func parseGeminiRelayRequest(raw []byte, target string) (RelayRequest, error) {
 		if !ok {
 			return q, conversionError("generationConfig", "expected an object")
 		}
-		if err := fieldsOnly(config, "generationConfig.", "maxOutputTokens", "temperature", "topP", "stopSequences", "candidateCount"); err != nil {
+		if err := fieldsOnly(config, "generationConfig.", "maxOutputTokens", "temperature", "topP", "stopSequences", "candidateCount", "thinkingConfig"); err != nil {
 			return q, err
 		}
 		for _, control := range []struct{ source, target string }{
@@ -98,6 +98,9 @@ func parseGeminiRelayRequest(raw []byte, target string) (RelayRequest, error) {
 		}
 		if value, exists := config["candidateCount"]; exists && value != json.Number("1") {
 			return q, conversionError("generationConfig.candidateCount", "only one candidate is supported")
+		}
+		if err := q.parseGeminiThinking(config["thinkingConfig"], target); err != nil {
+			return q, err
 		}
 	}
 
