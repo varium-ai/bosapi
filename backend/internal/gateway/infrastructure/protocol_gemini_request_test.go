@@ -111,7 +111,7 @@ func TestGeminiAnthropicToolSchemaDefaultsMissingRootType(t *testing.T) {
 }
 
 func TestGeminiAnthropicToolSchemaConvertsTopLevelUnion(t *testing.T) {
-	raw := `{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"tools":[{"functionDeclarations":[{"name":"lookup","parametersJsonSchema":{"anyOf":[{"type":"object","properties":{"by_name":{"type":"string"}},"required":["common"]},{"type":"object","properties":{"by_id":{"type":"integer"}},"required":["common","by_id"]}]}}]}]}`
+	raw := `{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"tools":[{"functionDeclarations":[{"name":"lookup","parametersJsonSchema":{"anyOf":[{"type":"object","propertyOrdering":["by_name"],"properties":{"by_name":{"type":"string"}},"required":["common"]},{"type":"object","propertyOrdering":["by_id"],"properties":{"by_id":{"type":"integer"}},"required":["common","by_id"]}]}}]}]}`
 	q, err := ParseRelayRequest([]byte(raw), "gemini", "anthropic_messages")
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +128,9 @@ func TestGeminiAnthropicToolSchemaConvertsTopLevelUnion(t *testing.T) {
 	schema := tool["input_schema"].(map[string]any)
 	if _, exists := schema["anyOf"]; exists {
 		t.Fatalf("Anthropic-incompatible top-level anyOf remains: %s", payload)
+	}
+	if strings.Contains(string(payload), "propertyOrdering") {
+		t.Fatalf("Gemini-only property ordering metadata was forwarded: %s", payload)
 	}
 	properties := schema["properties"].(map[string]any)
 	if properties["by_name"] == nil || properties["by_id"] == nil {

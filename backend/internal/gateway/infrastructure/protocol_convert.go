@@ -948,6 +948,7 @@ func normalizeAnthropicToolSchema(schema map[string]any) (map[string]any, error)
 	if schema == nil {
 		return map[string]any{"type": "object", "properties": map[string]any{}}, nil
 	}
+	schema = stripGeminiPropertyOrdering(schema)
 	result := make(map[string]any, len(schema)+1)
 	for key, value := range schema {
 		if key != "oneOf" && key != "allOf" && key != "anyOf" {
@@ -1066,6 +1067,34 @@ func normalizeAnthropicToolSchema(schema map[string]any) (map[string]any, error)
 		delete(result, "required")
 	}
 	return result, nil
+}
+
+// propertyOrdering is a Gemini schema extension that only controls the order
+// in which Gemini generates object properties. It has no Anthropic equivalent.
+func stripGeminiPropertyOrdering(schema map[string]any) map[string]any {
+	clean := make(map[string]any, len(schema))
+	for key, value := range schema {
+		if key == "propertyOrdering" {
+			continue
+		}
+		clean[key] = stripGeminiPropertyOrderingValue(value)
+	}
+	return clean
+}
+
+func stripGeminiPropertyOrderingValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		return stripGeminiPropertyOrdering(value)
+	case []any:
+		clean := make([]any, len(value))
+		for index, item := range value {
+			clean[index] = stripGeminiPropertyOrderingValue(item)
+		}
+		return clean
+	default:
+		return value
+	}
 }
 
 func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
