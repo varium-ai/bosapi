@@ -1192,6 +1192,9 @@ export const deDE: typeof enUS = {
       'Noch keine Modelle. Eigenen LLM-Dienst verbinden, Modelle erkennen und Organisationszugriff einrichten.',
   },
   key_portal: {
+    models_title: 'Verfügbare Modelle',
+    model_id: 'Modell-ID',
+    models_empty: 'Für diesen API-Schlüssel sind keine Modelle verfügbar.',
     guide_title: 'Mit Ihrem API-Schlüssel starten',
     guide_desc:
       'Schlüssel im Authorization-Header für unterstützte Modellendpunkte verwenden. Anfragen und Limits gelten für diesen Schlüssel.',

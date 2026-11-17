@@ -40,14 +40,16 @@ export function AnnouncementPanel({
                   <div className="announcement-heading">
                     <h3>{item.title}</h3>
                   </div>
-                  <Tag>
-                    {t(
-                      item.organization_id
-                        ? 'announcements.scope_organization'
-                        : 'announcements.scope_global',
-                    )}
-                  </Tag>
-                  <time dateTime={item.created_at}>{formatDateTime(item.created_at)}</time>
+                  <div className="announcement-meta">
+                    <Tag>
+                      {t(
+                        item.organization_id
+                          ? 'announcements.scope_organization'
+                          : 'announcements.scope_global',
+                      )}
+                    </Tag>
+                    <time dateTime={item.created_at}>{formatDateTime(item.created_at)}</time>
+                  </div>
                   <AnnouncementMarkdown body={item.body} />
                 </article>
               ))

@@ -2222,13 +2222,7 @@ func (a *app) models(w http.ResponseWriter, r *http.Request, p provider) {
 		return
 	}
 	items := make([]map[string]any, 0, len(models))
-	seen := make(map[string]bool)
-	for _, model := range models {
-		model.ID = upstreamurl.ModelID(model.APIFormat, model.ID)
-		if seen[model.ID] || model.ID == "" || model.ID == "*" {
-			continue
-		}
-		seen[model.ID] = true
+	for _, model := range gatewayinfra.PublishedModels(models) {
 		items = append(items, map[string]any{
 			"id": model.ID, "slug": model.ID, "name": model.ID,
 			"object": "model", "created": 1735689600, "owned_by": model.Platform,

@@ -621,6 +621,9 @@ export const enUS = {
       'No configured models yet. Connect your own LLM service, discover its models, and configure organization access.',
   },
   key_portal: {
+    models_title: 'Available models',
+    model_id: 'Model ID',
+    models_empty: 'No models are available for this API key.',
     guide_title: 'Get started with your API key',
     guide_desc:
       'Use this key in the Authorization header when calling a supported model endpoint. Requests and limits are scoped to this key.',

@@ -1156,6 +1156,9 @@ export const jaJP: typeof enUS = {
       'モデル未設定です。独自の LLM サービスを接続し、モデルを検出して組織権限を設定してください。',
   },
   key_portal: {
+    models_title: '利用可能なモデル',
+    model_id: 'モデル ID',
+    models_empty: 'この API キーで利用できるモデルはありません。',
     guide_title: 'API キーを使い始める',
     guide_desc:
       '対応モデルの呼び出し時、Authorization ヘッダーにキーを設定します。リクエストと上限はこのキーに適用されます。',

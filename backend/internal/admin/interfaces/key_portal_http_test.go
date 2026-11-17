@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
 	adminapp "bosapi/backend/internal/admin/application"
 	admindomain "bosapi/backend/internal/admin/domain"
+	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	userdomain "bosapi/backend/internal/user/domain"
 	userinfra "bosapi/backend/internal/user/infrastructure"
 
@@ -24,6 +26,58 @@ import (
 type stubKeyPortalRepository struct {
 	key    userdomain.APIKey
 	active bool
+}
+
+type portalCatalogFunc func(context.Context, uint64, []uint64, []string, ...string) ([]gatewayinfra.AvailableModel, error)
+
+func (list portalCatalogFunc) ListAvailableModelsForKey(ctx context.Context, org uint64, providers []uint64, models []string, formats ...string) ([]gatewayinfra.AvailableModel, error) {
+	return list(ctx, org, providers, models, formats...)
+}
+
+func TestKeyPortalModelsUseCurrentKeyPolicy(t *testing.T) {
+	repository := &stubKeyPortalRepository{
+		key:    userdomain.APIKey{ID: 42, OrganizationID: 7, AllowedProviderIDs: []uint64{8}, AllowedModels: []string{"gemini-test"}},
+		active: true,
+	}
+	handler := NewKeyPortalHandler(repository, []byte("portal-model-test-secret"), nil, nil, nil)
+	calls := 0
+	handler.WithModelCatalog(portalCatalogFunc(func(_ context.Context, org uint64, providers []uint64, models []string, _ ...string) ([]gatewayinfra.AvailableModel, error) {
+		calls++
+		if org != 7 || !reflect.DeepEqual(providers, []uint64{8}) || !reflect.DeepEqual(models, []string{"gemini-test"}) {
+			t.Fatalf("catalog scope: %d, %v, %v", org, providers, models)
+		}
+		return []gatewayinfra.AvailableModel{
+			{ID: "models/gemini-test", APIFormat: "gemini"},
+			{ID: "gemini-test", APIFormat: "gemini"},
+			{ID: "*"},
+		}, nil
+	}))
+	router := gin.New()
+	handler.RegisterRoutes(router.Group("/key-portal"))
+	token, _, err := handler.issueSession(repository.key, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	const path = "/key-portal/models?organization_id=99&key_id=99"
+	unauthenticated := httptest.NewRecorder()
+	router.ServeHTTP(unauthenticated, httptest.NewRequest(http.MethodGet, path, nil))
+	if unauthenticated.Code != http.StatusUnauthorized || calls != 0 {
+		t.Fatalf("unauthenticated request: %d, %d catalog calls", unauthenticated.Code, calls)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	var result struct {
+		Data struct{ Items []string }
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || calls != 1 || !reflect.DeepEqual(result.Data.Items, []string{"gemini-test"}) {
+		t.Fatalf("response: %d %s, %d catalog calls", response.Code, response.Body, calls)
+	}
 }
 
 type portalSnapshotTestRepository struct {

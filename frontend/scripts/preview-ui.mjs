@@ -92,7 +92,10 @@ const server = await createServer({
             localStorage.removeItem('key_portal_info');
             localStorage.setItem('auth_token', ${JSON.stringify(`ui-preview-${role}`)});
             localStorage.setItem('user_info', ${JSON.stringify(JSON.stringify(profiles[role]))});
-            if (${JSON.stringify(role)} === 'key') localStorage.setItem('key_portal_token', 'ui-preview-key');
+            if (${JSON.stringify(role)} === 'key') {
+              localStorage.setItem('key_portal_token', 'ui-preview-key');
+              localStorage.setItem('key_portal_info', JSON.stringify({ id: 3, name: 'Demo API Key', key_prefix: 'sk-demo', key_suffix: 'demo' }));
+            }
             location.replace(${JSON.stringify(startPath)});
           </script>`);
             return;
@@ -109,7 +112,10 @@ const server = await createServer({
               organization_id: 1,
               status: 'active',
               key_prefix: 'sk-demo',
+              key_suffix: 'demo',
             });
+          if (url.pathname === '/api/v1/key-portal/models')
+            return respond({ items: ['bos-chat', 'bos-reasoning', 'gemini-demo'] });
           if (/^\/api\/v1\/key-portal\/usage\//.test(url.pathname)) return respond({ items: [] });
           if (await onboardingPreview.handle(req, res, url)) return;
           const oauthStart = url.pathname.match(

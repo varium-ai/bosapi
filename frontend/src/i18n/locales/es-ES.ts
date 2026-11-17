@@ -1182,6 +1182,9 @@ export const esES: typeof enUS = {
       'Aún no hay modelos. Conecta tu servicio LLM, descubre modelos y configura el acceso de la organización.',
   },
   key_portal: {
+    models_title: 'Modelos disponibles',
+    model_id: 'ID del modelo',
+    models_empty: 'No hay modelos disponibles para esta clave API.',
     guide_title: 'Empieza con tu clave API',
     guide_desc:
       'Usa esta clave en la cabecera Authorization de un endpoint compatible. Las solicitudes y límites se aplican a esta clave.',

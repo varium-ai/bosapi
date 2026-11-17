@@ -16,6 +16,7 @@ import (
 
 	adminapp "bosapi/backend/internal/admin/application"
 	"bosapi/backend/internal/admin/domain"
+	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	"bosapi/backend/internal/platform/errorcode"
 	"bosapi/backend/internal/platform/httpapi"
 	userdomain "bosapi/backend/internal/user/domain"
@@ -39,9 +40,14 @@ type keyPortalRepository interface {
 	FindActiveKeyIdentityByID(context.Context, uint64, time.Time) (userdomain.APIKey, bool, error)
 }
 
+type keyPortalModelCatalog interface {
+	ListAvailableModelsForKey(context.Context, uint64, []uint64, []string, ...string) ([]gatewayinfra.AvailableModel, error)
+}
+
 // KeyPortalHandler exposes read-only, key-scoped dashboard data.
 type KeyPortalHandler struct {
 	keys     keyPortalRepository
+	models   keyPortalModelCatalog
 	secret   []byte
 	usage    *adminapp.AdminUsageService
 	ipUsage  *adminapp.AdminUsageService
@@ -55,6 +61,10 @@ func NewKeyPortalHandler(keys keyPortalRepository, secret []byte, usage *adminap
 
 func (handler *KeyPortalHandler) WithIPUsageService(service *adminapp.AdminUsageService) {
 	handler.ipUsage = service
+}
+
+func (handler *KeyPortalHandler) WithModelCatalog(catalog keyPortalModelCatalog) {
+	handler.models = catalog
 }
 
 // WithUsageService shares bounded display snapshots without caching key validation.
@@ -71,6 +81,9 @@ func (handler *KeyPortalHandler) RegisterPublicRoutes(group *gin.RouterGroup) {
 func (handler *KeyPortalHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.Use(handler.authenticate())
 	group.GET("/info", handler.info)
+	if handler.models != nil {
+		group.GET("/models", handler.listModels)
+	}
 	group.GET("/usage", handler.listUsage)
 	group.GET("/usage/daily", handler.dailyUsage)
 	group.GET("/usage/weekly", handler.weeklyUsage)
@@ -79,6 +92,21 @@ func (handler *KeyPortalHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/ips", handler.listIPs)
 	group.GET("/errors", handler.listErrors)
 	group.GET("/security-events", handler.listSecurityEvents)
+}
+
+func (handler *KeyPortalHandler) listModels(ctx *gin.Context) {
+	key, _ := keyPortalKey(ctx)
+	models, err := handler.models.ListAvailableModelsForKey(ctx.Request.Context(), key.OrganizationID, key.AllowedProviderIDs, key.AllowedModels)
+	if err != nil {
+		httpapi.WriteError(ctx, http.StatusInternalServerError, errorcode.InternalError, "available models could not be loaded")
+		return
+	}
+	ids := make([]string, 0, len(models))
+	for _, model := range gatewayinfra.PublishedModels(models) {
+		ids = append(ids, model.ID)
+	}
+	ctx.Header("Cache-Control", "no-store")
+	httpapi.WriteSuccess(ctx, http.StatusOK, gin.H{"items": ids})
 }
 
 func (handler *KeyPortalHandler) info(ctx *gin.Context) {

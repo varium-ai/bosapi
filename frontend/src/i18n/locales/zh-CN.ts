@@ -591,6 +591,9 @@ export const zhCN = {
     no_models: '尚未配置模型。请先接入自己的 LLM 服务，发现模型并设置组织访问权限。',
   },
   key_portal: {
+    models_title: '可用模型',
+    model_id: '模型 ID',
+    models_empty: '当前 API Key 暂无可用模型。',
     guide_title: '开始使用这把 API Key',
     guide_desc:
       '调用支持的模型接口时，在 Authorization 请求头中使用此 Key。用量和限制均按当前 Key 统计。',

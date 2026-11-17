@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"bosapi/backend/internal/platform/upstreamurl"
+
 	"gorm.io/gorm"
 )
 
@@ -12,6 +14,21 @@ type AvailableModel struct {
 	ID        string `gorm:"column:model_name"`
 	Platform  string
 	APIFormat string
+}
+
+// PublishedModels normalizes model IDs as clients see them and removes duplicates.
+func PublishedModels(models []AvailableModel) []AvailableModel {
+	items := make([]AvailableModel, 0, len(models))
+	seen := make(map[string]bool)
+	for _, model := range models {
+		model.ID = upstreamurl.ModelID(model.APIFormat, model.ID)
+		if model.ID == "" || model.ID == "*" || seen[model.ID] {
+			continue
+		}
+		seen[model.ID] = true
+		items = append(items, model)
+	}
+	return items
 }
 
 // ModelCatalogRepository reads models available to the authenticated organization.
