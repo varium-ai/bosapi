@@ -24,7 +24,7 @@ func TestGeminiThinkingControlsThroughChatGateway(t *testing.T) {
 						t.Fatal(err)
 					}
 					thinking, _ := body["thinking"].(map[string]any)
-					if thinking["type"] != "enabled" || body["stream"] != streaming || body["thinkingConfig"] != nil || body["includeThoughts"] != nil {
+					if thinking["type"] != "enabled" || body["stream"] != streaming || body["thinkingConfig"] != nil || body["includeThoughts"] != nil || body["thinkingBudget"] != nil || body["budget_tokens"] != nil || thinking["budget_tokens"] != nil {
 						t.Fatalf("wrong upstream request: %+v", body)
 					}
 					response := `{"choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"PRIVATE_REASONING","content":"Visible answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":17,"completion_tokens":82,"total_tokens":99}}`
@@ -41,7 +41,7 @@ func TestGeminiThinkingControlsThroughChatGateway(t *testing.T) {
 				if streaming {
 					operation = "streamGenerateContent"
 				}
-				body := fmt.Sprintf(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":-1,"includeThoughts":%t}}}`, include)
+				body := fmt.Sprintf(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":2048,"includeThoughts":%t}}}`, include)
 				r := httptest.NewRequest("POST", "/v1beta/models/alias:"+operation, strings.NewReader(body))
 				r.Header.Set("Authorization", "Bearer "+key)
 				w := httptest.NewRecorder()
@@ -61,13 +61,18 @@ func TestGeminiThinkingControlsThroughChatGateway(t *testing.T) {
 				if strings.Contains(logs.String(), "PRIVATE_REASONING") {
 					t.Fatal("reasoning leaked into logs")
 				}
+				for _, want := range []string{"event=gateway.conversion.thinking_budget_advisory", "requested_budget=2048", "budget_enforced=false"} {
+					if !strings.Contains(logs.String(), want) {
+						t.Fatalf("missing compatibility diagnostic %s", want)
+					}
+				}
 			})
 		}
 	}
 }
 
 func TestGeminiThinkingInvalidControlsDoNotCallUpstream(t *testing.T) {
-	for _, config := range []string{`{"thinkingBudget":2048}`, `{"includeThoughts":"true"}`} {
+	for _, config := range []string{`{"thinkingBudget":-2}`, `{"thinkingBudget":1.5}`, `{"includeThoughts":"true"}`} {
 		a, key := crossTestApp(t, "openai_chat")
 		called := false
 		a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {

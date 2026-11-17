@@ -13,6 +13,7 @@ import (
 	"bosapi/backend/internal/gateway/domain"
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 	"bosapi/backend/internal/platform/errorcode"
+	"bosapi/backend/internal/platform/logging"
 )
 
 func conversionEnvelope(source string, code errorcode.Code, err error) map[string]any {
@@ -111,6 +112,9 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 	if err != nil {
 		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
+	}
+	if q.GeminiThinkingBudget > 0 {
+		logging.Printf(r.Context(), "WARN", "gateway.conversion.thinking_budget_advisory", "provider_id=%d source_protocol=gemini target_protocol=openai_chat param=generationConfig.thinkingConfig.thinkingBudget requested_budget=%d mapped_thinking=enabled budget_enforced=false", p.ID, q.GeminiThinkingBudget)
 	}
 	if source == "gemini" {
 		metadata, ok := requestGemini(r)

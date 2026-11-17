@@ -5,8 +5,9 @@ import (
 	"strings"
 )
 
-// Gemini budgets are token limits, not effort levels. Do not approximate a
-// numeric budget with a provider-specific effort or silently discard the limit.
+// Chat providers only expose a thinking switch. Preserve positive budgets as
+// local diagnostic metadata when mapping them to enabled thinking; do not invent
+// token budget fields or approximate an effort level.
 func (q *RelayRequest) parseGeminiThinking(value any, target string) error {
 	if value == nil {
 		return nil
@@ -72,7 +73,7 @@ func (q *RelayRequest) parseGeminiThinking(value any, target string) error {
 	}
 	if target != "anthropic_messages" {
 		if n > 0 {
-			return conversionError(path+"thinkingBudget", "OpenAI Chat has no equivalent token budget; use -1 for automatic thinking or thinkingLevel for effort")
+			q.GeminiThinkingBudget = n
 		}
 		// GLM-compatible Chat providers accept this switch. The upstream
 		// remains responsible for validating model-specific capabilities.

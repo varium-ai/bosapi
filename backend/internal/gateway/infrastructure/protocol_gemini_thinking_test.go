@@ -13,6 +13,7 @@ func TestGeminiThinkingControls(t *testing.T) {
 	}{
 		{"openai_chat", `{"thinkingBudget":0}`, `"thinking":{"type":"disabled"}`},
 		{"openai_chat", `{"thinkingBudget":-1}`, `"thinking":{"type":"enabled"}`},
+		{"openai_chat", `{"thinkingBudget":2048}`, `"thinking":{"type":"enabled"}`},
 		{"", `{"thinkingLevel":"HIGH"}`, `"reasoning_effort":"high"`},
 		{"openai_chat", `{"thinkingLevel":"minimal","includeThoughts":true}`, `"reasoning_effort":"minimal"`},
 		{"anthropic_messages", `{"thinkingBudget":0}`, `"thinking":{"type":"disabled"}`},
@@ -25,6 +26,13 @@ func TestGeminiThinkingControls(t *testing.T) {
 			q, err := ParseRelayRequest([]byte(raw), "gemini", tc.target)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.target == "openai_chat" && tc.config == `{"thinkingBudget":2048}` {
+				if q.GeminiThinkingBudget != 2048 {
+					t.Fatalf("requested budget missing from diagnostic metadata: %d", q.GeminiThinkingBudget)
+				}
+			} else if q.GeminiThinkingBudget != 0 {
+				t.Fatalf("unexpected advisory budget: %d", q.GeminiThinkingBudget)
 			}
 			body, _, err := q.Upstream(tc.target)
 			if err != nil || !strings.Contains(string(body), tc.want) || strings.Contains(string(body), "thinkingConfig") || strings.Contains(string(body), "includeThoughts") {
@@ -40,7 +48,6 @@ func TestGeminiThinkingRejectsInvalidOrLossyControls(t *testing.T) {
 		{"openai_chat", `{"thinkingBudget":1.5}`, "thinkingBudget"},
 		{"openai_chat", `{"thinkingBudget":-2}`, "thinkingBudget"},
 		{"openai_chat", `{"thinkingBudget":null}`, "thinkingBudget"},
-		{"openai_chat", `{"thinkingBudget":2048}`, "thinkingBudget"},
 		{"openai_chat", `{"thinkingBudget":0,"thinkingLevel":"high"}`, "thinkingConfig"},
 		{"openai_chat", `{"includeThoughts":"true"}`, "includeThoughts"},
 		{"openai_chat", `{"thinkingLevel":"unknown"}`, "thinkingLevel"},

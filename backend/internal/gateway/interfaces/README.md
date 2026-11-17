@@ -382,14 +382,15 @@ Gemini `generationConfig.thinkingConfig` is converted on the Chat/Messages relay
 | --- | --- | --- |
 | `thinkingBudget: 0` | `thinking.type: disabled` (GLM-compatible extension) | `thinking.type: disabled` |
 | `thinkingBudget: -1` | `thinking.type: enabled` (GLM-compatible extension) | `thinking.type: adaptive` |
-| Positive `thinkingBudget` | Rejected: Chat has no equivalent numeric budget | `thinking.type: enabled`, `budget_tokens`; at least 1024 and below `maxOutputTokens` (default 4096) |
+| Positive `thinkingBudget` | `thinking.type: enabled`; budget is advisory and not enforced; emits `gateway.conversion.thinking_budget_advisory` with requested budget | `thinking.type: enabled`, `budget_tokens`; at least 1024 and below `maxOutputTokens` (default 4096) |
 | `thinkingLevel` (`minimal`, `low`, `medium`, `high`; uppercase accepted) | `reasoning_effort` | Adaptive thinking plus `output_config.effort`; `minimal` rejected |
 | `includeThoughts` | Controls unsigned reasoning visibility locally in JSON and SSE; defaults to false | False accepted; true requires native Messages to preserve signed thinking |
 
 Budget and level are mutually exclusive. Unknown fields and invalid types are
 rejected with the precise field path. Provider/model support for mapped controls
 is validated by the upstream; GLM's `thinking` extension is not a universal Chat
-capability. Positive budgets are never silently approximated with effort levels.
+capability. Positive budgets on Chat do not enforce a numeric limit and are never
+approximated with effort levels or forwarded as unsupported budget fields.
 
 Unsupported upstream content returns HTTP 502 `unsupported_upstream_feature`.
 Anthropic text blocks with absent, null or empty `citations`, and tool blocks

@@ -72,6 +72,9 @@ type RelayRequest struct {
 	Stream, IncludeUsage bool
 	ContinuousUsageStats bool
 	IncludeThoughts      bool
+	// GeminiThinkingBudget records an advisory numeric budget that Chat
+	// cannot enforce, so the HTTP boundary can log the compatibility mapping.
+	GeminiThinkingBudget int64
 	System               []string
 	Messages             []RelayMessage
 	Tools                []RelayTool
