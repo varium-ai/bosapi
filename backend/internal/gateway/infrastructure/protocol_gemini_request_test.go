@@ -87,6 +87,29 @@ func TestGeminiRelayRequestConvertsToAnthropicMessages(t *testing.T) {
 	}
 }
 
+func TestGeminiAnthropicToolSchemaDefaultsMissingRootType(t *testing.T) {
+	raw := `{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"tools":[{"functionDeclarations":[{"name":"lookup","parametersJsonSchema":{"properties":{"query":{"type":"string"}},"required":["query"]}}]}]}`
+	q, err := ParseRelayRequest([]byte(raw), "gemini", "anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := q.Upstream("anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := DecodeProtocolJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := root["tools"].([]any)
+	tool := tools[0].(map[string]any)
+	schema := tool["input_schema"].(map[string]any)
+	properties := schema["properties"].(map[string]any)
+	if schema["type"] != "object" || properties["query"] == nil || schema["required"].([]any)[0] != "query" {
+		t.Fatalf("missing root type was not defaulted while preserving schema: %s", payload)
+	}
+}
+
 func TestGeminiAnthropicRangeAndAssistantPrefill(t *testing.T) {
 	if _, err := ParseRelayRequest([]byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"temperature":1.2}}`), "gemini", "anthropic_messages"); err == nil {
 		t.Fatal("temperature outside the Anthropic range was accepted")

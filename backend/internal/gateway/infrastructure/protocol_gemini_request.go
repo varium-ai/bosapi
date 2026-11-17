@@ -442,6 +442,12 @@ func parseGeminiFunctionDeclarations(value any, q *RelayRequest) error {
 					return conversionError(declarationPath+"parametersJsonSchema", "expected an object schema")
 				}
 			}
+			// A function's arguments are an object. Gemini clients sometimes omit
+			// the root schema type, but Anthropic requires input_schema.type.
+			// Keep an explicitly supplied type (including invalid values) intact.
+			if _, exists := schema["type"]; !exists {
+				schema["type"] = "object"
+			}
 			q.Tools = append(q.Tools, RelayTool{Name: name, Description: description, Schema: schema})
 		}
 	}
