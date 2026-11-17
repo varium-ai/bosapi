@@ -24,6 +24,10 @@ func TestGeminiThinkingControlsThroughChatGateway(t *testing.T) {
 						t.Fatal(err)
 					}
 					thinking, _ := body["thinking"].(map[string]any)
+					history := body["messages"].([]any)[6].(map[string]any)
+					if history["role"] != "assistant" || history["reasoning_content"] != "PRIVATE_HISTORY_REASONING" || history["content"] != "previous answer" {
+						t.Fatalf("incorrect thought history: %+v", body)
+					}
 					if thinking["type"] != "enabled" || body["stream"] != streaming || body["thinkingConfig"] != nil || body["includeThoughts"] != nil || body["thinkingBudget"] != nil || body["budget_tokens"] != nil || thinking["budget_tokens"] != nil {
 						t.Fatalf("wrong upstream request: %+v", body)
 					}
@@ -41,7 +45,8 @@ func TestGeminiThinkingControlsThroughChatGateway(t *testing.T) {
 				if streaming {
 					operation = "streamGenerateContent"
 				}
-				body := fmt.Sprintf(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":2048,"includeThoughts":%t}}}`, include)
+				prior := `{"role":"user","parts":[{"text":"hi"}]},{"role":"model","parts":[{"text":"hello"}]},`
+				body := fmt.Sprintf(`{"contents":[%s{"role":"model","parts":[{"text":"PRIVATE_HISTORY_REASONING","thought":true},{"text":"previous answer","thought":false}]},{"role":"user","parts":[{"text":"continue"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":2048,"includeThoughts":%t}}}`, strings.Repeat(prior, 3), include)
 				r := httptest.NewRequest("POST", "/v1beta/models/alias:"+operation, strings.NewReader(body))
 				r.Header.Set("Authorization", "Bearer "+key)
 				w := httptest.NewRecorder()
@@ -58,7 +63,7 @@ func TestGeminiThinkingControlsThroughChatGateway(t *testing.T) {
 						t.Fatalf("usage lost: %s", output)
 					}
 				}
-				if strings.Contains(logs.String(), "PRIVATE_REASONING") {
+				if strings.Contains(logs.String(), "PRIVATE_REASONING") || strings.Contains(logs.String(), "PRIVATE_HISTORY_REASONING") {
 					t.Fatal("reasoning leaked into logs")
 				}
 				for _, want := range []string{"event=gateway.conversion.thinking_budget_advisory", "requested_budget=2048", "budget_enforced=false"} {

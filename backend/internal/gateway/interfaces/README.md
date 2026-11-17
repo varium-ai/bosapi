@@ -392,6 +392,13 @@ is validated by the upstream; GLM's `thinking` extension is not a universal Chat
 capability. Positive budgets on Chat do not enforce a numeric limit and are never
 approximated with effort levels or forwarded as unsupported budget fields.
 
+Gemini model history text parts with `thought: true` map to Chat assistant
+`reasoning_content`, separately from ordinary answer text and tool calls.
+`thought: false` is accepted as ordinary text. The flag must be boolean, and
+thought text requires a model turn. Signed `thoughtSignature` parts still
+require native Gemini; unsigned Gemini thoughts cannot become signed Anthropic
+thinking blocks.
+
 Unsupported upstream content returns HTTP 502 `unsupported_upstream_feature`.
 Anthropic text blocks with absent, null or empty `citations`, and tool blocks
 with absent/null `caller` or `caller: {"type":"direct"}`, convert to Chat JSON

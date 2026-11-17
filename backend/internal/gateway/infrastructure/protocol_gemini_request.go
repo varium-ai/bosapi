@@ -192,12 +192,29 @@ func parseGeminiRelayRequest(raw []byte, target string) (RelayRequest, error) {
 			}
 			switch {
 			case part["text"] != nil:
-				if err := fieldsOnly(part, partPath, "text"); err != nil {
+				if err := fieldsOnly(part, partPath, "text", "thought"); err != nil {
 					return q, err
 				}
 				text, ok := part["text"].(string)
 				if !ok {
 					return q, conversionError(partPath+"text", "expected text")
+				}
+				if value, exists := part["thought"]; exists {
+					thought, ok := value.(bool)
+					if !ok {
+						return q, conversionError(partPath+"thought", "expected a boolean")
+					}
+					if thought {
+						if role != "model" {
+							return q, conversionError(partPath+"thought", "thought text requires a model turn")
+						}
+						if target == "anthropic_messages" {
+							return q, conversionError(partPath+"thought", "Gemini thoughts cannot be converted to signed Anthropic thinking")
+						}
+						// Preserve unsigned history separately from the visible answer.
+						turn.Blocks = append(turn.Blocks, RelayBlock{Type: "thinking", Text: text, ReasoningField: "reasoning_content"})
+						continue
+					}
 				}
 				turn.Blocks = append(turn.Blocks, RelayBlock{Type: "text", Text: text})
 			case part["inlineData"] != nil:
