@@ -78,6 +78,18 @@ func (stream *crossStreamRenderer) chat(delta map[string]any, finish any) error 
 	}
 	return stream.emit("", chunk)
 }
+func (stream *crossStreamRenderer) reasoning(text string) error {
+	if text == "" {
+		return nil
+	}
+	if stream.source == "gemini" {
+		if !stream.q.IncludeThoughts {
+			return nil
+		}
+		return stream.geminiChunk([]any{map[string]any{"text": text, "thought": true}}, "", false)
+	}
+	return stream.chat(map[string]any{"reasoning_content": text}, nil)
+}
 func (stream *crossStreamRenderer) geminiChunk(parts []any, finish string, usage bool) error {
 	candidate := map[string]any{"index": 0, "content": map[string]any{"role": "model", "parts": parts}}
 	if finish != "" {
@@ -461,7 +473,7 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					entry.thinkingText.WriteString(text)
 					entry.thinkingSignature.WriteString(signature)
 					if text != "" {
-						return renderer.chat(map[string]any{"reasoning_content": text}, nil)
+						return renderer.reasoning(text)
 					}
 					return nil
 				case "text":
@@ -517,6 +529,9 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					if _, err := gatewayinfra.ParseAnthropicThinking(entry.thinking.AnthropicThinking(), "response.content_block."); err != nil {
 						return err
 					}
+					if source == "gemini" {
+						return nil // Gemini has no field for Anthropic signatures or redacted blocks.
+					}
 					return renderer.chat(map[string]any{"anthropic_thinking": []any{entry.thinking.ChatThinking(entry.textOffset, entry.toolOffset)}}, nil)
 				}
 				if entry.kind == "tool_use" {
@@ -564,7 +579,7 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 						return responseFieldError("thinking", "thinking history exceeds conversion limit")
 					}
 					entry.thinkingText.WriteString(text)
-					return renderer.chat(map[string]any{"reasoning_content": text}, nil)
+					return renderer.reasoning(text)
 				case "signature_delta":
 					signature, ok := delta["signature"].(string)
 					if !ok {

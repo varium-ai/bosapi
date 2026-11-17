@@ -272,9 +272,6 @@ func ValidateChatRelayUsage(root map[string]any) error {
 			if err := validateChatTokenCount(value, "response.usage.completion_tokens_details.reasoning_tokens"); err != nil {
 				return err
 			}
-			if relayInt(value) > relayInt(usage["completion_tokens"]) {
-				return conversionError("response.usage.completion_tokens_details.reasoning_tokens", "reasoning tokens exceed completion tokens")
-			}
 		}
 	}
 	return nil

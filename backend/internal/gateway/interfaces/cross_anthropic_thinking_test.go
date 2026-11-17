@@ -211,3 +211,25 @@ func TestChatAnthropicThinkingRejectsIncompleteStreams(t *testing.T) {
 		})
 	}
 }
+
+func TestGeminiStreamRendersAnthropicThinkingAsThoughtPart(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/v1beta/models/test:streamGenerateContent", nil)
+	renderer := &crossStreamRenderer{
+		source: "gemini",
+		q:      gatewayinfra.RelayRequest{IncludeThoughts: true},
+		writer: &toolBodyWriter{request: r, writer: w, scanner: securityAuditScanner{request: r}},
+	}
+	if err := renderer.reasoning("plan ahead"); err != nil {
+		t.Fatal(err)
+	}
+	root, err := gatewayinfra.DecodeProtocolJSON([]byte(strings.TrimPrefix(strings.TrimSpace(w.Body.String()), "data: ")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := root["candidates"].([]any)[0].(map[string]any)["content"].(map[string]any)["parts"].([]any)
+	part := parts[0].(map[string]any)
+	if part["text"] != "plan ahead" || part["thought"] != true || root["object"] != nil {
+		t.Fatalf("thinking was not rendered as Gemini thought content: %s", w.Body.String())
+	}
+}

@@ -20,13 +20,17 @@ func TestGeminiReplyOmitsUnsignedChatReasoning(t *testing.T) {
 	}
 }
 
-func TestGeminiReplyStillRejectsUnrepresentableThinking(t *testing.T) {
-	for _, reply := range []RelayReply{
-		{Blocks: []RelayBlock{{Type: "thinking", Text: "private", Signature: "native-signature"}}},
-		{Blocks: []RelayBlock{{Type: "thinking", Text: "private"}}},
-	} {
-		if _, err := reply.JSON("gemini", "alias"); err == nil {
-			t.Fatal("unrepresentable thinking was accepted")
-		}
+func TestGeminiReplyMapsSignedThinkingToRequestedThoughtText(t *testing.T) {
+	reply := RelayReply{IncludeThoughts: true, Blocks: []RelayBlock{
+		{Type: "thinking", Text: "plan", Signature: "native-signature"},
+		{Type: "redacted_thinking", Data: "opaque"},
+		{Type: "text", Text: "answer"},
+	}, Stop: "stop"}
+	payload, err := reply.JSON("gemini", "alias")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload), `"text":"plan","thought":true`) || !strings.Contains(string(payload), `"text":"answer"`) || strings.Contains(string(payload), "native-signature") || strings.Contains(string(payload), "opaque") {
+		t.Fatalf("unexpected Gemini response: %s", payload)
 	}
 }

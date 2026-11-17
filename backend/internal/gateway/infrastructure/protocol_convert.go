@@ -1174,7 +1174,12 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 				}
 			}
 			parts = ordered
-			messages = append(messages, map[string]any{"role": role, "content": parts})
+			if len(messages) > 0 && messages[len(messages)-1].(map[string]any)["role"] == role {
+				previous := messages[len(messages)-1].(map[string]any)
+				previous["content"] = append(previous["content"].([]any), parts...)
+			} else {
+				messages = append(messages, map[string]any{"role": role, "content": parts})
+			}
 		} else {
 			if role == "assistant" {
 				role = "model"
@@ -1185,6 +1190,26 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 			} else {
 				messages = append(messages, map[string]any{"role": role, "parts": parts})
 			}
+		}
+	}
+	if target == "anthropic_messages" {
+		// Tool results must lead the combined user turn, including results that
+		// came from a later adjacent Gemini contents entry.
+		for _, entry := range messages {
+			message := entry.(map[string]any)
+			content := message["content"].([]any)
+			ordered := make([]any, 0, len(content))
+			for _, part := range content {
+				if block, ok := part.(map[string]any); ok && block["type"] == "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			for _, part := range content {
+				if block, ok := part.(map[string]any); !ok || block["type"] != "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			message["content"] = ordered
 		}
 	}
 	system := []any{}

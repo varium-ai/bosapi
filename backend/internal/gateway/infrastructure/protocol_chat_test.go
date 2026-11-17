@@ -230,6 +230,16 @@ func TestChatUsageRejectsMalformedCounts(t *testing.T) {
 	}
 }
 
+func TestChatUsageAcceptsReasoningCountAboveCompletionAggregate(t *testing.T) {
+	root, err := DecodeProtocolJSON([]byte(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15,"completion_tokens_details":{"reasoning_tokens":8}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateChatRelayUsage(root); err != nil {
+		t.Fatalf("valid aggregate usage was rejected: %v", err)
+	}
+}
+
 func TestChatRequestHistoryBoundaries(t *testing.T) {
 	cases := []struct {
 		name string

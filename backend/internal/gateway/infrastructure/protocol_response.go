@@ -287,16 +287,16 @@ func (reply RelayReply) JSON(source, model string) ([]byte, error) {
 			case "text":
 				parts = append(parts, map[string]any{"text": block.Text})
 			case "thinking":
-				// Explicitly requested unsigned Chat reasoning is emitted as
-				// thought text, separately from the answer. Never synthesize
-				// signatures or discard native signed thinking.
-				if block.Signature == "" && (block.ReasoningField == "reasoning" || block.ReasoningField == "reasoning_content") {
-					if reply.IncludeThoughts {
-						parts = append(parts, map[string]any{"text": block.Text, "thought": true})
-					}
-					continue
+				// Gemini can mark thought text, but cannot carry Anthropic's
+				// signature. Preserve the requested thought text without inventing
+				// a Gemini thoughtSignature.
+				if reply.IncludeThoughts && block.Text != "" {
+					parts = append(parts, map[string]any{"text": block.Text, "thought": true})
 				}
-				return nil, conversionError("response.content", "thinking block cannot be represented in Gemini")
+				continue
+			case "redacted_thinking":
+				// Opaque provider data has no Gemini representation.
+				continue
 			case "tool_use":
 				if !relayFunctionName(block.Name, "gemini") {
 					return nil, conversionError("response.tool_calls.function.name", "function name is invalid for Gemini")

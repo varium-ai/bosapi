@@ -48,6 +48,26 @@ func TestRelayRequestPairsPreserveCommonSemantics(t *testing.T) {
 	}
 }
 
+func TestGeminiAdjacentRolesMergeForAnthropic(t *testing.T) {
+	raw := `{"contents":[{"role":"user","parts":[{"text":"first"}]},{"role":"user","parts":[{"text":"second"}]},{"role":"model","parts":[{"text":"answer"}]},{"role":"model","parts":[{"text":"continued"}]}]}`
+	q, err := ParseRelayRequest([]byte(raw), "gemini", "anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := q.Upstream("anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := DecodeProtocolJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := root["messages"].([]any)
+	if len(messages) != 2 || len(messages[0].(map[string]any)["content"].([]any)) != 2 || len(messages[1].(map[string]any)["content"].([]any)) != 2 {
+		t.Fatalf("adjacent roles were not merged: %s", payload)
+	}
+}
+
 func TestNormalizeAnthropicToolSchemaProjectsTopLevelCompositions(t *testing.T) {
 	tests := []struct {
 		name           string
