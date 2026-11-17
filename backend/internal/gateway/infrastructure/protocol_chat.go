@@ -10,6 +10,13 @@ func (q RelayRequest) validateChat() error {
 	if _, exists := q.Controls["top_k"]; exists {
 		return conversionError("top_k", "openai chat has no equivalent sampling control")
 	}
+	return q.validateToolHistory(false)
+}
+
+// validateToolHistory ensures executable tool results answer their assistant
+// invocations. Anthropic can preserve assistant prefills and interleave text
+// with tool blocks; OpenAI Chat requires stricter turn ordering.
+func (q RelayRequest) validateToolHistory(anthropicCompatible bool) error {
 	pending := map[string]bool{}
 	for index, message := range q.Messages {
 		if len(pending) > 0 && message.Role != "user" {
@@ -24,7 +31,7 @@ func (q RelayRequest) validateChat() error {
 				delete(pending, block.ID)
 				continue
 			}
-			if len(pending) > 0 && block.Type != "tool_use" {
+			if len(pending) > 0 && block.Type != "tool_use" && !anthropicCompatible {
 				return conversionError(path, "all pending tool results must precede conversation content")
 			}
 			if block.Type == "tool_use" {
@@ -35,7 +42,7 @@ func (q RelayRequest) validateChat() error {
 	if len(pending) > 0 {
 		return conversionError("messages", "historical tool invocations require matching results")
 	}
-	if len(q.Messages) == 0 || q.Messages[len(q.Messages)-1].Role == "assistant" {
+	if len(q.Messages) == 0 || !anthropicCompatible && q.Messages[len(q.Messages)-1].Role == "assistant" {
 		return conversionError("messages", "openai chat cannot preserve assistant prefill")
 	}
 	return nil
@@ -175,6 +182,8 @@ func (reply *RelayReply) observeChatUsage(value map[string]any) {
 	reply.CacheRead = relayInt(details["cached_tokens"])
 	reply.Input = relayInt(usage["prompt_tokens"]) - reply.CacheRead
 	reply.Output = relayInt(usage["completion_tokens"])
+	completionDetails, _ := usage["completion_tokens_details"].(map[string]any)
+	reply.Thoughts = relayInt(completionDetails["reasoning_tokens"])
 }
 
 // ChatRelayStop rejects unknown reasons so an incomplete turn never becomes a success.
@@ -251,6 +260,17 @@ func ValidateChatRelayUsage(root map[string]any) error {
 			}
 			if relayInt(value) > relayInt(usage["prompt_tokens"]) {
 				return conversionError("response.usage.prompt_tokens_details.cached_tokens", "cached tokens exceed prompt tokens")
+			}
+		}
+	}
+	if value := usage["completion_tokens_details"]; value != nil {
+		details, ok := value.(map[string]any)
+		if !ok {
+			return conversionError("response.usage.completion_tokens_details", "expected token details")
+		}
+		if value, exists := details["reasoning_tokens"]; exists {
+			if err := validateChatTokenCount(value, "response.usage.completion_tokens_details.reasoning_tokens"); err != nil {
+				return err
 			}
 		}
 	}

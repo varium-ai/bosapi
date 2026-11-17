@@ -16,6 +16,7 @@ import (
 
 type crossStreamBlock struct {
 	kind                   string
+	id, name               string
 	tool                   int
 	hasArguments           bool
 	initialArguments       bool
@@ -69,7 +70,47 @@ func (stream *crossStreamRenderer) emit(event string, value any) error {
 	return nil
 }
 func (stream *crossStreamRenderer) chat(delta map[string]any, finish any) error {
-	return stream.emit("", map[string]any{"id": stream.reply.ID, "object": "chat.completion.chunk", "created": time.Now().Unix(), "model": stream.model, "choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}}})
+	// Text, reasoning, and tool deltas have different shapes in this protocol envelope.
+	chunk := map[string]any{"id": stream.reply.ID, "object": "chat.completion.chunk", "created": time.Now().Unix(), "model": stream.model, "choices": []any{map[string]any{"index": 0, "delta": delta, "finish_reason": finish}}}
+	if stream.q.IncludeUsage && stream.q.ContinuousUsageStats && stream.reply.HasUsage {
+		// Reuse the latest upstream snapshot rather than estimating token counts.
+		chunk["usage"] = stream.reply.ChatUsage()
+	}
+	return stream.emit("", chunk)
+}
+func (stream *crossStreamRenderer) reasoning(text string) error {
+	if text == "" {
+		return nil
+	}
+	if stream.source == "gemini" {
+		if !stream.q.IncludeThoughts {
+			return nil
+		}
+		return stream.geminiChunk([]any{map[string]any{"text": text, "thought": true}}, "", false)
+	}
+	return stream.chat(map[string]any{"reasoning_content": text}, nil)
+}
+func (stream *crossStreamRenderer) geminiChunk(parts []any, finish string, usage bool) error {
+	candidate := map[string]any{"index": 0, "content": map[string]any{"role": "model", "parts": parts}}
+	if finish != "" {
+		candidate["finishReason"] = finish
+	}
+	root := map[string]any{"candidates": []any{candidate}}
+	if stream.reply.ID != "" {
+		root["responseId"] = stream.reply.ID
+	}
+	if usage && stream.reply.HasUsage {
+		input := stream.reply.Input + stream.reply.CacheRead + stream.reply.CacheWrite
+		metrics := map[string]any{"promptTokenCount": input, "candidatesTokenCount": max(int64(0), stream.reply.Output-stream.reply.Thoughts), "totalTokenCount": input + stream.reply.Output}
+		if stream.reply.CacheRead > 0 {
+			metrics["cachedContentTokenCount"] = stream.reply.CacheRead
+		}
+		if stream.reply.Thoughts > 0 {
+			metrics["thoughtsTokenCount"] = stream.reply.Thoughts
+		}
+		root["usageMetadata"] = metrics
+	}
+	return stream.emit("", root)
 }
 func (stream *crossStreamRenderer) start() error {
 	if stream.started {
@@ -78,6 +119,9 @@ func (stream *crossStreamRenderer) start() error {
 	stream.started = true
 	if stream.source == "chat" {
 		return stream.chat(map[string]any{"role": "assistant", "content": ""}, nil)
+	}
+	if stream.source == "gemini" {
+		return nil
 	}
 	return stream.emit("message_start", map[string]any{"type": "message_start", "message": map[string]any{"id": stream.reply.ID, "type": "message", "role": "assistant", "model": stream.model, "content": []any{}, "stop_reason": nil, "stop_sequence": nil, "usage": stream.reply.MessagesUsage()}})
 }
@@ -91,6 +135,9 @@ func (stream *crossStreamRenderer) text(text string) error {
 	if stream.source == "chat" {
 		stream.textBytes += len(text)
 		return stream.chat(map[string]any{"content": text}, nil)
+	}
+	if stream.source == "gemini" {
+		return stream.geminiChunk([]any{map[string]any{"text": text}}, "", false)
 	}
 	if !stream.textOpen {
 		stream.textOpen = true
@@ -126,6 +173,9 @@ func (stream *crossStreamRenderer) toolStart(block gatewayinfra.RelayBlock) (int
 	if stream.source == "chat" {
 		return index, stream.chat(map[string]any{"tool_calls": []any{map[string]any{"index": index, "id": block.ID, "type": "function", "function": map[string]any{"name": block.Name, "arguments": ""}}}}, nil)
 	}
+	if stream.source == "gemini" {
+		return index, stream.geminiChunk([]any{map[string]any{"functionCall": map[string]any{"id": block.ID, "name": block.Name, "args": block.Input}}}, "", false)
+	}
 	index = stream.nextBlock
 	stream.nextBlock++
 	return index, stream.emit("content_block_start", map[string]any{"type": "content_block_start", "index": index, "content_block": map[string]any{"type": "tool_use", "id": block.ID, "name": block.Name, "input": map[string]any{}}})
@@ -134,10 +184,13 @@ func (stream *crossStreamRenderer) toolArguments(index int, args string) error {
 	if stream.source == "chat" {
 		return stream.chat(map[string]any{"tool_calls": []any{map[string]any{"index": index, "function": map[string]any{"arguments": args}}}}, nil)
 	}
+	if stream.source == "gemini" {
+		return nil
+	}
 	return stream.emit("content_block_delta", map[string]any{"type": "content_block_delta", "index": index, "delta": map[string]any{"type": "input_json_delta", "partial_json": args}})
 }
 func (stream *crossStreamRenderer) toolStop(index int) error {
-	if stream.source == "chat" {
+	if stream.source == "chat" || stream.source == "gemini" {
 		return nil
 	}
 	return stream.emit("content_block_stop", map[string]any{"type": "content_block_stop", "index": index})
@@ -160,6 +213,19 @@ func (stream *crossStreamRenderer) finish() error {
 			return err
 		}
 		return stream.emit("message_stop", map[string]any{"type": "message_stop"})
+	}
+	if stream.source == "gemini" {
+		finishReason := "STOP"
+		switch stream.reply.Stop {
+		case "length":
+			finishReason = "MAX_TOKENS"
+		case "content_filter":
+			finishReason = "SAFETY"
+		case "stop", "tool_calls":
+		default:
+			return responseFieldError("finish_reason", "OpenAI Chat finish reason cannot be represented in Gemini")
+		}
+		return stream.geminiChunk([]any{}, finishReason, true)
 	}
 	if err := stream.chat(map[string]any{}, stream.reply.Stop); err != nil {
 		return err
@@ -407,7 +473,7 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					entry.thinkingText.WriteString(text)
 					entry.thinkingSignature.WriteString(signature)
 					if text != "" {
-						return renderer.chat(map[string]any{"reasoning_content": text}, nil)
+						return renderer.reasoning(text)
 					}
 					return nil
 				case "text":
@@ -424,9 +490,12 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 						return responseFieldError("content_block", "invalid invocation")
 					}
 					seenCalls[callID] = true
-					entry.tool, err = renderer.toolStart(gatewayinfra.RelayBlock{ID: callID, Name: name})
-					if err != nil {
-						return err
+					entry.id, entry.name = callID, name
+					if source != "gemini" {
+						entry.tool, err = renderer.toolStart(gatewayinfra.RelayBlock{ID: callID, Name: name})
+						if err != nil {
+							return err
+						}
 					}
 					if len(input) > 0 {
 						args, _ := json.Marshal(input)
@@ -437,7 +506,10 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 						if argumentBytes > 8<<20 {
 							return responseFieldError("tool_use.input", "tool arguments exceed conversion limit")
 						}
-						return renderer.toolArguments(entry.tool, string(args))
+						if source != "gemini" {
+							return renderer.toolArguments(entry.tool, string(args))
+						}
+						return nil
 					}
 					return nil
 				default:
@@ -457,13 +529,26 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					if _, err := gatewayinfra.ParseAnthropicThinking(entry.thinking.AnthropicThinking(), "response.content_block."); err != nil {
 						return err
 					}
+					if source == "gemini" {
+						return nil // Gemini has no field for Anthropic signatures or redacted blocks.
+					}
 					return renderer.chat(map[string]any{"anthropic_thinking": []any{entry.thinking.ChatThinking(entry.textOffset, entry.toolOffset)}}, nil)
 				}
 				if entry.kind == "tool_use" {
+					arguments := map[string]any{}
 					if entry.hasArguments {
-						if _, err := gatewayinfra.DecodeProtocolJSON(entry.arguments); err != nil {
+						parsed, err := gatewayinfra.DecodeProtocolJSON(entry.arguments)
+						if err != nil {
 							return responseFieldError("tool_use.input", "incomplete or invalid JSON tool arguments")
 						}
+						arguments = parsed
+					}
+					if source == "gemini" {
+						toolIndex, err := renderer.toolStart(gatewayinfra.RelayBlock{ID: entry.id, Name: entry.name, Input: arguments})
+						if err != nil {
+							return err
+						}
+						return renderer.toolStop(toolIndex)
 					}
 					if !entry.hasArguments {
 						if err := renderer.toolArguments(entry.tool, "{}"); err != nil {
@@ -494,7 +579,7 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 						return responseFieldError("thinking", "thinking history exceeds conversion limit")
 					}
 					entry.thinkingText.WriteString(text)
-					return renderer.chat(map[string]any{"reasoning_content": text}, nil)
+					return renderer.reasoning(text)
 				case "signature_delta":
 					signature, ok := delta["signature"].(string)
 					if !ok {
@@ -529,7 +614,10 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 					return responseFieldError("tool_use.input", "tool arguments exceed conversion limit")
 				}
 				entry.arguments = append(entry.arguments, args...)
-				return renderer.toolArguments(entry.tool, args)
+				if source != "gemini" {
+					return renderer.toolArguments(entry.tool, args)
+				}
+				return nil
 			}
 			return responseFieldError("delta.type", "unsupported content delta")
 		default:

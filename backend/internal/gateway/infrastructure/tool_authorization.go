@@ -10,6 +10,26 @@ func (authorization ToolAuthorization) Allows(call domain.ToolCall) bool {
 	return authorization[call.Protocol][call.Name]
 }
 
+// WithProtocolAlias carries caller grants through an explicit protocol adapter.
+func (authorization ToolAuthorization) WithProtocolAlias(from, to domain.ToolProtocol) ToolAuthorization {
+	result := make(ToolAuthorization, len(authorization)+1)
+	for protocol, names := range authorization {
+		copyNames := make(map[string]bool, len(names))
+		for name, allowed := range names {
+			copyNames[name] = allowed
+		}
+		result[protocol] = copyNames
+	}
+	if names := authorization[from]; names != nil {
+		copyNames := make(map[string]bool, len(names))
+		for name, allowed := range names {
+			copyNames[name] = allowed
+		}
+		result[to] = copyNames
+	}
+	return result
+}
+
 // ParseToolAuthorization treats missing/invalid declarations as an empty list.
 // Provider-hosted tools are not client-executable function declarations.
 func ParseToolAuthorization(payload []byte) ToolAuthorization {

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 )
 
 const crossChatRequest = `{"model":"alias","max_tokens":512,"messages":[{"role":"system","content":"instructions"},{"role":"user","content":"read a file"}],"tools":[{"type":"function","function":{"name":"read","parameters":{"type":"object"}}}]}`
@@ -129,6 +131,164 @@ func TestCrossProtocolJSONAndSSEPairs(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestNativeGeminiToOpenAIChatJSONAndSSE(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "sse"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			a.data.Providers[0].APIFormat = "openai_chat"
+			a.data.Providers[0].Platform = "openai"
+			a.data.Providers[0].BaseURL = "https://openai.example/v1"
+			var upstreamBody string
+			contentType := "application/json"
+			response := `{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":5,"total_tokens":17,"prompt_tokens_details":{"cached_tokens":3}}}`
+			operation := "generateContent"
+			if streaming {
+				operation = "streamGenerateContent"
+				contentType = "text/event-stream"
+				response = "data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":null}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-1\",\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17,\"prompt_tokens_details\":{\"cached_tokens\":3}}}\n\n" +
+					"data: [DONE]\n\n"
+			}
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				body, _ := io.ReadAll(r.Body)
+				upstreamBody = string(body)
+				if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer provider-key" || r.Header.Get("x-goog-api-key") != "" {
+					t.Fatalf("wrong OpenAI request: %s headers=%v", r.URL, r.Header)
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(response))}, nil
+			})}
+			body := `{"systemInstruction":{"parts":[{"text":"instructions"}]},"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"maxOutputTokens":99,"temperature":0.4,"topP":0.8}}`
+			r := httptest.NewRequest("POST", "/v1beta/models/alias:"+operation, strings.NewReader(body))
+			r.Header.Set("x-goog-api-key", key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "hello") || !strings.Contains(w.Body.String(), "usageMetadata") {
+				t.Fatalf("Gemini response conversion: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if !strings.Contains(upstreamBody, `"max_tokens":99`) || !strings.Contains(upstreamBody, `"top_p":0.8`) || !strings.Contains(upstreamBody, "instructions") || !strings.Contains(upstreamBody, `"model":"actual"`) {
+				t.Fatalf("Gemini request conversion lost fields: %s", upstreamBody)
+			}
+			if streaming && !strings.Contains(w.Body.String(), `"finishReason":"STOP"`) {
+				t.Fatalf("Gemini finish reason missing: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeGeminiToolCallSurvivesOpenAIChatBridgeAuthorization(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "sse"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			a.data.Providers[0].APIFormat = "openai_chat"
+			a.data.Providers[0].Platform = "openai"
+			a.data.Providers[0].BaseURL = "https://openai.example/v1"
+			response := `{"id":"chatcmpl-tool","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"x\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}}`
+			contentType, operation := "application/json", "generateContent"
+			if streaming {
+				contentType, operation = "text/event-stream", "streamGenerateContent"
+				response = "data: {\"id\":\"chatcmpl-tool\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{\\\"q\\\":\\\"x\\\"}\"}}]},\"finish_reason\":null}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-tool\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+					"data: {\"id\":\"chatcmpl-tool\",\"choices\":[],\"usage\":{\"prompt_tokens\":8,\"completion_tokens\":4,\"total_tokens\":12}}\n\n" +
+					"data: [DONE]\n\n"
+			}
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				var body map[string]any
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				if body["tools"] == nil || body["tool_choice"] == nil || body["stream"] != streaming {
+					t.Fatalf("Gemini tool declaration or stream mode was not converted: %+v", body)
+				}
+				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(response))}, nil
+			})}
+			request := `{"contents":[{"role":"user","parts":[{"text":"look up x"}]}],"tools":[{"functionDeclarations":[{"name":"lookup","parameters":{"type":"object"}}]}],"toolConfig":{"functionCallingConfig":{"mode":"ANY"}}}`
+			r := httptest.NewRequest("POST", "/v1beta/models/alias:"+operation, strings.NewReader(request))
+			r.Header.Set("x-goog-api-key", key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"functionCall"`) || !strings.Contains(w.Body.String(), `"name":"lookup"`) || !strings.Contains(w.Body.String(), `"args":{"q":"x"}`) {
+				t.Fatalf("tool call did not reach Gemini response: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if streaming && !strings.Contains(w.Body.String(), `"finishReason":"STOP"`) {
+				t.Fatalf("streamed tool call missing Gemini finish: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeGeminiToOpenAIChatMapsUpstreamErrors(t *testing.T) {
+	a, key := geminiTestApp(t)
+	a.data.Providers[0].APIFormat = "openai_chat"
+	a.data.Providers[0].Platform = "openai"
+	a.data.Providers[0].BaseURL = "https://openai.example/v1"
+	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"private upstream detail"}}`))}, nil
+	})}
+	r := httptest.NewRequest("POST", "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`))
+	r.Header.Set("x-goog-api-key", key)
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"status":"INVALID_ARGUMENT"`) || strings.Contains(w.Body.String(), "private upstream detail") {
+		t.Fatalf("upstream error was not safely mapped to Gemini: status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestNativeGeminiToAnthropicMessagesJSONAndSSE(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "json", true: "sse"}[streaming], func(t *testing.T) {
+			a, key := geminiTestApp(t)
+			p := &a.data.Providers[0]
+			p.APIFormat = "anthropic_messages"
+			p.Platform = "anthropic"
+			p.BaseURL = "https://anthropic.example/v1"
+			var upstreamBody string
+			contentType, response := "application/json", crossClaudeResponse
+			operation := "generateContent"
+			if streaming {
+				contentType, response, operation = "text/event-stream", crossClaudeStream, "streamGenerateContent"
+			}
+			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				body, _ := io.ReadAll(r.Body)
+				upstreamBody = string(body)
+				if r.URL.Path != "/v1/messages" || r.Header.Get("x-api-key") != "provider-key" || r.Header.Get("anthropic-version") != "2023-06-01" || r.Header.Get("x-goog-api-key") != "" {
+					t.Fatalf("wrong Anthropic request: %s headers=%v", r.URL, r.Header)
+				}
+				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(byteFragmentReader{strings.NewReader(response)})}, nil
+			})}
+			request := `{"systemInstruction":{"parts":[{"text":"instructions"}]},"contents":[{"role":"user","parts":[{"text":"read a file"},{"inlineData":{"mimeType":"image/png","data":"aGVsbG8="}}]}],"generationConfig":{"maxOutputTokens":99,"temperature":0.7,"topP":0.8},"tools":[{"functionDeclarations":[{"name":"read","parameters":{"type":"object"}}]}],"toolConfig":{"functionCallingConfig":{"mode":"ANY"}}}`
+			r := httptest.NewRequest(http.MethodPost, "/v1beta/models/alias:"+operation, strings.NewReader(request))
+			r.Header.Set("x-goog-api-key", key)
+			w := httptest.NewRecorder()
+			a.routes().ServeHTTP(w, r)
+			if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"functionCall"`) || !strings.Contains(w.Body.String(), `"name":"read"`) || !strings.Contains(w.Body.String(), `9007199254740993`) || !strings.Contains(w.Body.String(), "usageMetadata") {
+				t.Fatalf("Gemini response conversion: status=%d body=%s", w.Code, w.Body.String())
+			}
+			if !strings.Contains(upstreamBody, `"model":"actual"`) || !strings.Contains(upstreamBody, `"max_tokens":99`) || !strings.Contains(upstreamBody, `"temperature":0.7`) || !strings.Contains(upstreamBody, `"top_p":0.8`) || !strings.Contains(upstreamBody, `"system"`) || !strings.Contains(upstreamBody, `"type":"image"`) || !strings.Contains(upstreamBody, `"input_schema"`) || !strings.Contains(upstreamBody, `"tool_choice":{"type":"any"}`) || !strings.Contains(upstreamBody, `"stream":`+map[bool]string{false: "false", true: "true"}[streaming]) {
+				t.Fatalf("Gemini request was not converted to Anthropic Messages: %s", upstreamBody)
+			}
+			if streaming && (!w.Flushed || !strings.Contains(w.Body.String(), `"finishReason":"STOP"`)) {
+				t.Fatalf("Gemini SSE terminal chunk missing: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestNativeGeminiToAnthropicMessagesMapsUpstreamErrors(t *testing.T) {
+	a, key := geminiTestApp(t)
+	a.data.Providers[0].APIFormat = "anthropic_messages"
+	a.data.Providers[0].Platform = "anthropic"
+	a.data.Providers[0].BaseURL = "https://anthropic.example/v1"
+	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"private upstream detail"}}`))}, nil
+	})}
+	r := httptest.NewRequest(http.MethodPost, "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`))
+	r.Header.Set("x-goog-api-key", key)
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"status":"INVALID_ARGUMENT"`) || strings.Contains(w.Body.String(), "private upstream detail") {
+		t.Fatalf("Anthropic error was not safely mapped to Gemini: status=%d body=%s", w.Code, w.Body.String())
 	}
 }
 
@@ -417,5 +577,24 @@ func TestCrossProtocolUsageDoesNotDependOnClientUsageOption(t *testing.T) {
 		}
 	default:
 		t.Fatal("missing usage")
+	}
+}
+
+func TestRelayReplyShapeContainsOnlyBoundedStructure(t *testing.T) {
+	shape := relayReplyShape([]gatewayinfra.RelayBlock{
+		{Type: "thinking", Text: "PRIVATE_REASONING"},
+		{Type: "text", Text: "PRIVATE_ANSWER"},
+		{Type: "tool_use", Name: "PRIVATE_TOOL", Input: map[string]any{"secret": "PRIVATE_ARGUMENT"}},
+		{Type: "future-provider-block", Text: "PRIVATE_BLOCK"},
+	})
+	for _, want := range []string{"response_block_count=4", "response_block_types=text:1,tool_use:1,thinking:1,other:1", "response_text_bytes=31"} {
+		if !strings.Contains(shape, want) {
+			t.Fatalf("missing %q in %q", want, shape)
+		}
+	}
+	for _, secret := range []string{"PRIVATE_", "PRIVATE_TOOL", "PRIVATE_ARGUMENT", "future-provider-block"} {
+		if strings.Contains(shape, secret) {
+			t.Fatalf("response shape leaked %q: %s", secret, shape)
+		}
 	}
 }

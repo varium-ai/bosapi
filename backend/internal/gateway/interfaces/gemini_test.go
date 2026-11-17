@@ -139,7 +139,7 @@ func TestGeminiURLModelAcrossGatewayPipeline(t *testing.T) {
 }
 
 func TestGeminiRejectsMalformedPathsBeforeBodyModelFallback(t *testing.T) {
-	for _, path := range []string{"/v1beta/models", "/v1beta/models/", "/v1beta/models/:generateContent", "/v1beta/models/alias", "/v1beta/models/alias:unknown", "/v1beta/models/alias:generateContent/", "/v1beta/models/folder/alias:generateContent", "/v1beta/models/..:generateContent", "/v1beta/models/alias:generateContent:countTokens", "/v1beta/models/alias%20name:generateContent"} {
+	for _, path := range []string{"/v1beta/models", "/v1beta/models/", "/v1beta/models/:generateContent", "/v1beta/models/alias", "/v1beta/models/alias:unknown", "/v1beta/models/alias:generateContent/", "/v1beta/models/folder//alias:generateContent", "/v1beta/models/folder/../alias:generateContent", "/v1beta/models/..:generateContent", "/v1beta/models/alias:generateContent:countTokens", "/v1beta/models/alias%20name:generateContent"} {
 		t.Run(path, func(t *testing.T) {
 			a, key := geminiTestApp(t)
 			limiter := &geminiMetadataLimiter{}
@@ -155,6 +155,26 @@ func TestGeminiRejectsMalformedPathsBeforeBodyModelFallback(t *testing.T) {
 				t.Fatalf("invalid path admitted: %d %s", w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestGeminiQualifiedModelNamePassesThrough(t *testing.T) {
+	a, key := geminiTestApp(t)
+	model := "zai-org/GLM-5-FP8"
+	a.data.Providers[0].Models = []string{model}
+	a.data.Providers[0].ModelMapping = nil
+	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/v1beta/models/"+model+":streamGenerateContent" || r.URL.Query().Get("alt") != "sse" {
+			t.Fatalf("qualified model route: %s", r.URL.String())
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader("data: {}\n\n"))}, nil
+	})}
+	r := httptest.NewRequest("POST", "/v1/models/"+model+":streamGenerateContent?alt=sse", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"Reply with only OK."}]}]}`))
+	r.Header.Set("x-goog-api-key", key)
+	w := httptest.NewRecorder()
+	a.routes().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("qualified model rejected: %d %s", w.Code, w.Body.String())
 	}
 }
 
@@ -196,18 +216,21 @@ func TestGeminiSameModelNameChoosesNativeProvider(t *testing.T) {
 	if !ok || selected.ID != 1 || selected.APIFormat != "gemini" {
 		t.Fatalf("wrong protocol provider: %+v", selected)
 	}
-	// A key explicitly bound to an OpenAI provider cannot cross that binding to
-	// reach a Gemini provider, even when both advertise the requested model.
+	// A key explicitly bound to an OpenAI Chat provider can use the native
+	// Gemini endpoint through the dedicated adapter on that same provider.
 	a.data.Keys[0].ProviderID = 2
-	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Fatal("Gemini request sent to wrong protocol provider")
-		return nil, nil
+	a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body, _ := io.ReadAll(r.Body)
+		if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer wrong-key" || strings.Contains(string(body), "contents") {
+			t.Fatalf("request was not converted through the bound OpenAI provider: %s %s", r.URL, body)
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))}, nil
 	})}
-	r := httptest.NewRequest("POST", "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[]}`))
+	r := httptest.NewRequest("POST", "/v1beta/models/alias:generateContent", strings.NewReader(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`))
 	r.Header.Set("Authorization", "Bearer "+key)
 	w := httptest.NewRecorder()
 	a.routes().ServeHTTP(w, r)
-	if w.Code != 403 {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"candidates"`) || !strings.Contains(w.Body.String(), "hello") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -70,6 +71,11 @@ type RelayRequest struct {
 	SystemRole           string
 	ReasoningEffort      string
 	Stream, IncludeUsage bool
+	ContinuousUsageStats bool
+	IncludeThoughts      bool
+	// GeminiThinkingBudget records an advisory numeric budget that Chat
+	// cannot enforce, so the HTTP boundary can log the compatibility mapping.
+	GeminiThinkingBudget int64
 	System               []string
 	Messages             []RelayMessage
 	Tools                []RelayTool
@@ -284,6 +290,9 @@ func boolField(value map[string]any, key string) (bool, error) {
 // ParseRelayRequest implements a deliberately bounded common subset. Unknown
 // fields are rejected at every protocol envelope; JSON schemas stay opaque.
 func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) {
+	if source == "gemini" {
+		return parseGeminiRelayRequest(raw, target)
+	}
 	q := RelayRequest{Controls: map[string]any{}, Choice: "auto"}
 	root, err := DecodeProtocolJSON(raw)
 	if err != nil {
@@ -433,12 +442,16 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 		if !ok {
 			return q, conversionError("stream_options", "expected an object")
 		}
-		if err = fieldsOnly(options, "stream_options.", "include_usage"); err != nil {
+		if err = fieldsOnly(options, "stream_options.", "include_usage", "continuous_usage_stats"); err != nil {
 			return q, err
 		}
 		q.IncludeUsage, err = boolField(options, "include_usage")
 		if err != nil {
 			return q, err
+		}
+		q.ContinuousUsageStats, err = boolField(options, "continuous_usage_stats")
+		if err != nil {
+			return q, conversionError("stream_options.continuous_usage_stats", "expected a boolean")
 		}
 		if !q.Stream {
 			return q, conversionError("stream_options", "requires stream=true")
@@ -926,6 +939,164 @@ func joinRelayText(blocks []RelayBlock) string {
 	return text.String()
 }
 
+// normalizeAnthropicToolSchema projects top-level object compositions into an
+// object schema. Anthropic rejects oneOf/allOf/anyOf at input_schema's root.
+// The merged object remains useful tool guidance while preserving branch
+// properties and property-level alternatives. Required fields are intersected
+// for unions and combined for intersections.
+func normalizeAnthropicToolSchema(schema map[string]any) (map[string]any, error) {
+	if schema == nil {
+		return map[string]any{"type": "object", "properties": map[string]any{}}, nil
+	}
+	schema = stripGeminiPropertyOrdering(schema)
+	result := make(map[string]any, len(schema)+1)
+	for key, value := range schema {
+		if key != "oneOf" && key != "allOf" && key != "anyOf" {
+			result[key] = value
+		}
+	}
+	if _, exists := result["type"]; !exists {
+		result["type"] = "object"
+	}
+	if result["type"] != "object" {
+		return nil, fmt.Errorf("tool input schema root must be an object")
+	}
+	properties, ok := result["properties"].(map[string]any)
+	if result["properties"] != nil && !ok {
+		return nil, fmt.Errorf("tool input schema properties must be an object")
+	}
+	if properties == nil {
+		properties = map[string]any{}
+	}
+	required, hasRequired := result["required"].([]any)
+	if result["required"] != nil && !hasRequired {
+		return nil, fmt.Errorf("tool input schema required must be an array")
+	}
+	if hasRequired {
+		required = append([]any(nil), required...)
+	}
+	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
+		value, exists := schema[keyword]
+		if !exists {
+			continue
+		}
+		branches, ok := value.([]any)
+		if !ok || len(branches) == 0 {
+			return nil, fmt.Errorf("%s must contain object schemas", keyword)
+		}
+		branchRequired := make([]map[string]bool, 0, len(branches))
+		for _, branchValue := range branches {
+			branch, ok := branchValue.(map[string]any)
+			if !ok || branch["type"] != nil && branch["type"] != "object" {
+				return nil, fmt.Errorf("%s branches must describe objects", keyword)
+			}
+			for key := range branch {
+				switch key {
+				case "type", "required", "properties", "title", "description":
+				default:
+					return nil, fmt.Errorf("%s branch uses unsupported root constraint %s", keyword, key)
+				}
+			}
+			branchProperties, ok := branch["properties"].(map[string]any)
+			if branch["properties"] != nil && !ok {
+				return nil, fmt.Errorf("%s branch properties must be an object", keyword)
+			}
+			for name, propertySchema := range branchProperties {
+				if previous, exists := properties[name]; exists && !reflect.DeepEqual(previous, propertySchema) {
+					properties[name] = map[string]any{keyword: []any{previous, propertySchema}}
+				} else {
+					properties[name] = propertySchema
+				}
+			}
+			requiredSet := map[string]bool{}
+			if branchRequiredValue, exists := branch["required"]; exists {
+				branchRequiredList, ok := branchRequiredValue.([]any)
+				if !ok {
+					return nil, fmt.Errorf("%s branch required must be an array", keyword)
+				}
+				for _, field := range branchRequiredList {
+					name, ok := field.(string)
+					if !ok {
+						return nil, fmt.Errorf("%s branch required entries must be strings", keyword)
+					}
+					requiredSet[name] = true
+				}
+			}
+			branchRequired = append(branchRequired, requiredSet)
+		}
+		combined := map[string]bool{}
+		if keyword == "allOf" {
+			for _, requiredSet := range branchRequired {
+				for name := range requiredSet {
+					combined[name] = true
+				}
+			}
+		} else {
+			for name := range branchRequired[0] {
+				presentEverywhere := true
+				for _, requiredSet := range branchRequired[1:] {
+					if !requiredSet[name] {
+						presentEverywhere = false
+						break
+					}
+				}
+				if presentEverywhere {
+					combined[name] = true
+				}
+			}
+		}
+		if hasRequired {
+			for _, field := range required {
+				name, ok := field.(string)
+				if !ok {
+					return nil, fmt.Errorf("required entries must be strings")
+				}
+				combined[name] = true
+			}
+		}
+		required = required[:0]
+		for name := range combined {
+			required = append(required, name)
+		}
+		hasRequired = len(required) > 0
+	}
+	result["properties"] = properties
+	if hasRequired {
+		result["required"] = required
+	} else {
+		delete(result, "required")
+	}
+	return result, nil
+}
+
+// propertyOrdering is a Gemini schema extension that only controls the order
+// in which Gemini generates object properties. It has no Anthropic equivalent.
+func stripGeminiPropertyOrdering(schema map[string]any) map[string]any {
+	clean := make(map[string]any, len(schema))
+	for key, value := range schema {
+		if key == "propertyOrdering" {
+			continue
+		}
+		clean[key] = stripGeminiPropertyOrderingValue(value)
+	}
+	return clean
+}
+
+func stripGeminiPropertyOrderingValue(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		return stripGeminiPropertyOrdering(value)
+	case []any:
+		clean := make([]any, len(value))
+		for index, item := range value {
+			clean[index] = stripGeminiPropertyOrderingValue(item)
+		}
+		return clean
+	default:
+		return value
+	}
+}
+
 func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 	for index, tool := range q.Tools {
 		if !relayFunctionName(tool.Name, target) {
@@ -989,7 +1160,26 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 			}
 		}
 		if target == "anthropic_messages" {
-			messages = append(messages, map[string]any{"role": role, "content": parts})
+			// Anthropic requires tool_result blocks to precede other content in
+			// a user message. Gemini parts may interleave them with text.
+			ordered := make([]any, 0, len(parts))
+			for _, part := range parts {
+				if block, ok := part.(map[string]any); ok && block["type"] == "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			for _, part := range parts {
+				if block, ok := part.(map[string]any); !ok || block["type"] != "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			parts = ordered
+			if len(messages) > 0 && messages[len(messages)-1].(map[string]any)["role"] == role {
+				previous := messages[len(messages)-1].(map[string]any)
+				previous["content"] = append(previous["content"].([]any), parts...)
+			} else {
+				messages = append(messages, map[string]any{"role": role, "content": parts})
+			}
 		} else {
 			if role == "assistant" {
 				role = "model"
@@ -1002,6 +1192,26 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 			}
 		}
 	}
+	if target == "anthropic_messages" {
+		// Tool results must lead the combined user turn, including results that
+		// came from a later adjacent Gemini contents entry.
+		for _, entry := range messages {
+			message := entry.(map[string]any)
+			content := message["content"].([]any)
+			ordered := make([]any, 0, len(content))
+			for _, part := range content {
+				if block, ok := part.(map[string]any); ok && block["type"] == "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			for _, part := range content {
+				if block, ok := part.(map[string]any); !ok || block["type"] != "tool_result" {
+					ordered = append(ordered, part)
+				}
+			}
+			message["content"] = ordered
+		}
+	}
 	system := []any{}
 	for _, text := range q.System {
 		if target == "anthropic_messages" {
@@ -1011,15 +1221,24 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 		}
 	}
 	tools := []any{}
-	for _, tool := range q.Tools {
+	for index, tool := range q.Tools {
 		if target == "anthropic_messages" {
-			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "input_schema": tool.Schema})
+			schema, err := normalizeAnthropicToolSchema(tool.Schema)
+			if err != nil {
+				return nil, "", conversionError(fmt.Sprintf("tools[%d].input_schema", index), err.Error())
+			}
+			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "input_schema": schema})
 		} else {
 			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "parametersJsonSchema": tool.Schema})
 		}
 	}
 	path := "messages"
 	if target == "anthropic_messages" {
+		// Anthropic has no tool_choice="none" mode. Omitting the declarations
+		// is the protocol-equivalent way to disable tools for this turn.
+		if q.Choice == "none" {
+			tools = nil
+		}
 		root["model"], root["messages"], root["stream"] = q.Model, messages, q.Stream
 		root["max_tokens"] = 4096
 		if len(system) > 0 {
@@ -1034,7 +1253,7 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 			}
 			root[key] = value
 		}
-		if len(tools) > 0 || q.Choice != "auto" {
+		if len(tools) > 0 && q.Choice != "auto" {
 			choice := map[string]any{"type": q.Choice}
 			if q.Choice == "tool" {
 				choice["name"] = q.ChoiceName

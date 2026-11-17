@@ -13,6 +13,7 @@ type RelayReply struct {
 	Stop, StopSequence                             string
 	Input, Output, CacheRead, CacheWrite, Thoughts int64
 	HasUsage                                       bool
+	IncludeThoughts                                bool
 }
 
 func relayInt(value any) int64 {
@@ -279,6 +280,66 @@ func ParseRelayReply(raw []byte, format, id string) (RelayReply, error) {
 	return reply, err
 }
 func (reply RelayReply) JSON(source, model string) ([]byte, error) {
+	if source == "gemini" {
+		parts := make([]any, 0, len(reply.Blocks))
+		for _, block := range reply.Blocks {
+			switch block.Type {
+			case "text":
+				parts = append(parts, map[string]any{"text": block.Text})
+			case "thinking":
+				// Gemini can mark thought text, but cannot carry Anthropic's
+				// signature. Preserve the requested thought text without inventing
+				// a Gemini thoughtSignature.
+				if reply.IncludeThoughts && block.Text != "" {
+					parts = append(parts, map[string]any{"text": block.Text, "thought": true})
+				}
+				continue
+			case "redacted_thinking":
+				// Opaque provider data has no Gemini representation.
+				continue
+			case "tool_use":
+				if !relayFunctionName(block.Name, "gemini") {
+					return nil, conversionError("response.tool_calls.function.name", "function name is invalid for Gemini")
+				}
+				parts = append(parts, map[string]any{"functionCall": map[string]any{"id": block.ID, "name": block.Name, "args": block.Input}})
+			default:
+				return nil, conversionError("response.content", "response block cannot be represented in Gemini")
+			}
+		}
+		if len(parts) == 0 {
+			return nil, conversionError("response.content", "response contains no Gemini-compatible visible content")
+		}
+		finishReason := "STOP"
+		switch reply.Stop {
+		case "length":
+			finishReason = "MAX_TOKENS"
+		case "content_filter":
+			finishReason = "SAFETY"
+		case "stop", "tool_calls":
+		default:
+			return nil, conversionError("response.finish_reason", "OpenAI Chat finish reason cannot be represented in Gemini")
+		}
+		candidate := map[string]any{"index": 0, "content": map[string]any{"role": "model", "parts": parts}, "finishReason": finishReason}
+		result := map[string]any{"candidates": []any{candidate}}
+		if reply.ID != "" {
+			result["responseId"] = reply.ID
+		}
+		if reply.HasUsage {
+			usage := map[string]any{
+				"promptTokenCount":     reply.Input + reply.CacheRead + reply.CacheWrite,
+				"candidatesTokenCount": max(int64(0), reply.Output-reply.Thoughts),
+				"totalTokenCount":      reply.Input + reply.CacheRead + reply.CacheWrite + reply.Output,
+			}
+			if reply.CacheRead > 0 {
+				usage["cachedContentTokenCount"] = reply.CacheRead
+			}
+			if reply.Thoughts > 0 {
+				usage["thoughtsTokenCount"] = reply.Thoughts
+			}
+			result["usageMetadata"] = usage
+		}
+		return json.Marshal(result)
+	}
 	if source == "messages" {
 		if !reply.HasUsage {
 			return nil, conversionError("response.usage", "upstream did not provide required usage metrics")

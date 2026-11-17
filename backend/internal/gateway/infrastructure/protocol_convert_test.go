@@ -48,6 +48,112 @@ func TestRelayRequestPairsPreserveCommonSemantics(t *testing.T) {
 	}
 }
 
+func TestGeminiAdjacentRolesMergeForAnthropic(t *testing.T) {
+	raw := `{"contents":[{"role":"user","parts":[{"text":"first"}]},{"role":"user","parts":[{"text":"second"}]},{"role":"model","parts":[{"text":"answer"}]},{"role":"model","parts":[{"text":"continued"}]}]}`
+	q, err := ParseRelayRequest([]byte(raw), "gemini", "anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _, err := q.Upstream("anthropic_messages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := DecodeProtocolJSON(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages := root["messages"].([]any)
+	if len(messages) != 2 || len(messages[0].(map[string]any)["content"].([]any)) != 2 || len(messages[1].(map[string]any)["content"].([]any)) != 2 {
+		t.Fatalf("adjacent roles were not merged: %s", payload)
+	}
+}
+
+func TestNormalizeAnthropicToolSchemaProjectsTopLevelCompositions(t *testing.T) {
+	tests := []struct {
+		name           string
+		schema         map[string]any
+		wantRequired   []string
+		wantProperties []string
+		wantNested     string
+	}{
+		{
+			name: "anyOf union",
+			schema: map[string]any{"anyOf": []any{
+				map[string]any{"type": "object", "properties": map[string]any{"a": map[string]any{"type": "string"}}, "required": []any{"shared"}},
+				map[string]any{"type": "object", "properties": map[string]any{"b": map[string]any{"type": "integer"}}, "required": []any{"shared", "b"}},
+			}},
+			wantRequired: []string{"shared"}, wantProperties: []string{"a", "b"},
+		},
+		{
+			name: "oneOf shared property",
+			schema: map[string]any{"oneOf": []any{
+				map[string]any{"properties": map[string]any{"kind": map[string]any{"const": "a"}}},
+				map[string]any{"properties": map[string]any{"kind": map[string]any{"const": "b"}}},
+			}},
+			wantProperties: []string{"kind"}, wantNested: "oneOf",
+		},
+		{
+			name: "allOf required fields",
+			schema: map[string]any{"allOf": []any{
+				map[string]any{"properties": map[string]any{"a": map[string]any{"type": "string"}}, "required": []any{"a"}},
+				map[string]any{"properties": map[string]any{"b": map[string]any{"type": "integer"}}, "required": []any{"b"}},
+			}},
+			wantRequired: []string{"a", "b"}, wantProperties: []string{"a", "b"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := normalizeAnthropicToolSchema(test.schema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got["type"] != "object" {
+				t.Fatalf("root type=%v", got["type"])
+			}
+			for _, keyword := range []string{"oneOf", "allOf", "anyOf"} {
+				if _, exists := got[keyword]; exists {
+					t.Fatalf("unsupported top-level %s remains: %#v", keyword, got)
+				}
+			}
+			properties := got["properties"].(map[string]any)
+			for _, name := range test.wantProperties {
+				if _, exists := properties[name]; !exists {
+					t.Errorf("property %q was lost", name)
+				}
+			}
+			if test.wantNested != "" {
+				if _, exists := properties["kind"].(map[string]any)[test.wantNested]; !exists {
+					t.Fatalf("property alternative %s was not preserved: %#v", test.wantNested, properties["kind"])
+				}
+			}
+			gotRequired := map[string]bool{}
+			if values, ok := got["required"].([]any); ok {
+				for _, value := range values {
+					gotRequired[value.(string)] = true
+				}
+			}
+			if len(gotRequired) != len(test.wantRequired) {
+				t.Fatalf("required=%v want=%v", gotRequired, test.wantRequired)
+			}
+			for _, name := range test.wantRequired {
+				if !gotRequired[name] {
+					t.Errorf("required field %q was lost", name)
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeAnthropicToolSchemaRejectsNonObjectAlternatives(t *testing.T) {
+	_, err := normalizeAnthropicToolSchema(map[string]any{"anyOf": []any{
+		map[string]any{"type": "string"},
+		map[string]any{"type": "object", "properties": map[string]any{}},
+	}})
+	if err == nil {
+		t.Fatal("non-object union should be rejected")
+	}
+}
+
 func TestRelayRejectsUnsupportedFieldsAtTheirPaths(t *testing.T) {
 	cases := []struct{ source, target, raw, field string }{
 		{"chat", "gemini", `{"model":"x","messages":[{"role":"user","content":"hi"}],"seed":1}`, "seed"},

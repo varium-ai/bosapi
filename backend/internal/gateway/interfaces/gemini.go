@@ -33,9 +33,14 @@ func validGeminiModel(model string) bool {
 	if model == "" || len(model) > 191 || model == "." || model == ".." {
 		return false
 	}
-	for _, char := range model {
-		if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-' || char == '_' || char == '.') {
+	for _, part := range strings.Split(model, "/") {
+		if part == "" || part == "." || part == ".." {
 			return false
+		}
+		for _, char := range part {
+			if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-' || char == '_' || char == '.') {
+				return false
+			}
 		}
 	}
 	return true
