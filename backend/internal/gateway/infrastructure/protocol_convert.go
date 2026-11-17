@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -938,6 +939,135 @@ func joinRelayText(blocks []RelayBlock) string {
 	return text.String()
 }
 
+// normalizeAnthropicToolSchema projects top-level object compositions into an
+// object schema. Anthropic rejects oneOf/allOf/anyOf at input_schema's root.
+// The merged object remains useful tool guidance while preserving branch
+// properties and property-level alternatives. Required fields are intersected
+// for unions and combined for intersections.
+func normalizeAnthropicToolSchema(schema map[string]any) (map[string]any, error) {
+	if schema == nil {
+		return map[string]any{"type": "object", "properties": map[string]any{}}, nil
+	}
+	result := make(map[string]any, len(schema)+1)
+	for key, value := range schema {
+		if key != "oneOf" && key != "allOf" && key != "anyOf" {
+			result[key] = value
+		}
+	}
+	if _, exists := result["type"]; !exists {
+		result["type"] = "object"
+	}
+	if result["type"] != "object" {
+		return nil, fmt.Errorf("tool input schema root must be an object")
+	}
+	properties, ok := result["properties"].(map[string]any)
+	if result["properties"] != nil && !ok {
+		return nil, fmt.Errorf("tool input schema properties must be an object")
+	}
+	if properties == nil {
+		properties = map[string]any{}
+	}
+	required, hasRequired := result["required"].([]any)
+	if result["required"] != nil && !hasRequired {
+		return nil, fmt.Errorf("tool input schema required must be an array")
+	}
+	if hasRequired {
+		required = append([]any(nil), required...)
+	}
+	for _, keyword := range []string{"allOf", "anyOf", "oneOf"} {
+		value, exists := schema[keyword]
+		if !exists {
+			continue
+		}
+		branches, ok := value.([]any)
+		if !ok || len(branches) == 0 {
+			return nil, fmt.Errorf("%s must contain object schemas", keyword)
+		}
+		branchRequired := make([]map[string]bool, 0, len(branches))
+		for _, branchValue := range branches {
+			branch, ok := branchValue.(map[string]any)
+			if !ok || branch["type"] != nil && branch["type"] != "object" {
+				return nil, fmt.Errorf("%s branches must describe objects", keyword)
+			}
+			for key := range branch {
+				switch key {
+				case "type", "required", "properties", "title", "description":
+				default:
+					return nil, fmt.Errorf("%s branch uses unsupported root constraint %s", keyword, key)
+				}
+			}
+			branchProperties, ok := branch["properties"].(map[string]any)
+			if branch["properties"] != nil && !ok {
+				return nil, fmt.Errorf("%s branch properties must be an object", keyword)
+			}
+			for name, propertySchema := range branchProperties {
+				if previous, exists := properties[name]; exists && !reflect.DeepEqual(previous, propertySchema) {
+					properties[name] = map[string]any{keyword: []any{previous, propertySchema}}
+				} else {
+					properties[name] = propertySchema
+				}
+			}
+			requiredSet := map[string]bool{}
+			if branchRequiredValue, exists := branch["required"]; exists {
+				branchRequiredList, ok := branchRequiredValue.([]any)
+				if !ok {
+					return nil, fmt.Errorf("%s branch required must be an array", keyword)
+				}
+				for _, field := range branchRequiredList {
+					name, ok := field.(string)
+					if !ok {
+						return nil, fmt.Errorf("%s branch required entries must be strings", keyword)
+					}
+					requiredSet[name] = true
+				}
+			}
+			branchRequired = append(branchRequired, requiredSet)
+		}
+		combined := map[string]bool{}
+		if keyword == "allOf" {
+			for _, requiredSet := range branchRequired {
+				for name := range requiredSet {
+					combined[name] = true
+				}
+			}
+		} else {
+			for name := range branchRequired[0] {
+				presentEverywhere := true
+				for _, requiredSet := range branchRequired[1:] {
+					if !requiredSet[name] {
+						presentEverywhere = false
+						break
+					}
+				}
+				if presentEverywhere {
+					combined[name] = true
+				}
+			}
+		}
+		if hasRequired {
+			for _, field := range required {
+				name, ok := field.(string)
+				if !ok {
+					return nil, fmt.Errorf("required entries must be strings")
+				}
+				combined[name] = true
+			}
+		}
+		required = required[:0]
+		for name := range combined {
+			required = append(required, name)
+		}
+		hasRequired = len(required) > 0
+	}
+	result["properties"] = properties
+	if hasRequired {
+		result["required"] = required
+	} else {
+		delete(result, "required")
+	}
+	return result, nil
+}
+
 func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 	for index, tool := range q.Tools {
 		if !relayFunctionName(tool.Name, target) {
@@ -1037,9 +1167,13 @@ func (q RelayRequest) Upstream(target string) ([]byte, string, error) {
 		}
 	}
 	tools := []any{}
-	for _, tool := range q.Tools {
+	for index, tool := range q.Tools {
 		if target == "anthropic_messages" {
-			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "input_schema": tool.Schema})
+			schema, err := normalizeAnthropicToolSchema(tool.Schema)
+			if err != nil {
+				return nil, "", conversionError(fmt.Sprintf("tools[%d].input_schema", index), err.Error())
+			}
+			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "input_schema": schema})
 		} else {
 			tools = append(tools, map[string]any{"name": tool.Name, "description": tool.Description, "parametersJsonSchema": tool.Schema})
 		}
