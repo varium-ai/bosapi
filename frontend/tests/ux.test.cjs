@@ -239,7 +239,7 @@ test('model lists use a dialog rather than expanding table row height', () => {
   assert.match(source, /className="model-list-dialog"/);
 });
 
-const { logFields, analyzeTrace, entryDiagnosis } = require(
+const { logFields, analyzeTrace, entryDiagnosis, errorDiagnosis } = require(
   path.join(temporary, 'features/requestlogs/diagnostics.js'),
 );
 const traceRow = (event, message, level = 'INFO') => ({
@@ -247,6 +247,23 @@ const traceRow = (event, message, level = 'INFO') => ({
   message,
   level,
   created_at: '2026-10-15T06:54:12Z',
+});
+test('expired Responses history is diagnosed in both the error list and request details', () => {
+  const code = 'previous_response_not_found';
+  assert.equal(errorDiagnosis(code), code);
+  assert.equal(uxChinese.diagnosis_previous_response_not_found, '上一条响应不存在或已过期');
+  assert.match(uxEnglish.hint_previous_response_not_found, /full conversation history/);
+
+  const completed = traceRow(
+    'gateway.request.completed',
+    'status=400 error_code=previous_response_not_found failure_stage=request_conversion error_param="previous_response_id" error_reason="stored response not found or expired for this channel and model; resend full input history"',
+    'WARN',
+  );
+  const result = analyzeTrace([completed]);
+  assert.equal(result.diagnosis, code);
+  assert.equal(result.fault, completed);
+  assert.equal(result.fields.error_param, 'previous_response_id');
+  assert.match(result.fields.error_reason, /resend full input history/);
 });
 test('historical screenshot cancellation is explained without inventing client disconnection or upstream status', () => {
   const rows = [

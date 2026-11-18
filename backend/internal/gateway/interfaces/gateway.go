@@ -129,6 +129,9 @@ type gatewayQuotaRetryRepository interface {
 }
 
 type app struct {
+	responsesChatHistory chatHistoryCache
+	protocolProbeMu      sync.Mutex
+	protocolProbes       map[string]*protocolProbe
 	usageReporting       *analyticsapp.Service
 	usageReportingWorker *analyticsinfra.Worker
 	toolSecurityPolicy   func(context.Context) (admindomain.ToolSecurityPolicy, error)
@@ -932,6 +935,14 @@ func (a *app) providerForKeyModelFormat(ctx context.Context, key apiKey, request
 			cipher, cipherErr := admininfra.NewCredentialCipher(a.encryptionKey)
 			if cipherErr == nil {
 				for _, rec := range records {
+					credential, decErr := cipher.Decrypt(string(rec.CredentialsCiphertext))
+					var capabilities map[string]any
+					var modelMapping map[string]string
+					_ = json.Unmarshal([]byte(rec.CapabilitiesJSON), &capabilities)
+					_ = json.Unmarshal([]byte(rec.ModelMappingJSON), &modelMapping)
+					if rec.AccountType != "oauth" && decErr == nil {
+						rec.APIFormat = effectiveProviderProtocol(provider{Type: "api_key", APIFormat: rec.APIFormat, BaseURL: rec.BaseURL, APIKey: credential, Capabilities: capabilities, ModelMapping: modelMapping}, requestedModel).APIFormat
+					}
 					if apiFormat != "" && rec.APIFormat != apiFormat {
 						continue
 					}
@@ -942,7 +953,7 @@ func (a *app) providerForKeyModelFormat(ctx context.Context, key apiKey, request
 							continue
 						}
 					}
-					apiKey, decErr := cipher.Decrypt(string(rec.CredentialsCiphertext))
+					apiKey := credential
 					if decErr == nil && apiKey != "" {
 						baseURL := strings.TrimRight(rec.BaseURL, "/")
 						if baseURL == "" {
@@ -964,13 +975,8 @@ func (a *app) providerForKeyModelFormat(ctx context.Context, key apiKey, request
 						}
 						var modelRows []modelInfo
 						var modelNames []string
-						var capabilities, pricing map[string]any
-						var modelMapping map[string]string
-						_ = json.Unmarshal([]byte(rec.CapabilitiesJSON), &capabilities)
+						var pricing map[string]any
 						_ = json.Unmarshal([]byte(rec.PricingJSON), &pricing)
-						if rec.ModelMappingJSON != "" {
-							_ = json.Unmarshal([]byte(rec.ModelMappingJSON), &modelMapping)
-						}
 						normalizedConfig := normalizeGeminiProvider(provider{APIFormat: rec.APIFormat, ModelMapping: modelMapping, Pricing: pricing})
 						modelMapping, pricing = normalizedConfig.ModelMapping, normalizedConfig.Pricing
 						if err := a.database.WithContext(ctx).Table("provider_models").
@@ -1039,18 +1045,19 @@ func (a *app) providerForKeyModelFormat(ctx context.Context, key apiKey, request
 							continue
 						}
 						selected := provider{
-							ID:           int(rec.ID),
-							Name:         rec.Name,
-							Platform:     rec.Platform,
-							Type:         "api_key",
-							Status:       "active",
-							BaseURL:      baseURL,
-							APIKey:       apiKey,
-							Models:       modelNames,
-							Capabilities: capabilities,
-							Pricing:      pricing,
-							ModelMapping: modelMapping,
-							APIFormat:    rec.APIFormat,
+							ID:                   int(rec.ID),
+							Name:                 rec.Name,
+							Platform:             rec.Platform,
+							Type:                 "api_key",
+							Status:               "active",
+							BaseURL:              baseURL,
+							APIKey:               apiKey,
+							Models:               modelNames,
+							Capabilities:         capabilities,
+							Pricing:              pricing,
+							ModelMapping:         modelMapping,
+							APIFormat:            rec.APIFormat,
+							ConfigurationVersion: rec.UpdatedAt,
 						}
 						if rec.AccountType == "oauth" {
 							credentials, err := subscription.Decode(apiKey, rec.Platform)
@@ -1071,6 +1078,7 @@ func (a *app) providerForKeyModelFormat(ctx context.Context, key apiKey, request
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, p := range a.data.Providers {
+		p = effectiveProviderProtocol(p, requestedModel)
 		if p.Status == "active" && (key.ProviderID == 0 || p.ID == key.ProviderID) {
 			if apiFormat != "" && (p.APIFormat != apiFormat || len(p.Models) > 0 && requestedModel != "" && !providerSupportsModel(normalizeGeminiProvider(p), requestedModel)) {
 				continue
@@ -1987,6 +1995,10 @@ func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	}
 	path := gatewayPath(r)
 	if r.Method == http.MethodGet {
+		if id := responseLookupID(path); chatResponseID(id) {
+			a.getChatHistory(w, r, id)
+			return
+		}
 		if path == "models" {
 			a.models(w, r, p)
 			return

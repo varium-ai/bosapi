@@ -157,6 +157,9 @@ func gatewayLogEndpoint(r *http.Request) string {
 	case "models", "responses", "responses/compact", "responses/input_tokens", "chat/completions", "messages", "messages/count_tokens", "embeddings", "live", "alpha/search", "usage":
 		return path
 	}
+	if responseLookupID(path) != "" {
+		return "responses/:response_id"
+	}
 	if strings.HasPrefix(path, "models/") {
 		return "models/:model"
 	}
@@ -417,6 +420,9 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 			}
 			if !ok {
 				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "anthropic_messages")
+			}
+			if !ok {
+				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "openai_responses")
 			}
 			if nativeGemini {
 				logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=provider_select_result selected=%t selected_provider_id=%d selected_api_format=%s selected_model_count=%d selected_model_match=%t", ok, selected.ID, selected.APIFormat, len(selected.Models), providerSupportsModel(selected, model))

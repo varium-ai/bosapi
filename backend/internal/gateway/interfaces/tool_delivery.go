@@ -12,6 +12,10 @@ import (
 )
 
 func (a *app) writeToolJSON(w http.ResponseWriter, r *http.Request, status int, payload []byte) {
+	a.writeToolJSONWithSave(w, r, status, payload, nil)
+}
+
+func (a *app) writeToolJSONWithSave(w http.ResponseWriter, r *http.Request, status int, payload []byte, save func([]byte) error) {
 	if reqModel, ok := r.Context().Value(gatewayModelRequestKey{}).(string); ok && reqModel != "" {
 		payload = restoreResponseModelJSON(payload, reqModel)
 	}
@@ -21,6 +25,14 @@ func (a *app) writeToolJSON(w http.ResponseWriter, r *http.Request, status int, 
 		recordGatewayFailure(r, "response_read", errorcode.UpstreamError, "response.body", "response could not be delivered after tool inspection")
 		fail(w, http.StatusBadGateway, errorcode.UpstreamError)
 		return
+	}
+	if save != nil {
+		if err := save(filtered); err != nil {
+			status, code, failure := chatHistoryWriteFailure(err)
+			recordGatewayFailure(r, "response_write", code, failure.Field, failure.Reason)
+			respond(w, status, conversionEnvelope("responses", code, failure))
+			return
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Del("Content-Length")
@@ -111,6 +123,8 @@ type toolBodyWriter struct {
 	scanner                     securityAuditScanner
 	isSSE, isJSON, inspectTools bool
 	usageBody                   []byte
+	saveChatHistory             func([]byte) error
+	chatHistoryErr              error
 }
 
 func (writer *toolBodyWriter) observeStreamError(value map[string]any, event string) {
@@ -131,6 +145,9 @@ func (writer *toolBodyWriter) write(chunk []byte) bool {
 		if writer.inspectTools {
 			chunks = writer.filter.SSE(chunk, false)
 		}
+	}
+	if writer.saveChatHistory != nil && !writer.saveTerminalResponse(chunk, chunks) {
+		return false
 	}
 	if !writeToolChunks(writer.writer, chunks) {
 		recordGatewayFailure(writer.request, "response_write", errorcode.DeliveryInterrupted, "response.body", "downstream response write failed")

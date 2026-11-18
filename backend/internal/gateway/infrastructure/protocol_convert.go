@@ -64,8 +64,10 @@ type RelayMessage struct {
 type RelayTool struct {
 	Name, Description string
 	Schema            map[string]any
+	Strict            *bool
 }
 type RelayRequest struct {
+	ResponsesNamespaces  map[string]ResponsesToolName
 	Model                string
 	PromptCacheKey       string
 	SystemRole           string
@@ -291,6 +293,10 @@ func boolField(value map[string]any, key string) (bool, error) {
 // ParseRelayRequest implements a deliberately bounded common subset. Unknown
 // fields are rejected at every protocol envelope; JSON schemas stay opaque.
 func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) {
+	return parseRelayRequest(raw, source, target, false)
+}
+
+func parseRelayRequest(raw []byte, source, target string, responsesHistory bool) (RelayRequest, error) {
 	if source == "gemini" {
 		return parseGeminiRelayRequest(raw, target)
 	}
@@ -507,6 +513,9 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 		messageFields := []string{"role", "content", "tool_calls", "tool_call_id"}
 		if source == "chat" {
 			messageFields = append(messageFields, "refusal", "audio", "annotations")
+			if responsesHistory {
+				messageFields = append(messageFields, "reasoning_content")
+			}
 			if target == "anthropic_messages" {
 				messageFields = append(messageFields, "reasoning_content", "anthropic_thinking")
 			}
@@ -533,7 +542,7 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 		if err != nil {
 			return q, err
 		}
-		chatInstruction := source == "messages" && (target == "openai_chat" || target == "") && (role == "system" || role == "developer")
+		chatInstruction := (responsesHistory || source == "messages" && (target == "openai_chat" || target == "")) && (role == "system" || role == "developer")
 		if source == "messages" && role != "user" && role != "assistant" && !chatInstruction {
 			return q, conversionError(path+"role", "unsupported Messages role")
 		}
@@ -581,11 +590,18 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 			if role != "user" && role != "assistant" && role != "tool" {
 				return q, conversionError(path+"role", "unsupported Chat role")
 			}
-			blocks, err := textBlocks(message["content"], path+"content", role == "user", target == "anthropic_messages" || target == "openai_responses")
+			blocks, err := textBlocks(message["content"], path+"content", role == "user" || responsesHistory && role == "tool", target == "anthropic_messages" || target == "openai_responses" || responsesHistory)
 			if err != nil {
 				return q, err
 			}
 			turn.Blocks = blocks
+			if responsesHistory && message["reasoning_content"] != nil {
+				thoughts, err := ChatRelayReasoning(message)
+				if err != nil {
+					return q, err
+				}
+				turn.Blocks = append(thoughts, turn.Blocks...)
+			}
 			if role == "tool" {
 				if message["content"] == nil {
 					return q, conversionError(path+"content", "tool result content is required")
@@ -600,7 +616,11 @@ func ParseRelayRequest(raw []byte, source, target string) (RelayRequest, error) 
 				answered[id] = true
 				text := joinRelayText(blocks)
 				turn.Role = "user"
-				turn.Blocks = []RelayBlock{{Type: "tool_result", ID: id, Name: calls[id], Text: text}}
+				result := RelayBlock{Type: "tool_result", ID: id, Name: calls[id], Text: text}
+				if responsesHistory {
+					result.ToolContent = blocks
+				}
+				turn.Blocks = []RelayBlock{result}
 			} else if _, exists := message["tool_call_id"]; exists {
 				return q, conversionError(path+"tool_call_id", "only valid on tool results")
 			}

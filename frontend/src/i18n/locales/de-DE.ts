@@ -255,9 +255,12 @@ export const deDE: typeof enUS = {
     diagnosis_provider: 'Kanalkonfiguration oder -zugriffsprüfung fehlgeschlagen',
     hint_provider:
       'Prüfen Sie, ob der Kanal aktiv und für diese Organisation und diesen Schlüssel erlaubt ist.',
+    diagnosis_previous_response_not_found: 'Vorherige Antwort nicht gefunden oder abgelaufen',
+    hint_previous_response_not_found:
+      'Verwenden Sie eine für denselben Kanal und dasselbe Modell gespeicherte Antwort-ID oder senden Sie den vollständigen Gesprächsverlauf erneut.',
     diagnosis_conversion: 'Angeforderte Protokollkonvertierung wird nicht unterstützt',
     hint_conversion:
-      'Prüfen Sie Endpunkt und API-Format des Kanals. Nutzen Sie ein unterstütztes natives Protokoll oder eine unterstützte Konvertierung.',
+      'Prüfen Sie anhand des unten angegebenen Feldes und Fehlergrunds, ob die Anfrage zum API-Format des Kanals passt.',
     diagnosis_response_conversion: 'Konvertierung der Upstream-Antwort fehlgeschlagen',
     hint_response_conversion:
       'Prüfen Sie Feld, Ursache und SSE-Ereignis unten. Upstream-HTTP 200 bestätigt empfangene Header, aber keinen vollständig konvertierten Stream.',

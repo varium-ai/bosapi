@@ -172,6 +172,17 @@ func (a *app) testProvider(w http.ResponseWriter, r *http.Request, path string) 
 
 func (a *app) apiKeyGateway(w http.ResponseWriter, r *http.Request, p provider, path string) {
 	p = normalizeGeminiProvider(p)
+	if metadata, nativeGemini := requestGemini(r); nativeGemini && p.APIFormat == "openai_responses" {
+		if metadata.Operation == "generateContent" || metadata.Operation == "streamGenerateContent" {
+			p = a.detectProviderProtocol(r.Context(), p, metadata.Model)
+		}
+		if p.APIFormat == "openai_responses" {
+			crossFailure(w, r, "gemini", http.StatusBadRequest, errorcode.UnsupportedConversion,
+				&gatewayinfra.ConversionError{Field: "endpoint", Reason: "Gemini conversion requires a verified Chat or Messages upstream"})
+			return
+		}
+		r = withGatewayProvider(r, p)
+	}
 	if metadata, nativeGemini := requestGemini(r); nativeGemini && (p.APIFormat == "openai_chat" || p.APIFormat == "anthropic_messages" || p.APIFormat == "") {
 		if metadata.Operation != "generateContent" && metadata.Operation != "streamGenerateContent" {
 			nativeError(w, "gemini", http.StatusBadRequest, errorcode.UnsupportedConversion)
@@ -201,6 +212,15 @@ func (a *app) apiKeyGateway(w http.ResponseWriter, r *http.Request, p provider, 
 		return
 	}
 	switch {
+	case path == "responses" && r.Method == http.MethodPost:
+		if p.APIFormat == "openai_responses" {
+			p = a.detectProviderProtocol(r.Context(), p, requestModel(r))
+		}
+		if p.APIFormat == "openai_chat" {
+			a.crossProtocolAPI(w, withGatewayProvider(r, p), p, "responses")
+			return
+		}
+		a.proxyAPI(w, r, p, "/responses")
 	case path == "responses" && r.Method == "GET":
 		a.responsesWebSocket(w, r, p)
 	case path == "messages/count_tokens" && r.Method == "POST":
@@ -224,7 +244,7 @@ func (a *app) apiKeyGateway(w http.ResponseWriter, r *http.Request, p provider, 
 		a.models(w, r, p)
 	case strings.HasPrefix(path, "models/") && r.Method == "GET":
 		a.model(w, r, p, strings.TrimPrefix(path, "models/"))
-	case path == "responses" && r.Method == "POST", path == "responses/compact" && r.Method == "POST", path == "responses/input_tokens" && r.Method == "POST", path == "chat/completions" && r.Method == "POST", path == "embeddings" && r.Method == "POST":
+	case path == "responses/compact" && r.Method == "POST", path == "responses/input_tokens" && r.Method == "POST", path == "chat/completions" && r.Method == "POST", path == "embeddings" && r.Method == "POST":
 		a.proxyAPI(w, r, p, "/"+path)
 	default:
 		recordGatewayFailure(r, "routing", errorcode.NotFound, "endpoint", "method or endpoint is not supported by this provider")

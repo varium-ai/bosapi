@@ -85,7 +85,19 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
 	}
-	q, err := gatewayinfra.ParseRelayRequest(raw, source, p.APIFormat)
+	var q gatewayinfra.RelayRequest
+	var history chatHistoryRequest
+	if source == "responses" {
+		var failure *chatHistoryFailure
+		raw, history, failure = a.prepareChatHistory(r, p, raw)
+		if failure != nil {
+			crossFailure(w, r, source, failure.status, failure.code, failure.err)
+			return
+		}
+		q, err = gatewayinfra.ParseResponsesForChat(raw)
+	} else {
+		q, err = gatewayinfra.ParseRelayRequest(raw, source, p.APIFormat)
+	}
 	if err != nil {
 		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
@@ -136,6 +148,14 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 	upstreamURL := *r.URL
 	upstreamURL.RawQuery = ""
 	upstreamRequest.URL = &upstreamURL
+	if source == "responses" {
+		// The converter validates and promotes explicit additional_tools declarations.
+		// Use the resulting Chat declarations to authorize matching tool calls.
+		if authorization, _ := r.Context().Value(gatewayToolAuthorizationRequestKey{}).(gatewayinfra.ToolAuthorization); authorization != nil {
+			r = r.WithContext(context.WithValue(r.Context(), gatewayToolAuthorizationRequestKey{}, q.ChatToolAuthorization()))
+		}
+		payload = rewriteQwenReasoningEffort(payload, "/chat/completions")
+	}
 	res, cancel, err := a.nativeRoundTrip(upstreamRequest, p, path, payload)
 	if err != nil {
 		if source == "gemini" {
@@ -177,12 +197,13 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		return
 	}
 	id := "relay_" + random(16)
+	save := a.chatHistorySaver(r, p, history, publicModel)
 	if q.Stream {
 		if !strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "text/event-stream") {
 			crossFailure(w, r, source, 502, errorcode.UnsupportedUpstreamFeature, &gatewayinfra.ConversionError{Field: "response.content-type", Reason: "expected an SSE stream"})
 			return
 		}
-		a.crossProtocolStream(w, r, res.Body, q, p.APIFormat, source, publicModel, id)
+		a.crossProtocolStream(w, r, res.Body, q, p.APIFormat, source, publicModel, id, save)
 		return
 	}
 	raw, err = io.ReadAll(io.LimitReader(res.Body, (8<<20)+1))
@@ -201,9 +222,18 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 			observeUsageValue(usageState(r), value, "response.completed")
 		}
 	}
-	reply, err := gatewayinfra.ParseRelayReply(raw, p.APIFormat, id)
+	var reply gatewayinfra.RelayReply
+	if source == "responses" {
+		reply, err = gatewayinfra.ParseChatReplyForResponses(raw, id)
+	} else {
+		reply, err = gatewayinfra.ParseRelayReply(raw, p.APIFormat, id)
+	}
 	if err != nil {
 		crossFailure(w, r, source, 502, errorcode.UnsupportedUpstreamFeature, err)
+		return
+	}
+	if source == "responses" {
+		a.writeResponsesChatJSON(w, r, publicModel, reply, q.ResponsesNamespaces, save)
 		return
 	}
 	reply.IncludeThoughts = q.IncludeThoughts

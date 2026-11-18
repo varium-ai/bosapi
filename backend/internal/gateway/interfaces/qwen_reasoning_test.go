@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGatewayQwenReasoningEffortCompatibility(t *testing.T) {
@@ -40,6 +41,9 @@ func TestGatewayQwenReasoningEffortCompatibility(t *testing.T) {
 						upstreamModel = tc.target
 					}
 					p.Models = []string{upstreamModel}
+					if endpoint.format == "openai_responses" {
+						p.Capabilities = map[string]any{"protocol_detection": protocolDetection{APIFormat: endpoint.format, Model: upstreamModel, Fingerprint: protocolFingerprint(p), CheckedAt: time.Now()}}
+					}
 					a.data.Providers = []provider{p}
 					a.data.Keys = []apiKey{{ID: 1, Hash: digest(key), Status: "active", ProviderID: 1}}
 
