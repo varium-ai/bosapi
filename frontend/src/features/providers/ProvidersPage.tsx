@@ -49,6 +49,8 @@ import { useFirstKeyAction } from '../onboarding/useFirstKeyAction';
 import { invalidateFirstKeySetup } from '../onboarding/setupQueries';
 import { SubscriptionAuthorization, SUBSCRIPTION_DEFAULTS } from './SubscriptionAuthorization';
 
+import { hasSubscriptionUsage, SubscriptionUsageDrawer } from './SubscriptionUsageDrawer';
+
 const { Text } = Typography;
 
 const PLATFORM_DEFAULTS: Record<string, { base_url: string; api_format: string }> = {
@@ -312,6 +314,7 @@ export const ProvidersPage: React.FC = () => {
 
   const [form] = Form.useForm();
   const [detail, setDetail] = useState<Provider | null>(null);
+  const [usageProvider, setUsageProvider] = useState<Provider | null>(null);
   const cancel = useDiscardChanges(form, () => setModalVisible(false));
   const [modelPriceForm] = Form.useForm();
   const currentUser = React.useMemo(() => {
@@ -1337,6 +1340,19 @@ export const ProvidersPage: React.FC = () => {
           columns[3],
           columns[6],
           {
+            title: t('providers.usage.title'),
+            key: 'subscription_usage',
+            width: 120,
+            render: (_: unknown, record: Provider) =>
+              hasSubscriptionUsage(record) && canModifyProvider(record) ? (
+                <TableAction size="small" onClick={() => setUsageProvider(record)}>
+                  {t('providers.usage.view')}
+                </TableAction>
+              ) : (
+                '—'
+              ),
+          },
+          {
             title: t('common.actions'),
             key: 'actions',
             width: 175,
@@ -1434,7 +1450,7 @@ export const ProvidersPage: React.FC = () => {
           },
         ]}
         loading={isLoading}
-        scroll={{ x: 1090 }}
+        scroll={{ x: 1210 }}
         pagination={{
           current: page,
           pageSize,
@@ -1446,6 +1462,13 @@ export const ProvidersPage: React.FC = () => {
         }}
       />
 
+      {usageProvider && (
+        <SubscriptionUsageDrawer
+          key={usageProvider.id}
+          provider={usageProvider}
+          onClose={() => setUsageProvider(null)}
+        />
+      )}
       <PageHelp note="ux.enabled_not_healthy" />
       <Drawer
         title={detail?.name}

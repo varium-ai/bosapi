@@ -148,7 +148,8 @@ func (repository *ProviderRepository) UpdateCredentialLocked(ctx context.Context
 		if ciphertext == string(record.CredentialsCiphertext) {
 			return nil
 		}
-		return tx.Model(&record).Update("credentials_ciphertext", []byte(ciphertext)).Error
+		// Token rotation does not change channel configuration or invalidate its verification.
+		return tx.Model(&record).UpdateColumn("credentials_ciphertext", []byte(ciphertext)).Error
 	})
 	return
 }

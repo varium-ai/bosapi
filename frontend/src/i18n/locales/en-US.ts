@@ -936,6 +936,25 @@ export const enUS = {
     selected_models_count: 'Selected {count} / {total} models',
   },
   providers: {
+    usage: {
+      title: 'Subscription usage',
+      view: 'View usage',
+      description:
+        'Usage comes from the upstream subscription account and may include activity from other clients.',
+      empty: 'The upstream did not return any usage to display.',
+      window: 'Usage window',
+      five_hours: '5 hours',
+      seven_days: '7 days',
+      duration_hours: '{hours} hours',
+      used: 'Used',
+      remaining: 'Remaining',
+      resets_at: 'Resets at',
+      checked_at: 'Checked at',
+      error: 'Could not read upstream usage. Try refreshing in a moment.',
+      auth_error:
+        'The upstream rejected the account credentials. Reauthorize this provider and try again.',
+      rate_limited: 'The upstream is rate limiting usage checks. Try refreshing later.',
+    },
     title: 'Upstream Channels',
     add_provider: 'Add Upstream Provider',
     edit_provider: 'Edit Provider',

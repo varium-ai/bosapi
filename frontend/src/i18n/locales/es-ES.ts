@@ -1496,6 +1496,25 @@ export const esES: typeof enUS = {
     selected_models_count: '{count} / {total} modelos seleccionados',
   },
   providers: {
+    usage: {
+      title: 'Uso de la suscripción',
+      view: 'Ver uso',
+      description:
+        'Los datos proceden de la cuenta de suscripción del proveedor y pueden incluir el uso desde otros clientes.',
+      empty: 'El proveedor no devolvió datos de uso para mostrar.',
+      window: 'Período de uso',
+      five_hours: '5 horas',
+      seven_days: '7 días',
+      duration_hours: '{hours} horas',
+      used: 'Usado',
+      remaining: 'Restante',
+      resets_at: 'Se restablece el',
+      checked_at: 'Consultado el',
+      error: 'No se pudo consultar el uso. Vuelve a intentarlo más tarde.',
+      auth_error: 'El proveedor rechazó las credenciales. Vuelve a autorizar esta cuenta.',
+      rate_limited:
+        'El proveedor limita la frecuencia de las consultas. Vuelve a intentarlo más tarde.',
+    },
     title: 'Canales upstream',
     add_provider: 'Añadir proveedor upstream',
     edit_provider: 'Editar proveedor',
