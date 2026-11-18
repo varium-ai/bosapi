@@ -88,6 +88,30 @@ func TestUpstreamDisabledSkipsRequestInspection(t *testing.T) {
 	}
 }
 
+func TestOrganizationUpstreamDisabledSkipsRequestInspection(t *testing.T) {
+	a := testApp(t)
+	var events []SecurityEvent
+	a.background.SecurityEvents = gatewayinfra.RuleSecurityEventSink{Sink: &recordingSecurityEventSink{events: &events}}
+	upstreamEnabled, downstreamEnabled := true, true
+	orgUpstreamDisabled := false
+	key := apiKey{
+		ID: 7, OrgID: 9,
+		SecurityInspectionUpstreamEnabled: &upstreamEnabled, SecurityInspectionDownstreamEnabled: &downstreamEnabled,
+		OrgSecurityInspectionUpstreamEnabled: &orgUpstreamDisabled,
+	}
+	router := gin.New()
+	router.Use(func(ctx *gin.Context) { ctx.Set(gatewayAPIKeyContext, key); ctx.Next() }, a.gatewaySecurityMiddleware())
+	var forwarded []byte
+	router.POST("/v1/chat/completions", func(ctx *gin.Context) { forwarded, _ = io.ReadAll(ctx.Request.Body); ctx.Status(http.StatusOK) })
+	payload := `{"messages":[{"role":"user","content":"api_key=PRIVATE_KEY password=PRIVATE_PASSWORD"}]}`
+	request := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(payload))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != 200 || len(events) != 0 || string(forwarded) != payload {
+		t.Fatalf("disabled organization upstream was inspected or modified: status=%d events=%+v forwarded=%s", response.Code, events, forwarded)
+	}
+}
+
 func TestDownstreamDisabledSkipsResponseInspection(t *testing.T) {
 	a := testApp(t)
 	var events []SecurityEvent

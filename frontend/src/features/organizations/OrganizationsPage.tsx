@@ -25,6 +25,7 @@ import {
   Tooltip,
   Divider,
   Alert,
+  Switch,
 } from 'antd';
 import {
   PlusOutlined,
@@ -46,6 +47,8 @@ interface Organization {
   status: 'active' | 'disabled';
   allowed_provider_ids?: number[];
   allowed_models?: string[];
+  security_inspection_upstream_enabled?: boolean;
+  security_inspection_downstream_enabled?: boolean;
   has_active_bindings?: boolean;
   has_provider_bindings?: boolean;
   created_at?: string;
@@ -508,6 +511,8 @@ export const OrganizationsPage: React.FC = () => {
         status: values.status,
         allowed_provider_ids: duplicatingOrg ? [] : values.allowed_provider_ids || [],
         allowed_models: duplicatingOrg ? [] : values.allowed_models || [],
+        security_inspection_upstream_enabled: values.security_inspection_upstream_enabled ?? true,
+        security_inspection_downstream_enabled: values.security_inspection_downstream_enabled ?? true,
         bindings: duplicatingOrg ? values.bindings || [] : undefined,
       };
       if (editingOrg) {
@@ -609,6 +614,8 @@ export const OrganizationsPage: React.FC = () => {
       status: record.status,
       allowed_provider_ids: record.allowed_provider_ids || [],
       allowed_models: record.allowed_models || [],
+      security_inspection_upstream_enabled: record.security_inspection_upstream_enabled ?? true,
+      security_inspection_downstream_enabled: record.security_inspection_downstream_enabled ?? true,
     });
     setModalVisible(true);
   };
@@ -618,7 +625,7 @@ export const OrganizationsPage: React.FC = () => {
     setDuplicatingOrg(false);
     setEditingOrg(null);
     form.resetFields();
-    form.setFieldsValue({ status: 'active', allowed_provider_ids: [], allowed_models: [] });
+    form.setFieldsValue({ status: 'active', allowed_provider_ids: [], allowed_models: [], security_inspection_upstream_enabled: true, security_inspection_downstream_enabled: true });
     setModalVisible(true);
   };
 
@@ -1080,6 +1087,20 @@ export const OrganizationsPage: React.FC = () => {
                 </div>
               )}
             />
+          </Form.Item>
+          <Form.Item
+            name="security_inspection_upstream_enabled"
+            label={t('organizations.security_inspection_upstream', 'Upstream security inspection')}
+            extra={t('organizations.security_inspection_help', 'Disable to skip content security inspection for requests from this organization.')}
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="security_inspection_downstream_enabled"
+            label={t('organizations.security_inspection_downstream', 'Downstream security inspection')}
+            extra={t('organizations.security_inspection_help', 'Disable to skip content security inspection for responses from this organization.')}
+          >
+            <Switch />
           </Form.Item>
           {duplicatingOrg && (
             <ProviderBindingsFields providers={providersData || []} enabled={modalVisible} />

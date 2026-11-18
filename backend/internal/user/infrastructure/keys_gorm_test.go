@@ -76,8 +76,8 @@ func TestFindGatewayKeyRequiresFullSecret(t *testing.T) {
 
 	mock.ExpectQuery(keyQuery).WithArgs(fullHash[:], "active", now, 1).
 		WillReturnRows(sqlmock.NewRows(keyColumns).AddRow(7, "test key", fullHash[:], prefix, "aaaa", 3, 2, "active"))
-	mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
-		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("active"))
+	mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow("active", true, true))
 	key, found, err := repository.FindGatewayKey(context.Background(), secret, now)
 	if err != nil || !found || key.ID != 7 {
 		t.Fatalf("full secret rejected: found=%v key_id=%d err=%v", found, key.ID, err)

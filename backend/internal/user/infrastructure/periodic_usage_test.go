@@ -147,7 +147,7 @@ func TestFindActiveKeyIdentityByIDRejectsInvalidIdentityAndQueryFailures(t *test
 					policy = "invalid-json"
 				}
 				lookup.WillReturnRows(sqlmock.NewRows([]string{"id", "organization_id", "allowed_models"}).AddRow(7, 9, policy))
-				organization := mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(9))
+				organization := mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(9))
 				if phase == "organization failure" {
 					organization.WillReturnError(context.Canceled)
 				} else {
@@ -155,7 +155,7 @@ func TestFindActiveKeyIdentityByIDRejectsInvalidIdentityAndQueryFailures(t *test
 					if phase == "inactive organization" {
 						status = "disabled"
 					}
-					organization.WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(status))
+					organization.WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow(status, true, true))
 				}
 			}
 			_, found, err := repository.FindActiveKeyIdentityByID(context.Background(), 7, now)
@@ -179,8 +179,8 @@ func expectActivePortalKey(mock sqlmock.Sqlmock, now time.Time, limited bool) {
 		WithArgs(uint64(134), "active", now, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "organization_id", "status", "daily_quota_tokens", "quota_used_tokens", "quota_used_amount"}).
 			AddRow(134, 2, "active", dailyQuota, 506476, 0.506476))
-	mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
-		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("active"))
+	mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow("active", true, true))
 }
 
 func TestPeriodicUsageResetsWhenNewPeriodHasNoRows(t *testing.T) {
@@ -209,8 +209,8 @@ func expectPeriodicGatewayKey(mock sqlmock.Sqlmock, now time.Time) {
 		WithArgs(hash[:], "active", now, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "key_hash", "key_prefix", "key_suffix", "organization_id", "status", "daily_quota_tokens"}).
 			AddRow(7, hash[:], "sk-gw-", "-key", 2, "active", 100))
-	mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
-		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("active"))
+	mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow("active", true, true))
 }
 
 func periodicRows() *sqlmock.Rows {

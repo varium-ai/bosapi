@@ -135,6 +135,7 @@ type app struct {
 	usageReporting       *analyticsapp.Service
 	usageReportingWorker *analyticsinfra.Worker
 	toolSecurityPolicy   func(context.Context) (admindomain.ToolSecurityPolicy, error)
+	securityInspectionPolicy func(context.Context) (admindomain.SecurityInspectionPolicy, error)
 	maxRequestBodyBytes  int64
 	mu                   sync.Mutex
 	data                 data
@@ -245,6 +246,7 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 			a.background = normalizeBackgroundServices(services)
 		}
 		a.toolSecurityPolicy = adminapp.NewSystemSettingService(admininfra.NewSystemSettingRepository(db)).GetToolSecurityPolicy
+		a.securityInspectionPolicy = adminapp.NewSystemSettingService(admininfra.NewSystemSettingRepository(db)).GetSecurityInspectionPolicy
 	}
 	g := &Gateway{app: a}
 	if err := a.load(); err != nil {
@@ -866,7 +868,9 @@ func (a *app) databaseKey(r *http.Request) (apiKey, bool) {
 	gatewayKey := apiKey{
 		AllowedProviderIDs: key.AllowedProviderIDs, AllowedModels: key.AllowedModels,
 		ID: int(key.ID), Name: key.Name, OrgID: int(key.OrganizationID), Prefix: key.KeyPrefix, Hash: digest(secret), Status: key.Status,
-		SecurityInspectionUpstreamEnabled: &key.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: &key.SecurityInspectionDownstreamEnabled, ExpiresAt: key.ExpiresAt,
+		SecurityInspectionUpstreamEnabled: &key.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: &key.SecurityInspectionDownstreamEnabled,
+		OrgSecurityInspectionUpstreamEnabled: key.OrgSecurityInspectionUpstreamEnabled, OrgSecurityInspectionDownstreamEnabled: key.OrgSecurityInspectionDownstreamEnabled,
+		ExpiresAt:   key.ExpiresAt,
 		QuotaAmount: key.QuotaAmount, QuotaTokens: key.QuotaTokens, QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: key.QuotaUsedTokens,
 		DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
 		DailyQuotaTokens: key.DailyQuotaTokens, WeeklyQuotaTokens: key.WeeklyQuotaTokens, MonthlyQuotaTokens: key.MonthlyQuotaTokens,

@@ -110,8 +110,8 @@ func TestKeyPortalStatisticsUseScopedSnapshotsWithoutPeriodicAuthenticationQuery
 	mock.ExpectQuery("FROM `api_keys` WHERE id = \\? AND status = \\?").
 		WithArgs(uint64(134), "active", sqlmock.AnyArg(), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "organization_id", "status", "daily_quota_tokens"}).AddRow(134, 9, "active", 100))
-	mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(9)).
-		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("active"))
+	mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow("active", true, true))
 	secret := []byte("portal-snapshot-test-secret")
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"api_key_id": 134, "role": keyPortalRole, "exp": time.Now().Add(time.Hour).Unix(),
@@ -309,8 +309,8 @@ func TestKeyPortalInfoRefreshesPeriodicUsage(t *testing.T) {
 				WithArgs(uint64(134), "active", sqlmock.AnyArg(), 1).
 				WillReturnRows(sqlmock.NewRows([]string{"id", "organization_id", "status", "quota_used_tokens", "quota_used_amount"}).
 					AddRow(134, 2, "active", used, amount))
-			mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
-				WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow("active"))
+			mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
+				WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow("active", true, true))
 		}
 		mock.ExpectQuery(`SELECT api_key_id, .*FROM \(SELECT .*usage_daily_rollups FORCE INDEX .*UNION ALL SELECT .*usage_logs_v2 FORCE INDEX .*UNION ALL SELECT .*usage_logs FORCE INDEX`).
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), uint64(134), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), uint64(134), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), uint64(134), sqlmock.AnyArg()).

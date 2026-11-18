@@ -34,6 +34,8 @@ type APIKey struct {
 	Status                                                  string     `json:"status"`
 	SecurityInspectionUpstreamEnabled                       *bool      `json:"security_inspection_upstream_enabled,omitempty"`
 	SecurityInspectionDownstreamEnabled                     *bool      `json:"security_inspection_downstream_enabled,omitempty"`
+	OrgSecurityInspectionUpstreamEnabled                    *bool      `json:"org_security_inspection_upstream_enabled,omitempty"`
+	OrgSecurityInspectionDownstreamEnabled                  *bool      `json:"org_security_inspection_downstream_enabled,omitempty"`
 	ProviderID                                              int        `json:"provider_id"`
 	AllowedProviderIDs                                      []uint64   `json:"allowed_provider_ids,omitempty"`
 	AllowedModels                                           []string   `json:"allowed_models,omitempty"`

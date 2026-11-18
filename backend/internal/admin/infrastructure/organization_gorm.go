@@ -16,14 +16,16 @@ import (
 
 // OrganizationRecord maps organization tenant settings to Gorm.
 type OrganizationRecord struct {
-	ID                 uint64 `gorm:"primaryKey"`
-	Name               string `gorm:"size:128;uniqueIndex;not null"`
-	Description        string `gorm:"size:512"`
-	Status             string `gorm:"size:24;index;not null;default:active"`
-	AllowedProviderIDs string `gorm:"type:json"`
-	AllowedModels      string `gorm:"type:json"`
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                                  uint64 `gorm:"primaryKey"`
+	Name                                string `gorm:"size:128;uniqueIndex;not null"`
+	Description                         string `gorm:"size:512"`
+	Status                              string `gorm:"size:24;index;not null;default:active"`
+	AllowedProviderIDs                  string `gorm:"type:json"`
+	AllowedModels                       string `gorm:"type:json"`
+	SecurityInspectionUpstreamEnabled   bool   `gorm:"column:security_inspection_upstream_enabled;not null;default:true"`
+	SecurityInspectionDownstreamEnabled bool   `gorm:"column:security_inspection_downstream_enabled;not null;default:true"`
+	CreatedAt                           time.Time
+	UpdatedAt                           time.Time
 }
 
 // TableName maps records to the tenant table shared with the gateway.
@@ -200,7 +202,7 @@ func (repository *OrganizationRepository) Create(ctx context.Context, organizati
 	if err != nil {
 		return err
 	}
-	record := OrganizationRecord{Name: organization.Name, Description: organization.Description, Status: organization.Status, AllowedProviderIDs: string(providers), AllowedModels: string(models)}
+	record := OrganizationRecord{Name: organization.Name, Description: organization.Description, Status: organization.Status, AllowedProviderIDs: string(providers), AllowedModels: string(models), SecurityInspectionUpstreamEnabled: organization.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: organization.SecurityInspectionDownstreamEnabled}
 	var createdBindings []domain.ProviderBinding
 	err = repository.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := edition.CheckCapacity(tx, "organizations", 1); err != nil {
@@ -250,7 +252,7 @@ func (repository *OrganizationRepository) Create(ctx context.Context, organizati
 // Update synchronizes policy edits with bindings while preserving priority and
 // per-channel policies on unchanged selections. Both writers lock the same row.
 func (repository *OrganizationRepository) Update(ctx context.Context, id uint64, updates map[string]any) error {
-	allowed := map[string]struct{}{"name": {}, "description": {}, "status": {}, "allowed_provider_ids": {}, "allowed_models": {}}
+	allowed := map[string]struct{}{"name": {}, "description": {}, "status": {}, "allowed_provider_ids": {}, "allowed_models": {}, "security_inspection_upstream_enabled": {}, "security_inspection_downstream_enabled": {}}
 	values := make(map[string]any, len(updates))
 	for field, value := range updates {
 		if _, ok := allowed[field]; !ok {
@@ -363,5 +365,5 @@ func organizationDomain(record OrganizationRecord) (domain.Organization, error) 
 			return domain.Organization{}, err
 		}
 	}
-	return domain.Organization{ID: record.ID, Name: record.Name, Description: record.Description, Status: record.Status, AllowedProviderIDs: providers, AllowedModels: models, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
+	return domain.Organization{ID: record.ID, Name: record.Name, Description: record.Description, Status: record.Status, AllowedProviderIDs: providers, AllowedModels: models, SecurityInspectionUpstreamEnabled: record.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: record.SecurityInspectionDownstreamEnabled, SecurityInspectionEnabled: record.SecurityInspectionUpstreamEnabled && record.SecurityInspectionDownstreamEnabled, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
 }

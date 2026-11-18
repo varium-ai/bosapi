@@ -43,12 +43,21 @@ func requestToolCalls(r *http.Request) []domain.ToolCall {
 }
 
 func securityInspectionDisabled(r *http.Request, direction domain.ToolDirection) bool {
+	if globalSecurityInspectionDisabled(r.Context()) {
+		return true
+	}
 	key, ok := r.Context().Value(gatewayAPIKeyRequestKey{}).(apiKey)
 	if !ok {
 		return false
 	}
 	if direction == domain.ToolDirectionResponse {
+		if key.OrgSecurityInspectionDownstreamEnabled != nil && !*key.OrgSecurityInspectionDownstreamEnabled {
+			return true
+		}
 		return key.SecurityInspectionDownstreamEnabled != nil && !*key.SecurityInspectionDownstreamEnabled
+	}
+	if key.OrgSecurityInspectionUpstreamEnabled != nil && !*key.OrgSecurityInspectionUpstreamEnabled {
+		return true
 	}
 	return key.SecurityInspectionUpstreamEnabled != nil && !*key.SecurityInspectionUpstreamEnabled
 }

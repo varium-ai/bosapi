@@ -20,6 +20,8 @@ type APIKey struct {
 	Status                                                  string
 	SecurityInspectionUpstreamEnabled                       bool
 	SecurityInspectionDownstreamEnabled                     bool
+	OrgSecurityInspectionUpstreamEnabled                    *bool
+	OrgSecurityInspectionDownstreamEnabled                  *bool
 	ExpiresAt                                               *time.Time
 	QuotaAmount                                             *float64
 	QuotaTokens                                             *int64
