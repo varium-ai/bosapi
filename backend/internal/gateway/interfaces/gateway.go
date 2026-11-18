@@ -135,34 +135,34 @@ type app struct {
 	usageReporting       *analyticsapp.Service
 	usageReportingWorker *analyticsinfra.Worker
 	toolSecurityPolicy   func(context.Context) (admindomain.ToolSecurityPolicy, error)
-	securityInspectionPolicy func(context.Context) (admindomain.SecurityInspectionPolicy, error)
-	maxRequestBodyBytes  int64
-	mu                   sync.Mutex
-	data                 data
-	sessions             map[string]oauthSession
-	completed            map[string]completedOAuth
-	liveCalls            map[string]liveCall
-	path                 string
-	encryptionKey        []byte
-	client               *http.Client
-	database             *gorm.DB
-	jwtSecret            []byte
-	background           BackgroundServices
-	portalLoginLock      authDomain.LoginLockStore
-	keyExpiryWorker      *userinfra.KeyExpiryWorker
-	store                *gatewayinfra.EncryptedStore
-	keyRepository        gatewayKeyRepository
-	redisClient          redis.UniversalClient
-	monitorRedis         *redis.Client
-	usageQueue           chan usageEvent
-	usageQueueDone       chan struct{}
-	usageQueueWG         sync.WaitGroup
-	usageQueueDropped    atomic.Uint64
-	usageQueueFailed     atomic.Uint64
-	quotaMu              sync.Mutex
-	quotaAdmissions      map[string]*quotaAdmission
-	organizationQuota    organizationQuotaRuntime
-	monitorClose         func()
+
+	maxRequestBodyBytes int64
+	mu                  sync.Mutex
+	data                data
+	sessions            map[string]oauthSession
+	completed           map[string]completedOAuth
+	liveCalls           map[string]liveCall
+	path                string
+	encryptionKey       []byte
+	client              *http.Client
+	database            *gorm.DB
+	jwtSecret           []byte
+	background          BackgroundServices
+	portalLoginLock     authDomain.LoginLockStore
+	keyExpiryWorker     *userinfra.KeyExpiryWorker
+	store               *gatewayinfra.EncryptedStore
+	keyRepository       gatewayKeyRepository
+	redisClient         redis.UniversalClient
+	monitorRedis        *redis.Client
+	usageQueue          chan usageEvent
+	usageQueueDone      chan struct{}
+	usageQueueWG        sync.WaitGroup
+	usageQueueDropped   atomic.Uint64
+	usageQueueFailed    atomic.Uint64
+	quotaMu             sync.Mutex
+	quotaAdmissions     map[string]*quotaAdmission
+	organizationQuota   organizationQuotaRuntime
+	monitorClose        func()
 
 	organizationPendingMu    sync.Mutex
 	organizationPending      map[uint64]*organizationPendingReceipts
@@ -246,7 +246,6 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 			a.background = normalizeBackgroundServices(services)
 		}
 		a.toolSecurityPolicy = adminapp.NewSystemSettingService(admininfra.NewSystemSettingRepository(db)).GetToolSecurityPolicy
-		a.securityInspectionPolicy = adminapp.NewSystemSettingService(admininfra.NewSystemSettingRepository(db)).GetSecurityInspectionPolicy
 	}
 	g := &Gateway{app: a}
 	if err := a.load(); err != nil {

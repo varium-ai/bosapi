@@ -1059,6 +1059,16 @@ export const deDE: typeof enUS = {
     severity_warning: 'Warnung',
     severity_high: 'Hoch',
     severity_critical: 'Kritisch',
+    mode_title: 'Globaler Werkzeug-Sicherheitsmodus',
+    mode_observe: 'observe · Protokollieren und erlauben',
+    mode_block: 'block · Prüfungen erzwingen',
+    mode_disabled: 'disabled · Sicherheitsprüfung überspringen',
+    mode_note:
+      'Gilt für alle Organisationen. Observe protokolliert fehlerhafte und nicht deklarierte Werkzeuge und leitet Originaldaten weiter. Block lehnt fehlerhafte und nicht deklarierte Werkzeuge ab. Disabled überspringt die Inhaltsprüfung, ohne Authentifizierung, Quoten, Ratenlimits oder Zugriffsrechte zu beeinträchtigen. Standard ist observe. Änderungen gelten für neue Anfragen und Verbindungen.',
+    mode_saved: 'Sicherheitsmodus gespeichert. Gilt für neue Anfragen und Verbindungen.',
+    mode_save_error:
+      'Modus konnte nicht gespeichert werden. Aktualisieren Sie zur Prüfung der aktuellen Einstellung.',
+    mode_load_error: 'Modus konnte nicht geladen werden. Aktualisieren und erneut versuchen.',
     organization: 'Organisations-ID (0 = Basisregeln)',
     rule_id: 'Regel-ID',
     rule_name: 'Name',

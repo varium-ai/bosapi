@@ -43,8 +43,6 @@ func (handler *SystemSettingHandler) RegisterPublicRoutes(group *gin.RouterGroup
 func (handler *SystemSettingHandler) RegisterAdminRoutes(group *gin.RouterGroup) {
 	group.GET("/tool-security-policy", handler.getToolSecurityPolicy)
 	group.PUT("/tool-security-policy", handler.updateToolSecurityPolicy)
-	group.GET("/security-inspection-policy", handler.getSecurityInspectionPolicy)
-	group.PUT("/security-inspection-policy", handler.updateSecurityInspectionPolicy)
 	group.GET("/settings/gateway-endpoints", handler.getGatewayEndpoints)
 	group.PUT("/settings/gateway-endpoints", handler.updateGatewayEndpoints)
 	group.DELETE("/settings/gateway-endpoints", handler.resetGatewayEndpoints)
@@ -250,10 +248,6 @@ func (handler *SystemSettingHandler) setSetting(ctx *gin.Context) {
 		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "use the tool-security-policy endpoint")
 		return
 	}
-	if key == domain.SettingKeySecurityInspectionMode {
-		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "use the security-inspection-policy endpoint")
-		return
-	}
 	if key == application.SettingKeyMessageNotifications {
 		httpapi.WriteError(ctx, http.StatusNotFound, errorcode.NotFound, "setting was not found")
 		return
@@ -282,10 +276,6 @@ func (handler *SystemSettingHandler) deleteSetting(ctx *gin.Context) {
 	}
 	if key == domain.SettingKeyToolSecurityMode {
 		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "use the tool-security-policy endpoint")
-		return
-	}
-	if key == domain.SettingKeySecurityInspectionMode {
-		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "use the security-inspection-policy endpoint")
 		return
 	}
 	if key == application.SettingKeyMessageNotifications {

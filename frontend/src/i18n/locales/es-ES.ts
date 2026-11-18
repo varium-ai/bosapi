@@ -1052,6 +1052,16 @@ export const esES: typeof enUS = {
     severity_warning: 'Advertencia',
     severity_high: 'Alta',
     severity_critical: 'Crítica',
+    mode_title: 'Modo global de seguridad de herramientas',
+    mode_observe: 'observe · Registrar y permitir',
+    mode_block: 'block · Aplicar comprobaciones',
+    mode_disabled: 'disabled · Omitir inspección de contenido',
+    mode_note:
+      'Se aplica a todas las organizaciones. Observe registra herramientas mal formadas y no declaradas, reenviando los datos originales. Block rechaza herramientas mal formadas y no declaradas. Disabled omite la inspección de contenido sin afectar autenticación, cuotas, límites de tasa ni control de acceso. Por defecto: observe. Los cambios se aplican a nuevas solicitudes y conexiones.',
+    mode_saved: 'Modo guardado. Se aplica a nuevas solicitudes y conexiones.',
+    mode_save_error:
+      'No se pudo guardar el modo. Actualiza para confirmar la configuración actual.',
+    mode_load_error: 'No se pudo cargar el modo. Actualiza y vuelve a intentarlo.',
     organization: 'ID de organización (0 = base)',
     rule_id: 'ID de regla',
     rule_name: 'Nombre',

@@ -22,12 +22,14 @@ func TestToolSecurityPolicyHTTP(t *testing.T) {
 		{"GET", "/tool-security-policy", "", 200, `"mode":"observe"`},
 		{"PUT", "/tool-security-policy", `{"mode":"block"}`, 200, `"mode":"block"`},
 		{"GET", "/tool-security-policy", "", 200, `"mode":"block"`},
+		{"PUT", "/tool-security-policy", `{"mode":"disabled"}`, 200, `"mode":"disabled"`},
+		{"GET", "/tool-security-policy", "", 200, `"mode":"disabled"`},
 		{"PUT", "/tool-security-policy", `{"mode":"invalid"}`, 400, "invalid_request"},
 		{"PUT", "/tool-security-policy", `{}`, 400, "invalid_request"},
 		{"PUT", "/tool-security-policy", `{`, 400, "invalid_request"},
 		{"PUT", "/settings/security.tool_call_mode", `{"value_text":"observe"}`, 400, "invalid_request"},
 		{"DELETE", "/settings/security.tool_call_mode", "", 400, "invalid_request"},
-		{"GET", "/tool-security-policy", "", 200, `"mode":"block"`},
+		{"GET", "/tool-security-policy", "", 200, `"mode":"disabled"`},
 	} {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, httptest.NewRequest(test.method, "/api/v1/admin"+test.path, strings.NewReader(test.body)))

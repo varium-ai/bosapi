@@ -253,11 +253,6 @@ func (a *app) gatewaySecurityMiddleware() gin.HandlerFunc {
 		apiKey := keyValue.(apiKey)
 		upstreamDisabled := apiKey.SecurityInspectionUpstreamEnabled != nil && !*apiKey.SecurityInspectionUpstreamEnabled
 		organizationDisabled := apiKey.OrgSecurityInspectionUpstreamEnabled != nil && !*apiKey.OrgSecurityInspectionUpstreamEnabled
-		inspectionPolicy, inspectionPolicyErr := a.readSecurityInspectionPolicy(c.Request.Context())
-		if inspectionPolicyErr != nil {
-			logging.Event(c.Request.Context(), "WARN", "gateway.security_inspection_policy.read_failed", "could not read security inspection mode")
-		}
-		c.Request = withSecurityInspectionMode(c.Request, inspectionPolicy.Mode)
 		var policy admindomain.ToolSecurityPolicy
 		var err error
 		policy, err = a.readToolSecurityPolicy(c.Request.Context())
