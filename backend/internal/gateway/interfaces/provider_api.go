@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -129,7 +130,7 @@ func (a *app) direct(ctx context.Context, p provider, method, path string, paylo
 		logging.Printf(ctx, "ERROR", "gateway.upstream.request_build_failed", "provider_id=%d path=%s err=%v", p.ID, path, err)
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, strings.NewReader(string(payload)))
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		observeUpstreamResult(ctx, p, nil, err)
 		logging.Printf(ctx, "ERROR", "gateway.upstream.request_build_failed", "provider_id=%d path=%s err=%v", p.ID, path, err)
@@ -348,7 +349,7 @@ func rewriteModelInJSON(payload []byte, mapping map[string]string) []byte {
 		return payload
 	}
 	var doc map[string]any
-	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.UseNumber()
 	if err := decoder.Decode(&doc); err != nil {
 		return payload

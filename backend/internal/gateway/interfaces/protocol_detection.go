@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -232,7 +233,7 @@ func (a *app) protocolProbeRequest(ctx context.Context, p provider, resource str
 	if err != nil {
 		return 0, nil
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(payload)))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return 0, nil
 	}

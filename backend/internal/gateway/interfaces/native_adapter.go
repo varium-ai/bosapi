@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -221,7 +222,7 @@ func (a *app) anthropicUpstreamError(w http.ResponseWriter, r *http.Request, p p
 	}
 	if json.Unmarshal(raw, &envelope) != nil || envelope.Error.Type == "" || envelope.Error.Message == "" {
 		// Shared handling needs an unread body, including 429 quota classification.
-		res.Body = io.NopCloser(strings.NewReader(string(raw)))
+		res.Body = io.NopCloser(bytes.NewReader(raw))
 		return false
 	}
 	if retry := res.Header.Get("Retry-After"); retry != "" {
@@ -232,7 +233,7 @@ func (a *app) anthropicUpstreamError(w http.ResponseWriter, r *http.Request, p p
 	}
 	if res.StatusCode == 429 {
 		copyResponse := *res
-		copyResponse.Body = io.NopCloser(strings.NewReader(string(raw)))
+		copyResponse.Body = io.NopCloser(bytes.NewReader(raw))
 		rec := &recordingWriter{header: make(http.Header)}
 		writeUpstreamLimitError(rec, &copyResponse, time.Now())
 		for name, values := range rec.header {
@@ -277,7 +278,7 @@ func (a *app) nativeRoundTrip(r *http.Request, p provider, path string, payload 
 		query.Set("beta", "true")
 	}
 	parsed.RawQuery = query.Encode()
-	req, err := http.NewRequestWithContext(r.Context(), r.Method, parsed.String(), strings.NewReader(string(payload)))
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, parsed.String(), bytes.NewReader(payload))
 	if err != nil {
 		observeUpstreamResult(r.Context(), p, nil, err)
 		return nil, func() {}, err

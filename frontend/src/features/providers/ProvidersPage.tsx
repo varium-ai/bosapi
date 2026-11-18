@@ -347,8 +347,8 @@ export const ProvidersPage: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['provider-models', selectedProvider.id] });
         await discoverModels(selectedProvider.id, true);
       }
-    } catch (err: any) {
-      reportConfigurationError(error);
+    } catch (err) {
+      reportConfigurationError(err);
     } finally {
       setIsSyncingKb(false);
     }

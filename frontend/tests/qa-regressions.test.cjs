@@ -20,6 +20,7 @@ function load(file, mocks = {}) {
     exports,
     URLSearchParams,
     window: mocks.window,
+    localStorage: mocks.localStorage,
     require: name =>
       Object.hasOwn(mocks, name)
         ? mocks[name]
@@ -90,7 +91,7 @@ test('prompt-cache pricing is preserved, explicitly free, and submitted with rat
   );
 });
 
-function pageHarness(file, { search = '', logs = {}, draft = {} } = {}) {
+function pageHarness(file, { search = '', logs = {}, draft = {}, overrides = {} } = {}) {
   const queries = [];
   const mutations = [];
   const effects = [];
@@ -101,6 +102,7 @@ function pageHarness(file, { search = '', logs = {}, draft = {} } = {}) {
     ...react,
     useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
     useRef: initial => ({ current: initial }),
+    useMemo: callback => callback(),
     useEffect: () => {},
   };
   function Form() {}
@@ -112,7 +114,12 @@ function pageHarness(file, { search = '', logs = {}, draft = {} } = {}) {
     react: { ...hooks, default: hooks },
     dayjs: { default: require('dayjs') },
     antd: new Proxy(
-      { Form, Typography: { Text: 'Text', Paragraph: 'Paragraph', Link: 'Link' }, message: {} },
+      {
+        Form,
+        Typography: { Text: 'Text', Paragraph: 'Paragraph', Link: 'Link' },
+        Input: { Password: 'Input.Password', TextArea: 'Input.TextArea' },
+        message: {},
+      },
       { get: (target, key) => target[key] || key },
     ),
     '@ant-design/icons': common,
@@ -167,6 +174,7 @@ function pageHarness(file, { search = '', logs = {}, draft = {} } = {}) {
     './requestTiming': { formatFirstTokenLatency: String },
     './diagnostics': { logFields: () => ({}), entryDiagnosis: () => ({}) },
   };
+  Object.assign(mocks, overrides);
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   for (const match of source.matchAll(/from ['"]([^'"]+)['"]/g)) {
     if (match[1].startsWith('.') && !Object.hasOwn(mocks, match[1])) mocks[match[1]] = common;
@@ -179,6 +187,46 @@ function elements(node, predicate) {
   const found = node.type && predicate(node) ? [node] : [];
   return found.concat(...Object.values(node.props || {}).map(child => elements(child, predicate)));
 }
+
+test('provider knowledge base sync reports the POST error, not the provider list error', async () => {
+  const syncError = new Error('knowledge base sync failed');
+  const listError = new Error('provider list failed');
+  const reports = [];
+  const postPaths = [];
+  const ui = pageHarness('features/providers/ProvidersPage.tsx', {
+    draft: null,
+    overrides: {
+      localStorage: { getItem: () => '{"role":"super_admin"}' },
+      '../../api/client': {
+        apiClient: {
+          post: async url => {
+            postPaths.push(url);
+            throw syncError;
+          },
+        },
+      },
+      '@tanstack/react-query': {
+        useQuery: ({ queryKey }) => ({
+          error: queryKey[0] === 'providers' ? listError : undefined,
+        }),
+        useMutation: () => ({ isPending: false }),
+        useQueryClient: () => ({}),
+      },
+      '../onboarding/useFirstKeyAction': { useFirstKeyAction: () => '' },
+      '../diagnostics/reportConfigurationError': {
+        reportConfigurationError: error => reports.push(error),
+      },
+    },
+  });
+  const [button] = elements(
+    ui.module.ProvidersPage({}),
+    node => node.type === 'Button' && node.props.children === 'providers.btn_sync_kb',
+  );
+  assert.ok(button);
+  await button.props.onClick();
+  assert.deepEqual(postPaths, ['/admin/model-metadata/sync?source=openrouter']);
+  assert.deepEqual(reports, [syncError]);
+});
 
 test('all usage views reject inverted dates, including manual refresh, and clear preserves the view', () => {
   for (const view of ['records', 'daily', 'weekly', 'monthly', 'organizations']) {
