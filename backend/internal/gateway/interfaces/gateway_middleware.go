@@ -194,6 +194,10 @@ func (a *app) gatewayAccessLogMiddleware() gin.HandlerFunc {
 			level = "ERROR"
 			outcome = "error"
 		}
+		// Caller hang-ups are normal client behavior, not a gateway fault.
+		if code == errorcode.ClientDisconnected {
+			level = "WARN"
+		}
 		logging.Printf(c.Request.Context(), level, "gateway.request.completed", "method=%s endpoint=%s status=%d result_status=%d error_code=%s duration_ms=%d api_key_id=%d provider_id=%d model=%s operation=%s outcome=%s %s %s", c.Request.Method, endpoint, c.Writer.Status(), resultStatus, code, time.Since(start).Milliseconds(), keyID, providerID, requestModel(c.Request), requestOperation(c.Request), outcome, diagnostic, upstreamDiagnosticSummary(c.Request.Context()))
 	}
 }

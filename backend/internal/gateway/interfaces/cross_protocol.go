@@ -25,7 +25,7 @@ func conversionEnvelope(source string, code errorcode.Code, err error) map[strin
 	}
 	detail := map[string]any{"code": string(code), "type": "invalid_request_error", "param": field, "message": field + ": " + reason}
 	switch code {
-	case errorcode.UnsupportedUpstreamFeature, errorcode.UpstreamError, errorcode.UpstreamTimeout, errorcode.DeliveryInterrupted:
+	case errorcode.UnsupportedUpstreamFeature, errorcode.UpstreamError, errorcode.UpstreamTimeout, errorcode.DeliveryInterrupted, errorcode.ClientDisconnected:
 		detail["type"] = "api_error"
 	}
 	envelope := map[string]any{"error": detail}

@@ -32,6 +32,7 @@ export function errorDiagnosis(code: string): string {
         provider_unavailable: 'unavailable',
         upstream_error: 'upstream',
         upstream_timeout: 'timeout',
+        client_disconnected: 'request_canceled',
         provider_auth_failed: 'auth',
         model_not_allowed: 'model',
         invalid_provider: 'provider',
