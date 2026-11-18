@@ -47,7 +47,7 @@ func TestCrossStreamFailureDiagnosticsAndUsageAgree(t *testing.T) {
 		{name: "unsupported delta field", response: strings.Replace(crossClaudeStream, `"type":"text_delta",`, `"type":"text_delta","future_field":"PRIVATE_METADATA",`, 1), stage: "response_conversion", code: "unsupported_upstream_feature", param: "response.delta.future_field", reason: "unsupported in this protocol conversion", streamContext: `stream_frame=3 stream_event="content_block_delta" stream_block_index=0`, resultStatus: 502},
 		{name: "read interrupted", response: start, readErr: io.ErrUnexpectedEOF, stage: "response_read", code: "upstream_error", param: "response.stream", reason: "unexpected EOF", streamContext: `stream_frame=2 stream_event="read"`, resultStatus: 502},
 		{name: "read timeout", response: start, readErr: context.DeadlineExceeded, stage: "response_read", code: "upstream_timeout", param: "response.stream", reason: "timeout", resultStatus: 504},
-		{name: "read canceled", response: start, readErr: context.Canceled, stage: "response_read", code: "upstream_error", param: "response.stream", reason: "request_canceled", resultStatus: 502},
+		{name: "read canceled", response: start, readErr: context.Canceled, stage: "response_read", code: "client_disconnected", param: "response.stream", reason: "request_canceled", resultStatus: 502},
 		{name: "upstream error event", response: start + "event: error\ndata: " + `{"type":"error","error":{"type":"overloaded_error","message":"PRIVATE_PROVIDER_MESSAGE"}}` + "\n\n", stage: "upstream_stream", code: "upstream_error", param: "response.error", reason: "overloaded_error", streamContext: `stream_frame=2 stream_event="error"`, resultStatus: 502},
 		{name: "unknown upstream error type", response: start + "event: error\ndata: " + `{"type":"error","error":{"type":"PRIVATE_PROVIDER_TYPE","message":"PRIVATE_PROVIDER_MESSAGE"}}` + "\n\n", stage: "upstream_stream", code: "upstream_error", param: "response.error", reason: "unknown", resultStatus: 502},
 		{name: "oversized SSE line", response: start + "data: " + strings.Repeat("PRIVATE_OVERSIZE", 100000), stage: "response_conversion", code: "unsupported_upstream_feature", param: "response.stream", reason: "SSE frame exceeds limit", resultStatus: 502},
@@ -77,7 +77,11 @@ func TestCrossStreamFailureDiagnosticsAndUsageAgree(t *testing.T) {
 			}
 			a.routes().ServeHTTP(writer, r)
 			line := completedDiagnostic(t, logs.String())
-			for _, want := range []string{"level=ERROR", "status=200", "outcome=error", "error_code=" + tc.code, "failure_stage=" + tc.stage, `error_param="` + tc.param + `"`, tc.reason, tc.streamContext, "upstream_status=200", `upstream_request_id="upstream-diagnostic-123"`} {
+			wantLevel := "ERROR"
+			if tc.code == "client_disconnected" {
+				wantLevel = "WARN"
+			}
+			for _, want := range []string{"level=" + wantLevel, "status=200", "outcome=error", "error_code=" + tc.code, "failure_stage=" + tc.stage, `error_param="` + tc.param + `"`, tc.reason, tc.streamContext, "upstream_status=200", `upstream_request_id="upstream-diagnostic-123"`} {
 				if !strings.Contains(line, want) {
 					t.Fatalf("missing %q in completion: %s", want, line)
 				}
@@ -119,6 +123,7 @@ func TestCrossJSONReadFailureDiagnosticsAndUsageAgree(t *testing.T) {
 	}{
 		{"interrupted", "upstream_error", io.ErrUnexpectedEOF, 502},
 		{"timeout", "upstream_timeout", context.DeadlineExceeded, 504},
+		{"canceled", "client_disconnected", context.Canceled, 502},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			logs := captureUpstreamLogs(t)

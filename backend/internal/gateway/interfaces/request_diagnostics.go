@@ -151,6 +151,10 @@ func recordResponseReadFailure(r *http.Request, param string, err error) errorco
 	if reason == "timeout" {
 		code = errorcode.UpstreamTimeout
 	}
+	// A canceled context means the caller hung up, not an upstream fault.
+	if reason == "request_canceled" {
+		code = errorcode.ClientDisconnected
+	}
 	if errors.Is(err, io.ErrUnexpectedEOF) {
 		reason = "unexpected EOF"
 	}
@@ -184,6 +188,10 @@ func recordGatewayFailure(r *http.Request, stage string, code errorcode.Code, pa
 	level := "WARN"
 	if stage == "response_conversion" || stage == "response_read" || stage == "response_write" || stage == "upstream_stream" || stage == "provider_configuration" || stage == "quota_accounting" {
 		level = "ERROR"
+	}
+	// Caller hang-ups are normal client behavior, not a gateway fault.
+	if code == errorcode.ClientDisconnected {
+		level = "WARN"
 	}
 	logging.Printf(r.Context(), level, "gateway.request.failed", "method=%s endpoint=%s provider_id=%d provider_name=%q target_protocol=%q error_code=%s %s", r.Method, gatewayLogEndpoint(r), p.ID, clean(p.Name, 128), clean(p.APIFormat, 32), code, summary)
 }

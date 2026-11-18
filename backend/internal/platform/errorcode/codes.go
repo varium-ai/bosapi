@@ -43,6 +43,7 @@ const (
 	UnsupportedUpstreamFeature    Code = "unsupported_upstream_feature"
 	UpstreamError                 Code = "upstream_error"
 	UpstreamTimeout               Code = "upstream_timeout"
+	ClientDisconnected            Code = "client_disconnected"
 	StorageFailed                 Code = "storage_failed"
 	SyncFailed                    Code = "sync_failed"
 
