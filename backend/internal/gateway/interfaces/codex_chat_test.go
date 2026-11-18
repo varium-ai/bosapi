@@ -264,7 +264,7 @@ func TestCodexChatGatewayRouteAndToolPolicy(t *testing.T) {
 	}
 }
 
-func TestCodexChatGatewayReasoningEffort(t *testing.T) {
+func TestCodexChatGatewayReasoningEffortWithSummaryHint(t *testing.T) {
 	for _, streaming := range []bool{false, true} {
 		t.Run(map[bool]string{false: "json", true: "stream"}[streaming], func(t *testing.T) {
 			a, key := geminiTestApp(t)
@@ -273,13 +273,16 @@ func TestCodexChatGatewayReasoningEffort(t *testing.T) {
 			a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				called = true
 				raw, _ := io.ReadAll(r.Body)
-				if !strings.Contains(string(raw), `"reasoning":{"effort":"max"}`) || strings.Contains(string(raw), `"reasoning_effort"`) {
+				if !strings.Contains(string(raw), `"reasoning":{"effort":"max"}`) || strings.Contains(string(raw), `"reasoning_effort"`) || strings.Contains(string(raw), `"reasoning_summary"`) {
 					t.Fatalf("bad upstream body: %s", raw)
+				}
+				if !strings.Contains(string(raw), `"service_tier":"priority"`) {
+					t.Fatalf("upstream service tier missing: %s", raw)
 				}
 				stream := `data: {"type":"response.completed","response":{"id":"id","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":2,"output_tokens":1}}}` + "\n\n"
 				return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(stream))}, nil
 			})}
-			request := `{"model":"alias","reasoning_effort":"max","messages":[{"role":"user","content":"test"}]`
+			request := `{"model":"alias","reasoning_effort":"max","reasoning_summary":"detailed","service_tier":"priority","messages":[{"role":"user","content":"test"}]`
 			if streaming {
 				request += `,"stream":true`
 			}

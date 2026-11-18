@@ -1,0 +1,92 @@
+.heading {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.account {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.windows {
+  display: grid;
+  gap: 12px;
+}
+
+.cardHeader,
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.cardHeader {
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.windowTitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.windowTitle h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.meta,
+.remaining,
+.cardFooter,
+.timestamp {
+  color: var(--gray);
+  font-size: 12px;
+}
+
+.meta {
+  display: block;
+  margin-top: 2px;
+}
+
+.remaining {
+  display: grid;
+  justify-items: end;
+  flex: none;
+}
+
+.remaining strong {
+  color: var(--ink);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.progress {
+  display: block;
+  margin: 0;
+}
+
+.cardFooter {
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.used strong {
+  margin-inline-start: 3px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.timestamp {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.timestamp time {
+  font-variant-numeric: tabular-nums;
+}

@@ -58,7 +58,7 @@ func (builder *chatHistoryBuilder) append(block RelayBlock) error {
 		builder.text.WriteString(block.Text)
 	case "image":
 		builder.hasText = true
-		builder.images = append(builder.images, map[string]any{"type": "image_url", "image_url": map[string]any{"url": relayImageURL(block)}})
+		builder.images = append(builder.images, chatImagePart(block))
 	case "tool_use":
 		args, err := json.Marshal(block.Input)
 		if err != nil {
@@ -67,4 +67,12 @@ func (builder *chatHistoryBuilder) append(block RelayBlock) error {
 		builder.calls = append(builder.calls, map[string]any{"id": block.ID, "type": "function", "function": map[string]any{"name": block.Name, "arguments": string(args)}})
 	}
 	return nil
+}
+
+func chatImagePart(block RelayBlock) map[string]any {
+	image := map[string]any{"url": relayImageURL(block)}
+	if block.ImageDetail != "" {
+		image["detail"] = block.ImageDetail
+	}
+	return map[string]any{"type": "image_url", "image_url": image}
 }

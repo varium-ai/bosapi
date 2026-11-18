@@ -73,6 +73,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   response => {
     if (
+      !response.config.silent &&
       /\/admin\/(providers|organizations|keys)(?:\/|$)/.test(response.config.url || '') &&
       ['post', 'put', 'patch', 'delete'].includes(response.config.method?.toLowerCase() || '') &&
       response.config._configurationPath === window.location.pathname

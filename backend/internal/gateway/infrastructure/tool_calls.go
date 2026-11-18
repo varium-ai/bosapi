@@ -286,7 +286,7 @@ func (parser *ToolCallParser) message(value map[string]any, calls *[]domain.Tool
 func (parser *ToolCallParser) item(value map[string]any, calls *[]domain.ToolCall) error {
 	switch value["type"] {
 	case "function_call":
-		return parser.invocation(domain.ToolProtocolOpenAI, responseCallID(value), stringField(value, "name"), value["arguments"], true, calls)
+		return parser.invocation(domain.ToolProtocolOpenAI, responseCallID(value), responsesFunctionItemName(value), value["arguments"], true, calls)
 	case "function_call_output":
 		return parser.result(domain.ToolProtocolOpenAI, stringField(value, "call_id"), value["output"], false, calls)
 	case "tool_use":

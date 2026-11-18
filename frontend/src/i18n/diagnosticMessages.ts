@@ -90,9 +90,12 @@ export const diagnosticEnglish = {
   hint_model: 'Check organization model access, the channel model list and model mapping.',
   diagnosis_provider: 'Channel configuration or access check failed',
   hint_provider: 'Check whether the channel is active and allowed for this organization and key.',
+  diagnosis_previous_response_not_found: 'Previous response not found or expired',
+  hint_previous_response_not_found:
+    'Use a stored response ID for the same channel and model, or resend the full conversation history.',
   diagnosis_conversion: 'Requested protocol conversion is unsupported',
   hint_conversion:
-    'Check the endpoint and channel API format. Use a supported native protocol or conversion.',
+    'Use the failed field and reason below to check request compatibility with the channel API format.',
   diagnosis_response_conversion: 'Upstream response conversion failed',
   hint_response_conversion:
     'Check the failed field, reason and SSE event below. Upstream HTTP 200 confirms response headers were received, not that the converted stream completed.',
@@ -214,8 +217,10 @@ export const diagnosticChinese: Record<keyof typeof diagnosticEnglish, string> =
   hint_model: '检查组织模型授权、渠道模型列表及模型映射。',
   diagnosis_provider: '渠道配置或访问检查失败',
   hint_provider: '检查所选渠道是否启用，以及组织和密钥是否允许访问该渠道。',
+  diagnosis_previous_response_not_found: '上一条响应不存在或已过期',
+  hint_previous_response_not_found: '使用同一渠道和模型已保存的响应 ID，或重新发送完整会话历史。',
   diagnosis_conversion: '不支持当前协议转换',
-  hint_conversion: '检查请求接口与渠道 API 协议类型，改用受支持的原生协议或转换方式。',
+  hint_conversion: '根据下方的失败字段和原因，检查该请求是否兼容当前渠道的 API 协议。',
   diagnosis_response_conversion: '上游响应协议转换失败',
   hint_response_conversion:
     '查看下方失败字段、原因及 SSE 事件。上游 HTTP 200 仅说明已收到响应头，不代表转换后的流完整成功。',

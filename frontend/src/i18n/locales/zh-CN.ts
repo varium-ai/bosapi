@@ -591,6 +591,9 @@ export const zhCN = {
     no_models: '尚未配置模型。请先接入自己的 LLM 服务，发现模型并设置组织访问权限。',
   },
   key_portal: {
+    models_title: '可用模型',
+    model_id: '模型 ID',
+    models_empty: '当前 API Key 暂无可用模型。',
     guide_title: '开始使用这把 API Key',
     guide_desc:
       '调用支持的模型接口时，在 Authorization 请求头中使用此 Key。用量和限制均按当前 Key 统计。',
@@ -888,6 +891,23 @@ export const zhCN = {
     selected_models_count: '已选 {count} / {total} 个模型',
   },
   providers: {
+    usage: {
+      title: '订阅用量',
+      view: '查看用量',
+      description: '用量来自上游订阅账号，可能包含通过其他客户端产生的用量。',
+      empty: '上游未返回可显示的用量。',
+      window: '用量窗口',
+      five_hours: '5 小时',
+      seven_days: '7 天',
+      duration_hours: '{hours} 小时',
+      used: '已用',
+      remaining: '剩余',
+      resets_at: '重置时间',
+      checked_at: '查询时间',
+      error: '暂时无法读取上游用量，请稍后刷新。',
+      auth_error: '上游拒绝了账号凭证。请重新授权此渠道后再试。',
+      rate_limited: '上游限制了查询频率，请稍后刷新。',
+    },
     title: '上游渠道',
     add_provider: '添加上游渠道',
     edit_provider: '编辑渠道',

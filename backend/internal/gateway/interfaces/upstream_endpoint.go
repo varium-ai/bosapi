@@ -3,11 +3,19 @@ package interfaces
 import (
 	"errors"
 	"net/url"
+	"strings"
 
 	"bosapi/backend/internal/platform/upstreamurl"
 )
 
 func providerEndpoint(p provider, resource string) (string, error) {
+	if p.APIFormat == "openai_chat" && strings.Trim(resource, "/") == "chat/completions" {
+		if base, err := url.Parse(p.BaseURL); err == nil && strings.HasSuffix(strings.TrimRight(base.Path, "/"), "/responses") {
+			base.Path = strings.TrimSuffix(strings.TrimRight(base.Path, "/"), "/responses")
+			base.RawPath = ""
+			p.BaseURL = base.String()
+		}
+	}
 	return upstreamurl.BuildEndpoint(p.BaseURL, p.APIFormat, resource)
 }
 

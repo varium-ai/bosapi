@@ -20,6 +20,16 @@ import { errorDiagnosis } from '../requestlogs/diagnostics';
 import { FailureDetails } from './FailureDetails';
 import { ERROR_WINDOW_MINUTES, errorQueryOptions, errorWindowMinutes } from './errorQuery';
 
+const ERROR_WINDOW_STORAGE_KEY = 'bosapi.errors.window_minutes';
+
+function readSavedWindowMinutes() {
+  try {
+    return errorWindowMinutes(window.localStorage.getItem(ERROR_WINDOW_STORAGE_KEY));
+  } catch {
+    return errorWindowMinutes(null);
+  }
+}
+
 export const ErrorsPage: React.FC = () => {
   const { t, formatDateTime, formatNumber, timezoneBadge } = useI18n();
   const [params, setParams] = useSearchParams();
@@ -29,7 +39,19 @@ export const ErrorsPage: React.FC = () => {
   const searchModel = useDebouncedValue(modelFilter);
   const filterCode = params.get('error_code') || '';
   const searchCode = useDebouncedValue(filterCode);
-  const windowMinutes = errorWindowMinutes(params.get('window_minutes'));
+  const [preferredWindowMinutes, setPreferredWindowMinutes] =
+    React.useState(readSavedWindowMinutes);
+  const requestedWindow = params.get('window_minutes');
+  const windowMinutes =
+    requestedWindow === null ? preferredWindowMinutes : errorWindowMinutes(requestedWindow);
+  const rememberWindowMinutes = (minutes: number) => {
+    setPreferredWindowMinutes(minutes);
+    try {
+      window.localStorage.setItem(ERROR_WINDOW_STORAGE_KEY, String(minutes));
+    } catch {
+      // The URL still tracks the current selection if storage is unavailable.
+    }
+  };
   const pageSize = [10, 20, 50, 100].includes(Number(params.get('page_size')))
     ? Number(params.get('page_size'))
     : 20;
@@ -179,9 +201,8 @@ export const ErrorsPage: React.FC = () => {
               ),
             }))}
             onChange={value => {
-              const next = new URLSearchParams(params);
-              next.set('window_minutes', String(value));
-              setParams(next, { replace: true });
+              rememberWindowMinutes(value);
+              updateFilter('window_minutes', String(value));
             }}
           />
           <SearchInput
@@ -256,7 +277,14 @@ export const ErrorsPage: React.FC = () => {
       )}
       {(organizationID || keyID || modelFilter || filterCode || windowMinutes !== 5) && (
         <Space wrap style={{ marginBottom: 16 }}>
-          <Button onClick={() => setParams({})}>{t('ux.clear')}</Button>
+          <Button
+            onClick={() => {
+              rememberWindowMinutes(errorWindowMinutes(null));
+              setParams({});
+            }}
+          >
+            {t('ux.clear')}
+          </Button>
         </Space>
       )}
       <Table

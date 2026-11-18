@@ -337,8 +337,19 @@ cryptographic signature; native Anthropic signatures remain unsupported by Chat.
 For Claude Code, set `ANTHROPIC_BASE_URL` to the BOS root, use a BOS key in
 `ANTHROPIC_AUTH_TOKEN`, and select an authorized model/alias in `ANTHROPIC_MODEL`.
 Use text/custom-tool requests and the supported beta flags.
-`/v1/messages/count_tokens` remains unsupported for Chat providers, as do
-Messages requests to `openai_responses`, `custom` and `realtime` providers.
+`/v1/messages/count_tokens` returns a local advisory estimate for `openai_chat`
+providers (including the legacy empty format). It validates the same supported
+Messages subset and capability headers as the Chat bridge, and counts the
+converted system/messages, tool definitions/choice and structured-output schema
+with O200kBase plus message framing overhead. It makes no upstream request and
+does not charge token or monetary quotas. The JSON response retains the
+Anthropic `{input_tokens: N}` shape; `X-BOS-Token-Count-Estimated: true` and
+`X-BOS-Token-Count-Tokenizer: o200k_base` identify the approximation. Counts can
+differ from GLM or other upstream tokenizers, chat templates and actual inference
+usage; use them for context planning rather than exact billing or context limits.
+Native Anthropic providers retain their upstream count endpoint.
+Messages requests to `openai_responses`, `custom` and `realtime` providers remain
+unsupported.
 Use a native `anthropic_messages` provider for full Claude capability support.
 
 Claude Code 2.1.299's default thinking/effort and retain-all-context hints work

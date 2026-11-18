@@ -66,6 +66,15 @@ The console's `/docs/providers-models`, `/docs/api-keys#handoff`, and
 `/docs/troubleshooting` guides explain the same workflows in Simplified Chinese,
 English, Japanese, German, and Spanish. They are accessible without signing in.
 
+## View subscription usage
+
+On **Upstream Providers**, choose **View usage** on an OAuth channel to see the
+upstream account's used and remaining percentages and any reported reset times.
+Use **Refresh** to fetch a new snapshot. Super administrators and administrators
+of the channel's owning organization can query it. The upstream figures can
+include activity from other clients signed into the same account. If the upstream
+returns no quota data, the console displays that state explicitly.
+
 ## Supported upstreams
 
 ### Codex client version

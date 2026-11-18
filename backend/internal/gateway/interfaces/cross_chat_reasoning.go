@@ -3,6 +3,12 @@ package interfaces
 import gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 
 func (stream *crossStreamRenderer) thinking(block gatewayinfra.RelayBlock) error {
+	if stream.source == "responses" {
+		if block.Text == "" {
+			return nil
+		}
+		return stream.responsesPart("reasoning", block.Text)
+	}
 	if stream.source == "gemini" {
 		if block.Signature != "" || block.ReasoningField != "reasoning" && block.ReasoningField != "reasoning_content" {
 			return responseFieldError("reasoning", "only unsigned Chat reasoning can be rendered as Gemini thoughts")

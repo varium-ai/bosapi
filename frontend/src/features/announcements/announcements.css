@@ -43,6 +43,17 @@
   display: block;
   margin-top: 6px;
 }
+.announcement-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+.announcement-meta .ant-tag,
+.announcement-meta time {
+  margin: 0;
+}
 .announcement-markdown {
   font-size: 13px;
   line-height: 1.8;

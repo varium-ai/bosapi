@@ -170,7 +170,11 @@ func (stream *chatStreamRelay) appendField(dst *strings.Builder, value map[strin
 }
 
 func (stream *chatStreamRelay) finish(reason string) error {
-	stop, err := gatewayinfra.ChatRelayStop(reason, len(stream.calls) > 0)
+	finish := gatewayinfra.ChatRelayStop
+	if stream.renderer.responses != nil {
+		finish = gatewayinfra.ResponsesChatRelayStop
+	}
+	stop, err := finish(reason, len(stream.calls) > 0)
 	if err != nil {
 		return err
 	}

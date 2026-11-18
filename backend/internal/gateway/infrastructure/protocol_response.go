@@ -201,7 +201,7 @@ func GeminiRelayParts(value map[string]any, id string) ([]RelayBlock, string, er
 }
 func ParseRelayReply(raw []byte, format, id string) (RelayReply, error) {
 	if format == "openai_chat" || format == "" {
-		return parseChatReply(raw, id)
+		return parseChatReply(raw, id, ChatRelayStop)
 	}
 	reply := RelayReply{ID: id}
 	root, err := DecodeProtocolJSON(raw)

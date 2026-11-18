@@ -85,7 +85,11 @@ func (q RelayRequest) chatUpstream() ([]byte, string, error) {
 	}
 	tools := []any{}
 	for _, tool := range q.Tools {
-		tools = append(tools, map[string]any{"type": "function", "function": map[string]any{"name": tool.Name, "description": tool.Description, "parameters": tool.Schema}})
+		function := map[string]any{"name": tool.Name, "description": tool.Description, "parameters": tool.Schema}
+		if tool.Strict != nil {
+			function["strict"] = *tool.Strict
+		}
+		tools = append(tools, map[string]any{"type": "function", "function": function})
 	}
 	if len(tools) > 0 {
 		root["tools"] = tools
@@ -155,7 +159,7 @@ func chatMessagesWithDeferredImages(message RelayMessage, deferredImages *[]any)
 				if item.Type != "image" {
 					continue
 				}
-				*deferredImages = append(*deferredImages, map[string]any{"type": "image_url", "image_url": map[string]any{"url": relayImageURL(item)}})
+				*deferredImages = append(*deferredImages, chatImagePart(item))
 			}
 			if content == "" && hasImages {
 				content = "Image output is attached in the following user message."
@@ -200,6 +204,15 @@ func ChatRelayStop(reason string, tools bool) (string, error) {
 		}
 	}
 	return "", conversionError("response.finish_reason", "unsupported or incomplete Chat finish reason")
+}
+
+// ResponsesChatRelayStop tolerates Chat providers that end a tool turn with
+// stop. Callers must validate every invocation before emitting a tool item.
+func ResponsesChatRelayStop(reason string, tools bool) (string, error) {
+	if reason == "stop" && tools {
+		return "tool_calls", nil
+	}
+	return ChatRelayStop(reason, tools)
 }
 
 // ChatRelayMessage validates executable response fields before protocol rendering.
@@ -289,7 +302,7 @@ func validateChatTokenCount(value any, path string) error {
 	return nil
 }
 
-func parseChatReply(raw []byte, id string) (RelayReply, error) {
+func parseChatReply(raw []byte, id string, finish func(string, bool) (string, error)) (RelayReply, error) {
 	reply := RelayReply{ID: id}
 	root, err := DecodeProtocolJSON(raw)
 	if err != nil {
@@ -335,8 +348,12 @@ func parseChatReply(raw []byte, id string) (RelayReply, error) {
 	}
 	reply.ObserveUsage(root, "openai_chat")
 	reason, _ := choice["finish_reason"].(string)
-	reply.Stop, err = ChatRelayStop(reason, len(calls) > 0)
+	reply.Stop, err = finish(reason, len(calls) > 0)
 	return reply, err
+}
+
+func ParseChatReplyForResponses(raw []byte, id string) (RelayReply, error) {
+	return parseChatReply(raw, id, ResponsesChatRelayStop)
 }
 
 // ChatRelayToolCalls shares invocation validation between JSON and assembled SSE

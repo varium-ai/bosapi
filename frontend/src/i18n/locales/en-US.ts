@@ -621,6 +621,9 @@ export const enUS = {
       'No configured models yet. Connect your own LLM service, discover its models, and configure organization access.',
   },
   key_portal: {
+    models_title: 'Available models',
+    model_id: 'Model ID',
+    models_empty: 'No models are available for this API key.',
     guide_title: 'Get started with your API key',
     guide_desc:
       'Use this key in the Authorization header when calling a supported model endpoint. Requests and limits are scoped to this key.',
@@ -933,6 +936,25 @@ export const enUS = {
     selected_models_count: 'Selected {count} / {total} models',
   },
   providers: {
+    usage: {
+      title: 'Subscription usage',
+      view: 'View usage',
+      description:
+        'Usage comes from the upstream subscription account and may include activity from other clients.',
+      empty: 'The upstream did not return any usage to display.',
+      window: 'Usage window',
+      five_hours: '5 hours',
+      seven_days: '7 days',
+      duration_hours: '{hours} hours',
+      used: 'Used',
+      remaining: 'Remaining',
+      resets_at: 'Resets at',
+      checked_at: 'Checked at',
+      error: 'Could not read upstream usage. Try refreshing in a moment.',
+      auth_error:
+        'The upstream rejected the account credentials. Reauthorize this provider and try again.',
+      rate_limited: 'The upstream is rate limiting usage checks. Try refreshing later.',
+    },
     title: 'Upstream Channels',
     add_provider: 'Add Upstream Provider',
     edit_provider: 'Edit Provider',

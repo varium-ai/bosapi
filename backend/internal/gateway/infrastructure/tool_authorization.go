@@ -10,6 +10,18 @@ func (authorization ToolAuthorization) Allows(call domain.ToolCall) bool {
 	return authorization[call.Protocol][call.Name]
 }
 
+// ChatToolAuthorization derives grants from the validated declarations sent to Chat.
+func (q RelayRequest) ChatToolAuthorization() ToolAuthorization {
+	if q.Choice == "none" || len(q.Tools) > maxToolCalls {
+		return nil
+	}
+	names := make(map[string]bool, len(q.Tools))
+	for _, tool := range q.Tools {
+		names[tool.Name] = true
+	}
+	return ToolAuthorization{domain.ToolProtocolOpenAI: names}
+}
+
 // WithProtocolAlias carries caller grants through an explicit protocol adapter.
 func (authorization ToolAuthorization) WithProtocolAlias(from, to domain.ToolProtocol) ToolAuthorization {
 	result := make(ToolAuthorization, len(authorization)+1)
@@ -81,6 +93,20 @@ func ParseToolAuthorization(payload []byte) ToolAuthorization {
 				}
 			}
 			switch tool["type"] {
+			case "namespace":
+				namespace := stringField(tool, "name")
+				children, ok := tool["tools"].([]any)
+				if !ok {
+					children, _ = tool["children"].([]any)
+				}
+				if namespace != "" && len(children) <= maxToolCalls {
+					for _, entry := range children {
+						child := object(entry)
+						if child["type"] == "function" && stringField(child, "name") != "" {
+							add(domain.ToolProtocolOpenAI, ResponsesFunctionName(namespace, stringField(child, "name")))
+						}
+					}
+				}
 			case "function":
 				name := stringField(tool, "name")
 				if function := object(tool["function"]); function != nil {

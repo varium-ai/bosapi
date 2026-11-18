@@ -1,0 +1,36 @@
+.key-portal {
+  max-width: 1800px;
+  margin-inline: auto;
+}
+
+.key-portal-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 24px;
+}
+
+.key-portal-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.key-portal-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 44px;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 20px;
+}
+
+.key-portal-identity-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

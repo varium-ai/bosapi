@@ -11,6 +11,7 @@ import (
 	analyticsapp "bosapi/backend/internal/analytics/application"
 	analyticsinterfaces "bosapi/backend/internal/analytics/interfaces"
 	gatewayapp "bosapi/backend/internal/gateway/application"
+	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
 
 	adminapp "bosapi/backend/internal/admin/application"
 	admininfra "bosapi/backend/internal/admin/infrastructure"
@@ -124,6 +125,7 @@ func NewPortalRouter(database *gorm.DB, jwtSecret []byte, accessTTL, refreshTTL 
 		adminapp.NewAdminErrorService(admininfra.NewAdminErrorRepository(database)),
 		adminapp.NewSecurityEventService(admininfra.NewSecurityEventRepository(database, geoResolver)),
 	)
+	keyPortal.WithModelCatalog(gatewayinfra.NewModelCatalogRepository(database))
 	keyPortal.RegisterPublicRoutes(auth)
 	keyPortalGroup := api.Group("/key-portal")
 	keyPortal.RegisterRoutes(keyPortalGroup)

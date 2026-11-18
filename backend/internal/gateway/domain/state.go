@@ -4,23 +4,24 @@ import "time"
 
 // Provider stores gateway provider credentials and routing metadata.
 type Provider struct {
-	ID           int               `json:"id"`
-	Name         string            `json:"name"`
-	Platform     string            `json:"platform"`
-	Type         string            `json:"type"`
-	Status       string            `json:"status"`
-	Models       []string          `json:"models"`
-	Capabilities map[string]any    `json:"capabilities,omitempty"`
-	Pricing      map[string]any    `json:"pricing,omitempty"`
-	ModelMapping map[string]string `json:"model_mapping,omitempty"`
-	APIFormat    string            `json:"-"`
-	BaseURL      string            `json:"base_url,omitempty"`
-	APIKey       string            `json:"api_key,omitempty"`
-	AccessToken  string            `json:"access_token,omitempty"`
-	RefreshToken string            `json:"refresh_token,omitempty"`
-	AccountID    string            `json:"account_id,omitempty"`
-	ProjectID    string            `json:"project_id,omitempty"`
-	ExpiresAt    time.Time         `json:"token_expires_at,omitempty"`
+	ID                   int               `json:"id"`
+	Name                 string            `json:"name"`
+	Platform             string            `json:"platform"`
+	Type                 string            `json:"type"`
+	Status               string            `json:"status"`
+	Models               []string          `json:"models"`
+	Capabilities         map[string]any    `json:"capabilities,omitempty"`
+	Pricing              map[string]any    `json:"pricing,omitempty"`
+	ModelMapping         map[string]string `json:"model_mapping,omitempty"`
+	ConfigurationVersion time.Time         `json:"-"`
+	APIFormat            string            `json:"-"`
+	BaseURL              string            `json:"base_url,omitempty"`
+	APIKey               string            `json:"api_key,omitempty"`
+	AccessToken          string            `json:"access_token,omitempty"`
+	RefreshToken         string            `json:"refresh_token,omitempty"`
+	AccountID            string            `json:"account_id,omitempty"`
+	ProjectID            string            `json:"project_id,omitempty"`
+	ExpiresAt            time.Time         `json:"token_expires_at,omitempty"`
 }
 
 // APIKey stores a hash-only gateway key and its provider binding.

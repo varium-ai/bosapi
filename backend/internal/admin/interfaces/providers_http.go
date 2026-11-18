@@ -42,6 +42,7 @@ func (handler *ProviderHandler) RegisterRoutes(group *gin.RouterGroup) {
 	group.DELETE("/providers/:id", handler.delete)
 	group.POST("/providers/:id/disable", handler.disable)
 	group.POST("/providers/:id/test", handler.test)
+	group.POST("/providers/:id/subscription-usage", handler.subscriptionUsage)
 	group.POST("/providers/:id/discover-models", handler.discover)
 	group.GET("/providers/:id/models", handler.listModels)
 	group.PUT("/providers/:id/models/:model_id", handler.updateModel)
@@ -276,6 +277,28 @@ func (handler *ProviderHandler) test(ctx *gin.Context) {
 		return
 	}
 	httpapi.WriteSuccess(ctx, 200, map[string]any{"success": true, "latency_ms": time.Since(started).Milliseconds()})
+}
+
+func (handler *ProviderHandler) subscriptionUsage(ctx *gin.Context) {
+	id, ok := providerID(ctx)
+	if !ok {
+		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "id is invalid")
+		return
+	}
+	if !handler.authorize(ctx, id) {
+		return
+	}
+	snapshot, err := handler.service.SubscriptionUsage(ctx.Request.Context(), id)
+	if errors.Is(err, subscription.ErrUsageUnavailable) {
+		httpapi.WriteError(ctx, http.StatusBadGateway, errorcode.ProviderUnavailable, "upstream subscription usage is unavailable")
+		return
+	}
+	if err != nil {
+		providerFailure(ctx, err)
+		return
+	}
+	ctx.Header("Cache-Control", "no-store")
+	httpapi.WriteSuccess(ctx, http.StatusOK, snapshot)
 }
 
 func providerID(ctx *gin.Context) (uint64, bool) {

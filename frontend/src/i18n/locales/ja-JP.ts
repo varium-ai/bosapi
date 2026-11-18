@@ -241,9 +241,12 @@ export const jaJP: typeof enUS = {
     hint_model: '組織のモデル権限、チャネルのモデル一覧、モデルマッピングを確認してください。',
     diagnosis_provider: 'チャネル設定またはアクセス確認に失敗しました',
     hint_provider: 'チャネルが有効で、この組織とキーに許可されているか確認してください。',
+    diagnosis_previous_response_not_found: '前回の応答が見つからないか、有効期限が切れています',
+    hint_previous_response_not_found:
+      '同じチャネルとモデルで保存した応答 ID を使用するか、会話履歴全体を再送してください。',
     diagnosis_conversion: '要求されたプロトコル変換は未対応です',
     hint_conversion:
-      'エンドポイントとチャネルの API 形式を確認し、対応するネイティブプロトコルまたは変換を使用してください。',
+      '下に表示されるフィールドと失敗理由を確認し、リクエストがチャネルの API 形式に対応しているか確認してください。',
     diagnosis_response_conversion: '上流応答の変換に失敗しました',
     hint_response_conversion:
       '以下の失敗フィールド、理由、SSE イベントを確認してください。上流の HTTP 200 はヘッダー受信を示しますが、変換ストリーム完了は保証しません。',
@@ -1156,6 +1159,9 @@ export const jaJP: typeof enUS = {
       'モデル未設定です。独自の LLM サービスを接続し、モデルを検出して組織権限を設定してください。',
   },
   key_portal: {
+    models_title: '利用可能なモデル',
+    model_id: 'モデル ID',
+    models_empty: 'この API キーで利用できるモデルはありません。',
     guide_title: 'API キーを使い始める',
     guide_desc:
       '対応モデルの呼び出し時、Authorization ヘッダーにキーを設定します。リクエストと上限はこのキーに適用されます。',
@@ -1460,6 +1466,24 @@ export const jaJP: typeof enUS = {
     selected_models_count: '{count} / {total} モデルを選択',
   },
   providers: {
+    usage: {
+      title: 'サブスクリプション使用量',
+      view: '使用量を見る',
+      description:
+        '上流のサブスクリプションアカウントの使用量です。他のクライアントからの利用も含まれる場合があります。',
+      empty: '上流から表示できる使用量が返されませんでした。',
+      window: '集計期間',
+      five_hours: '5 時間',
+      seven_days: '7 日間',
+      duration_hours: '{hours} 時間',
+      used: '使用済み',
+      remaining: '残り',
+      resets_at: 'リセット時刻',
+      checked_at: '取得時刻',
+      error: '使用量を取得できませんでした。しばらくしてから更新してください。',
+      auth_error: '上流が認証情報を拒否しました。このプロバイダーを再認証してください。',
+      rate_limited: '上流が使用量の確認頻度を制限しています。しばらくしてから更新してください。',
+    },
     title: '上流チャネル',
     add_provider: '上流プロバイダーを追加',
     edit_provider: 'プロバイダーを編集',

@@ -1,44 +1,73 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">BOS API</title>
-  <desc id="desc">BOS API - Enterprise AI Security Gateway</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="bos-title">
+  <title id="bos-title">BOS API</title>
   <defs>
-    <linearGradient id="bos-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#35383f"/>
-      <stop offset="0.55" stop-color="#2b2d34"/>
-      <stop offset="1" stop-color="#202229"/>
+    <linearGradient id="bw-bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#242424"/>
+      <stop offset="50%" stop-color="#141414"/>
+      <stop offset="100%" stop-color="#080808"/>
     </linearGradient>
-
-    <!-- Subtle Hairline Rim -->
-    <linearGradient id="bos-rim" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop stop-color="rgba(221,194,140,0.65)"/>
-      <stop offset="1" stop-color="rgba(165,139,93,0.35)"/>
+    <radialGradient id="bw-glow" cx="50%" cy="48%" r="52%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="60%" stop-color="#555555" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#080808" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bw-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="45%" stop-color="#444444" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#888888" stop-opacity="0.25"/>
     </linearGradient>
-
-    <!-- Champagne Gold Sheen for the Geometric Origami Glyphs -->
-    <linearGradient id="bos-glyph" x1="142" y1="120" x2="370" y2="400" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#f2e9da"/>
-      <stop offset="0.75" stop-color="#ddc28c"/>
-      <stop offset="1" stop-color="#a58b5d"/>
+    <linearGradient id="bw-spoke" x1="290" y1="285" x2="735" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#d4d4d4" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#8a8a8a" stop-opacity="0.55"/>
     </linearGradient>
-
-    <!-- Negative Space Cutout Mask for Optical Apertures -->
-    <mask id="bos-aperture-mask">
-      <rect width="512" height="512" fill="#ffffff"/>
-      <circle cx="264" cy="197" r="28" fill="#000000"/>
-      <circle cx="276" cy="313" r="28" fill="#000000"/>
-    </mask>
+    <linearGradient id="bw-metal" x1="280" y1="280" x2="740" y2="760" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="35%" stop-color="#f0f0f0"/>
+      <stop offset="70%" stop-color="#cccccc"/>
+      <stop offset="100%" stop-color="#888888"/>
+    </linearGradient>
+    <linearGradient id="bw-hexstroke" x1="419" y1="422" x2="643" y2="614" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#dedede"/>
+      <stop offset="100%" stop-color="#999999"/>
+    </linearGradient>
+    <radialGradient id="bw-nf" cx="30%" cy="28%" r="72%">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#111111"/>
+    </radialGradient>
+    <filter id="bw-fx" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="8" stdDeviation="20" flood-color="#ffffff" flood-opacity="0.15"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#000000" flood-opacity="0.9"/>
+    </filter>
+    <filter id="bw-ng" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0" stdDeviation="15" flood-color="#ffffff" flood-opacity="0.45"/>
+    </filter>
+    <filter id="bw-hg" x="-60%" y="-60%" width="220%" height="220%">
+      <feDropShadow dx="0" dy="0" stdDeviation="22" flood-color="#ffffff" flood-opacity="0.5"/>
+    </filter>
   </defs>
-
-  <!-- Squircle Canvas Base -->
-  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bos-bg)"/>
-  <rect x="25" y="25" width="462" height="462" rx="111" stroke="url(#bos-rim)" stroke-width="2" fill="none"/>
-
-  <!-- Scheme S3: Origami Fold Gateway Monogram -->
-  <g mask="url(#bos-aperture-mask)">
-    <!-- Upper Chamfered Origami Block -->
-    <path d="M 142 127 H 284 L 354 197 L 284 267 H 142 Z" fill="url(#bos-glyph)"/>
-
-    <!-- Lower Chamfered Origami Block -->
-    <path d="M 142 241 H 298 L 370 313 L 298 385 H 142 Z" fill="url(#bos-glyph)"/>
+  <rect x="32" y="32" width="960" height="960" rx="230" fill="url(#bw-bg)"/>
+  <rect x="32" y="32" width="960" height="960" rx="230" fill="url(#bw-glow)"/>
+  <rect x="34" y="34" width="956" height="956" rx="228" fill="none" stroke="url(#bw-rim)" stroke-width="4"/>
+  <g filter="url(#bw-fx)">
+    <path d="M290 285 C370 330 460 440 512 512 C575 465 660 395 735 350 M512 512 C505 580 490 670 480 755"
+      fill="none" stroke="url(#bw-spoke)" stroke-width="24" stroke-linecap="round"/>
+    <g filter="url(#bw-ng)">
+      <circle cx="290" cy="285" r="62" fill="url(#bw-nf)" stroke="url(#bw-metal)" stroke-width="30"/>
+      <circle cx="290" cy="285" r="18" fill="#ffffff" opacity="0.95"/>
+      <circle cx="735" cy="350" r="50" fill="url(#bw-nf)" stroke="url(#bw-metal)" stroke-width="24"/>
+      <circle cx="735" cy="350" r="14" fill="#ffffff" opacity="0.9"/>
+      <circle cx="480" cy="755" r="54" fill="url(#bw-nf)" stroke="url(#bw-metal)" stroke-width="26"/>
+      <circle cx="480" cy="755" r="16" fill="#d4d4d4" opacity="0.85"/>
+      <circle cx="480" cy="755" r="6"  fill="#ffffff" opacity="0.95"/>
+    </g>
+    <g filter="url(#bw-hg)">
+      <polygon points="630,512 571,614 453,614 394,512 453,410 571,410"
+        transform="rotate(-7 512 512)"
+        fill="url(#bw-nf)" stroke="url(#bw-hexstroke)" stroke-width="40" stroke-linejoin="round"/>
+      <circle cx="512" cy="512" r="26" fill="#ffffff" opacity="0.95"/>
+      <circle cx="512" cy="512" r="10" fill="#171717" opacity="0.9"/>
+    </g>
   </g>
 </svg>

@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestSubscriptionCredentialRotationUsesRowLockAndRollback(t *testing.T) {
+func TestSubscriptionCredentialRotationPreservesConfigurationVersion(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "commit", true: "rollback"}[fail], func(t *testing.T) {
 			sqlDB, mock, err := sqlmock.New()
@@ -28,7 +28,7 @@ func TestSubscriptionCredentialRotationUsesRowLockAndRollback(t *testing.T) {
 			if fail {
 				mock.ExpectRollback()
 			} else {
-				mock.ExpectExec("UPDATE `accounts` SET `credentials_ciphertext`=.*WHERE `id` = \\?").WithArgs([]byte("encrypted-after"), sqlmock.AnyArg(), 7).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec("^UPDATE `accounts` SET `credentials_ciphertext`=\\? WHERE `id` = \\?$").WithArgs([]byte("encrypted-after"), 7).WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit()
 			}
 			_, ciphertext, err := NewProviderRepository(db).UpdateCredentialLocked(context.Background(), 7, func(p domain.Provider, secret string) (string, error) {

@@ -3,6 +3,7 @@ package interfaces
 import (
 	"bytes"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -11,8 +12,14 @@ import (
 func TestModelCatalogLogsExplainFilteredNamesWithoutExposingContent(t *testing.T) {
 	for _, native := range []bool{false, true} {
 		a, key := geminiTestApp(t)
-		a.data.Providers[0].Models = []string{"models/models/PRIVATE_MODEL_NAME"}
+		// Gemini accepts slash-separated model IDs. Use a resource name
+		// with an invalid character so discovery filters it before fetching metadata.
+		a.data.Providers[0].Models = []string{"models/models/PRIVATE_MODEL_NAME?"}
 		a.data.Providers[0].ModelMapping = nil
+		a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("filtered model reached Gemini upstream")
+			return nil, nil
+		})}
 		var output bytes.Buffer
 		previous := log.Writer()
 		log.SetOutput(&output)
@@ -25,8 +32,10 @@ func TestModelCatalogLogsExplainFilteredNamesWithoutExposingContent(t *testing.T
 			r.Header.Set("Authorization", "Bearer "+key)
 		}
 		w := httptest.NewRecorder()
-		a.routes().ServeHTTP(w, r)
-		log.SetOutput(previous)
+		func() {
+			defer log.SetOutput(previous)
+			a.routes().ServeHTTP(w, r)
+		}()
 		if w.Code != 200 {
 			t.Fatalf("diagnostics changed response: %d %s", w.Code, w.Body.String())
 		}

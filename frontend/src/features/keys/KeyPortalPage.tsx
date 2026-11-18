@@ -4,7 +4,7 @@ import { useCursorPagination } from '../common/useCursorPagination';
 import { compactKey } from '../common/display';
 import React, { useState } from 'react';
 import { Button, Card, Space, Table, Typography } from 'antd';
-import { LogoutOutlined } from '@ant-design/icons';
+import { KeyOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { apiClient, logoutKeyPortal } from '../../api/client';
@@ -21,6 +21,8 @@ import {
 import { KeyUsageSummary, type UsagePeriod, type UsagePoint } from './KeyUsageSummary';
 import { LoadError } from '../common/ConsoleUX';
 import { AnnouncementPanel } from '../announcements/AnnouncementPanel';
+import { KeyPortalModels } from './KeyPortalModels';
+import './keyPortal.css';
 
 const { Text, Title } = Typography;
 const pageSize = 20;
@@ -106,6 +108,7 @@ export const KeyPortalPage: React.FC = () => {
     initialData: info,
   });
   const currentInfo = infoQuery.data || info;
+  const keyId = currentInfo.id ?? currentInfo.api_key_id;
   const path = location.pathname.replace(/\/$/, '');
   const view = path.split('/').pop() || 'key-portal';
   const fetchData = (resource: string, params: Record<string, unknown>) =>
@@ -173,18 +176,28 @@ export const KeyPortalPage: React.FC = () => {
     },
   ];
   return (
-    <div>
-      <Space wrap style={{ marginBottom: 20 }} align="center">
-        <Space direction="vertical" size={0}>
-          <Title level={4} style={{ margin: 0 }}>
-            {currentInfo.name || t('auth.key_portal_title', 'API Key Dashboard')}
-          </Title>
-          <Text type="secondary">{compactKey(currentInfo)}</Text>
-        </Space>
+    <div className="key-portal">
+      <div className="key-portal-heading">
+        <div className="key-portal-identity">
+          <span className="key-portal-icon" aria-hidden="true">
+            <KeyOutlined />
+          </span>
+          <div className="key-portal-identity-text">
+            <Title level={4} style={{ margin: 0 }}>
+              {currentInfo.name || t('auth.key_portal_title', 'API Key Dashboard')}
+            </Title>
+            <Space wrap size={[6, 2]}>
+              <Text type="secondary">{keyId ? `API Key #${keyId}` : 'API Key'}</Text>
+              <Text type="secondary" code>
+                {compactKey(currentInfo)}
+              </Text>
+            </Space>
+          </div>
+        </div>
         <Button icon={<LogoutOutlined />} onClick={logoutKeyPortal}>
           {t('auth.key_portal_logout', 'Sign out')}
         </Button>
-      </Space>
+      </div>
       {activeQuery.isError && <LoadError retry={() => activeQuery.refetch()} />}
       {view === 'key-portal' && (
         <div className="announcement-layout">
@@ -192,12 +205,13 @@ export const KeyPortalPage: React.FC = () => {
             <Card title={t('keys.limits_title', 'Quotas & Usage Status')}>
               <KeyQuotaTable data={currentInfo} loading={infoQuery.isLoading} />
             </Card>
+            <KeyPortalModels keyId={keyId} />
             <Card title={t('key_portal.usage_title', 'Usage at a glance')}>
               <UsageDashboard />
             </Card>
           </Space>
           <aside>
-            <AnnouncementPanel scope={`key:${currentInfo.id}`} keyPortal />
+            <AnnouncementPanel scope={`key:${keyId}`} keyPortal />
           </aside>
         </div>
       )}

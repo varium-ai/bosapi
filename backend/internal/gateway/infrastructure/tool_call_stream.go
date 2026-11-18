@@ -207,7 +207,7 @@ func (stream *ToolCallStream) FeedJSON(payload []byte) (result []domain.ToolCall
 		if err != nil {
 			return nil, err
 		}
-		if err := stream.setMetadata(call, stringField(item, "call_id"), stringField(item, "name"), nil); err != nil {
+		if err := stream.setMetadata(call, stringField(item, "call_id"), responsesFunctionItemName(item), nil); err != nil {
 			return nil, err
 		}
 		return nil, stream.appendArguments(call, stringField(item, "arguments"))
@@ -224,7 +224,7 @@ func (stream *ToolCallStream) FeedJSON(payload []byte) (result []domain.ToolCall
 			return nil, err
 		}
 		name, id := call.name, call.id
-		if part := stringField(value, "name"); part != "" {
+		if part := responsesFunctionItemName(value); part != "" {
 			name = part
 		}
 		if part := stringField(value, "call_id"); part != "" {
@@ -245,7 +245,7 @@ func (stream *ToolCallStream) FeedJSON(payload []byte) (result []domain.ToolCall
 		if call := stream.pending[key]; call != nil {
 			stream.size -= len(call.arguments)
 			call.arguments = nil
-			if err := stream.setMetadata(call, stringField(item, "call_id"), stringField(item, "name"), nil); err != nil {
+			if err := stream.setMetadata(call, stringField(item, "call_id"), responsesFunctionItemName(item), nil); err != nil {
 				return nil, err
 			}
 			if err := stream.appendArguments(call, stringField(item, "arguments")); err != nil {

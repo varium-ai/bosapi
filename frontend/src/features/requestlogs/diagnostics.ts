@@ -36,6 +36,7 @@ export function errorDiagnosis(code: string): string {
         provider_auth_failed: 'auth',
         model_not_allowed: 'model',
         invalid_provider: 'provider',
+        previous_response_not_found: 'previous_response_not_found',
         unsupported_conversion: 'conversion',
         unsupported_upstream_feature: 'response_conversion',
         delivery_interrupted: 'delivery',

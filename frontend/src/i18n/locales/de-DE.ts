@@ -255,9 +255,12 @@ export const deDE: typeof enUS = {
     diagnosis_provider: 'Kanalkonfiguration oder -zugriffsprüfung fehlgeschlagen',
     hint_provider:
       'Prüfen Sie, ob der Kanal aktiv und für diese Organisation und diesen Schlüssel erlaubt ist.',
+    diagnosis_previous_response_not_found: 'Vorherige Antwort nicht gefunden oder abgelaufen',
+    hint_previous_response_not_found:
+      'Verwenden Sie eine für denselben Kanal und dasselbe Modell gespeicherte Antwort-ID oder senden Sie den vollständigen Gesprächsverlauf erneut.',
     diagnosis_conversion: 'Angeforderte Protokollkonvertierung wird nicht unterstützt',
     hint_conversion:
-      'Prüfen Sie Endpunkt und API-Format des Kanals. Nutzen Sie ein unterstütztes natives Protokoll oder eine unterstützte Konvertierung.',
+      'Prüfen Sie anhand des unten angegebenen Feldes und Fehlergrunds, ob die Anfrage zum API-Format des Kanals passt.',
     diagnosis_response_conversion: 'Konvertierung der Upstream-Antwort fehlgeschlagen',
     hint_response_conversion:
       'Prüfen Sie Feld, Ursache und SSE-Ereignis unten. Upstream-HTTP 200 bestätigt empfangene Header, aber keinen vollständig konvertierten Stream.',
@@ -1192,6 +1195,9 @@ export const deDE: typeof enUS = {
       'Noch keine Modelle. Eigenen LLM-Dienst verbinden, Modelle erkennen und Organisationszugriff einrichten.',
   },
   key_portal: {
+    models_title: 'Verfügbare Modelle',
+    model_id: 'Modell-ID',
+    models_empty: 'Für diesen API-Schlüssel sind keine Modelle verfügbar.',
     guide_title: 'Mit Ihrem API-Schlüssel starten',
     guide_desc:
       'Schlüssel im Authorization-Header für unterstützte Modellendpunkte verwenden. Anfragen und Limits gelten für diesen Schlüssel.',
@@ -1505,6 +1511,24 @@ export const deDE: typeof enUS = {
     selected_models_count: '{count} / {total} Modelle ausgewählt',
   },
   providers: {
+    usage: {
+      title: 'Abonnementnutzung',
+      view: 'Nutzung anzeigen',
+      description:
+        'Die Daten stammen vom Abonnementkonto des Anbieters und können die Nutzung durch andere Clients enthalten.',
+      empty: 'Der Anbieter hat keine Nutzungsdaten zum Anzeigen zurückgegeben.',
+      window: 'Nutzungszeitraum',
+      five_hours: '5 Stunden',
+      seven_days: '7 Tage',
+      duration_hours: '{hours} Stunden',
+      used: 'Genutzt',
+      remaining: 'Verbleibend',
+      resets_at: 'Wird zurückgesetzt am',
+      checked_at: 'Abgerufen am',
+      error: 'Die Nutzungsdaten konnten nicht abgerufen werden. Versuche es später erneut.',
+      auth_error: 'Der Anbieter hat die Anmeldedaten abgelehnt. Autorisiere dieses Konto erneut.',
+      rate_limited: 'Der Anbieter begrenzt die Abfragehäufigkeit. Versuche es später erneut.',
+    },
     title: 'Upstream-Kanäle',
     add_provider: 'Upstream-Anbieter hinzufügen',
     edit_provider: 'Anbieter bearbeiten',

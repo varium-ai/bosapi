@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -154,6 +156,9 @@ func gatewayLogEndpoint(r *http.Request) string {
 	switch path {
 	case "models", "responses", "responses/compact", "responses/input_tokens", "chat/completions", "messages", "messages/count_tokens", "embeddings", "live", "alpha/search", "usage":
 		return path
+	}
+	if responseLookupID(path) != "" {
+		return "responses/:response_id"
 	}
 	if strings.HasPrefix(path, "models/") {
 		return "models/:model"
@@ -416,6 +421,9 @@ func (a *app) gatewayModelMiddleware() gin.HandlerFunc {
 			if !ok {
 				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "anthropic_messages")
 			}
+			if !ok {
+				selected, ok = a.providerForKeyModelFormat(c.Request.Context(), apiKey, model, "openai_responses")
+			}
 			if nativeGemini {
 				logging.Printf(c.Request.Context(), "INFO", "gateway.gemini.model_check", "phase=provider_select_result selected=%t selected_provider_id=%d selected_api_format=%s selected_model_count=%d selected_model_match=%t", ok, selected.ID, selected.APIFormat, len(selected.Models), providerSupportsModel(selected, model))
 			}
@@ -488,7 +496,23 @@ func (a *app) gatewaySessionMiddleware() gin.HandlerFunc {
 		key, _ := c.Get(gatewayAPIKeyContext)
 		apiKey := key.(apiKey)
 		path := gatewayPath(c.Request)
-		limitKey := RateLimitKey{OrganizationID: uint64(apiKey.OrgID), APIKeyID: uint64(apiKey.ID), Route: path, Model: requestModel(c.Request), Operation: requestOperation(c.Request)}
+		model, err := readRequestModel(c.Request)
+		if err != nil {
+			// The body may be incomplete and the request context may already be
+			// canceled. Do not retry the read in logs or enter quota admission.
+			c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), gatewayModelRequestKey{}, ""))
+			var readErr net.Error
+			if errors.As(err, &readErr) && readErr.Timeout() {
+				recordGatewayFailure(c.Request, "request_validation", errorcode.RequestTimeout, "body", "timed out reading request body")
+				fail(c.Writer, http.StatusRequestTimeout, errorcode.RequestTimeout)
+			} else {
+				recordRequestBodyFailure(c.Request, err)
+				fail(c.Writer, http.StatusBadRequest, errorcode.InvalidRequest)
+			}
+			c.Abort()
+			return
+		}
+		limitKey := RateLimitKey{OrganizationID: uint64(apiKey.OrgID), APIKeyID: uint64(apiKey.ID), Route: path, Model: model, Operation: requestOperation(c.Request)}
 		logging.Printf(c.Request.Context(), "INFO", "gateway.rate_limit.check", "method=%s path=%s model=%s operation=%s", c.Request.Method, path, limitKey.Model, limitKey.Operation)
 		if sessions, ok := a.background.RateLimiter.(domain.SessionLimiter); ok {
 			sessionDecision, release, acquireErr := sessions.AcquireSession(c.Request.Context(), limitKey)

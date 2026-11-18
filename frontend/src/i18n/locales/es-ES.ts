@@ -248,9 +248,12 @@ export const esES: typeof enUS = {
       'Revise el acceso de la organización al modelo, la lista de modelos del canal y su asignación.',
     diagnosis_provider: 'Falló la comprobación de configuración o acceso al canal',
     hint_provider: 'Compruebe que el canal esté activo y permitido para esta organización y clave.',
+    diagnosis_previous_response_not_found: 'No se encontró la respuesta anterior o ha caducado',
+    hint_previous_response_not_found:
+      'Use un ID de respuesta guardada para el mismo canal y modelo o vuelva a enviar el historial completo de la conversación.',
     diagnosis_conversion: 'La conversión de protocolo solicitada no es compatible',
     hint_conversion:
-      'Revise el endpoint y el formato API del canal. Use un protocolo nativo o una conversión compatibles.',
+      'Revise el campo y el motivo indicados abajo para comprobar si la solicitud es compatible con el formato de API del canal.',
     diagnosis_response_conversion: 'Falló la conversión de la respuesta de origen',
     hint_response_conversion:
       'Revise el campo, el motivo y el evento SSE indicados abajo. HTTP 200 de origen confirma la recepción de cabeceras, pero no la finalización del flujo convertido.',
@@ -1182,6 +1185,9 @@ export const esES: typeof enUS = {
       'Aún no hay modelos. Conecta tu servicio LLM, descubre modelos y configura el acceso de la organización.',
   },
   key_portal: {
+    models_title: 'Modelos disponibles',
+    model_id: 'ID del modelo',
+    models_empty: 'No hay modelos disponibles para esta clave API.',
     guide_title: 'Empieza con tu clave API',
     guide_desc:
       'Usa esta clave en la cabecera Authorization de un endpoint compatible. Las solicitudes y límites se aplican a esta clave.',
@@ -1493,6 +1499,25 @@ export const esES: typeof enUS = {
     selected_models_count: '{count} / {total} modelos seleccionados',
   },
   providers: {
+    usage: {
+      title: 'Uso de la suscripción',
+      view: 'Ver uso',
+      description:
+        'Los datos proceden de la cuenta de suscripción del proveedor y pueden incluir el uso desde otros clientes.',
+      empty: 'El proveedor no devolvió datos de uso para mostrar.',
+      window: 'Período de uso',
+      five_hours: '5 horas',
+      seven_days: '7 días',
+      duration_hours: '{hours} horas',
+      used: 'Usado',
+      remaining: 'Restante',
+      resets_at: 'Se restablece el',
+      checked_at: 'Consultado el',
+      error: 'No se pudo consultar el uso. Vuelve a intentarlo más tarde.',
+      auth_error: 'El proveedor rechazó las credenciales. Vuelve a autorizar esta cuenta.',
+      rate_limited:
+        'El proveedor limita la frecuencia de las consultas. Vuelve a intentarlo más tarde.',
+    },
     title: 'Canales upstream',
     add_provider: 'Añadir proveedor upstream',
     edit_provider: 'Editar proveedor',

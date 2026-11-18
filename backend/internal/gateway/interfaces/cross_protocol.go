@@ -81,34 +81,23 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		crossFailure(w, r, source, 400, errorcode.InvalidRequest, &gatewayinfra.ConversionError{Field: "body", Reason: "request body could not be read within the request limit"})
 		return
 	}
-	if r.Header.Get("OpenAI-Beta") != "" {
-		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, &gatewayinfra.ConversionError{Field: "headers.OpenAI-Beta", Reason: "OpenAI beta capabilities cannot be mapped to this upstream"})
+	if err := validateRelayHeaders(r, p, source); err != nil {
+		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
 	}
-	if source == "messages" {
-		for name, values := range r.Header {
-			if len(values) == 0 {
-				continue
-			}
-			lower := strings.ToLower(name)
-			// Chat capabilities are validated from the body. Ignore beta hints
-			// so new client releases do not require a header allowlist update;
-			// the OpenAI adapter never forwards these headers upstream.
-			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-beta" {
-				continue
-			}
-			// The SDK sets this CORS hint in terminal requests too. BOS owns its
-			// browser access policy and never forwards this hint upstream.
-			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-dangerous-direct-browser-access" && len(values) == 1 && values[0] == "true" {
-				continue
-			}
-			if strings.HasPrefix(lower, "anthropic-") && (lower != "anthropic-version" || len(values) != 1 || values[0] != "2023-06-01") {
-				crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, &gatewayinfra.ConversionError{Field: "headers." + lower, Reason: "Anthropic capability/version headers require an Anthropic upstream"})
-				return
-			}
+	var q gatewayinfra.RelayRequest
+	var history chatHistoryRequest
+	if source == "responses" {
+		var failure *chatHistoryFailure
+		raw, history, failure = a.prepareChatHistory(r, p, raw)
+		if failure != nil {
+			crossFailure(w, r, source, failure.status, failure.code, failure.err)
+			return
 		}
+		q, err = gatewayinfra.ParseResponsesForChat(raw)
+	} else {
+		q, err = gatewayinfra.ParseRelayRequest(raw, source, p.APIFormat)
 	}
-	q, err := gatewayinfra.ParseRelayRequest(raw, source, p.APIFormat)
 	if err != nil {
 		crossFailure(w, r, source, 400, errorcode.UnsupportedConversion, err)
 		return
@@ -159,6 +148,14 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 	upstreamURL := *r.URL
 	upstreamURL.RawQuery = ""
 	upstreamRequest.URL = &upstreamURL
+	if source == "responses" {
+		// The converter validates and promotes explicit additional_tools declarations.
+		// Use the resulting Chat declarations to authorize matching tool calls.
+		if authorization, _ := r.Context().Value(gatewayToolAuthorizationRequestKey{}).(gatewayinfra.ToolAuthorization); authorization != nil {
+			r = r.WithContext(context.WithValue(r.Context(), gatewayToolAuthorizationRequestKey{}, q.ChatToolAuthorization()))
+		}
+		payload = rewriteQwenReasoningEffort(payload, "/chat/completions")
+	}
 	res, cancel, err := a.nativeRoundTrip(upstreamRequest, p, path, payload)
 	if err != nil {
 		if source == "gemini" {
@@ -200,12 +197,13 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		return
 	}
 	id := "relay_" + random(16)
+	save := a.chatHistorySaver(r, p, history, publicModel)
 	if q.Stream {
 		if !strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "text/event-stream") {
 			crossFailure(w, r, source, 502, errorcode.UnsupportedUpstreamFeature, &gatewayinfra.ConversionError{Field: "response.content-type", Reason: "expected an SSE stream"})
 			return
 		}
-		a.crossProtocolStream(w, r, res.Body, q, p.APIFormat, source, publicModel, id)
+		a.crossProtocolStream(w, r, res.Body, q, p.APIFormat, source, publicModel, id, save)
 		return
 	}
 	raw, err = io.ReadAll(io.LimitReader(res.Body, (8<<20)+1))
@@ -224,9 +222,18 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 			observeUsageValue(usageState(r), value, "response.completed")
 		}
 	}
-	reply, err := gatewayinfra.ParseRelayReply(raw, p.APIFormat, id)
+	var reply gatewayinfra.RelayReply
+	if source == "responses" {
+		reply, err = gatewayinfra.ParseChatReplyForResponses(raw, id)
+	} else {
+		reply, err = gatewayinfra.ParseRelayReply(raw, p.APIFormat, id)
+	}
 	if err != nil {
 		crossFailure(w, r, source, 502, errorcode.UnsupportedUpstreamFeature, err)
+		return
+	}
+	if source == "responses" {
+		a.writeResponsesChatJSON(w, r, publicModel, reply, q.ResponsesNamespaces, save)
 		return
 	}
 	reply.IncludeThoughts = q.IncludeThoughts
@@ -237,6 +244,35 @@ func (a *app) crossProtocolAPI(w http.ResponseWriter, r *http.Request, p provide
 		return
 	}
 	a.writeToolJSON(w, r, 200, converted)
+}
+
+func validateRelayHeaders(r *http.Request, p provider, source string) error {
+	if r.Header.Get("OpenAI-Beta") != "" {
+		return &gatewayinfra.ConversionError{Field: "headers.OpenAI-Beta", Reason: "OpenAI beta capabilities cannot be mapped to this upstream"}
+	}
+	if source == "messages" {
+		for name, values := range r.Header {
+			if len(values) == 0 {
+				continue
+			}
+			lower := strings.ToLower(name)
+			// Chat capabilities are validated from the body. Ignore beta hints
+			// so new client releases do not require a header allowlist update;
+			// the OpenAI adapter never forwards these headers upstream.
+			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-beta" {
+				continue
+			}
+			// The SDK sets this CORS hint in terminal requests too. BOS owns its
+			// browser access policy and never forwards this hint upstream.
+			if (p.APIFormat == "openai_chat" || p.APIFormat == "") && lower == "anthropic-dangerous-direct-browser-access" && len(values) == 1 && values[0] == "true" {
+				continue
+			}
+			if strings.HasPrefix(lower, "anthropic-") && (lower != "anthropic-version" || len(values) != 1 || values[0] != "2023-06-01") {
+				return &gatewayinfra.ConversionError{Field: "headers." + lower, Reason: "Anthropic capability/version headers require an Anthropic upstream"}
+			}
+		}
+	}
+	return nil
 }
 
 // crossProtocolStream is implemented separately from the native byte relay so

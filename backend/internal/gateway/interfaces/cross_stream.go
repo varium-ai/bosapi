@@ -49,6 +49,7 @@ type crossStreamRenderer struct {
 	q                   gatewayinfra.RelayRequest
 	reply               gatewayinfra.RelayReply
 	writer              *toolBodyWriter
+	responses           *responsesChatOutput
 	started             bool
 	nextBlock, nextTool int
 	thinkingOpen        bool
@@ -65,6 +66,9 @@ func (stream *crossStreamRenderer) emit(event string, value any) error {
 		return responseFieldError("stream", "converted event exceeds delivery limit")
 	}
 	if !stream.writer.write(payload) {
+		if stream.writer.chatHistoryErr != nil {
+			return stream.writer.chatHistoryErr
+		}
 		return io.ErrClosedPipe
 	}
 	return nil
@@ -117,6 +121,14 @@ func (stream *crossStreamRenderer) start() error {
 		return nil
 	}
 	stream.started = true
+	if stream.source == "responses" {
+		stream.responses = newResponsesChatOutput(stream.model)
+		stream.responses.namespaces = stream.q.ResponsesNamespaces
+		if err := stream.responsesEvent("response.created", map[string]any{"response": stream.responses.root}); err != nil {
+			return err
+		}
+		return stream.responsesEvent("response.in_progress", map[string]any{"response": stream.responses.root})
+	}
 	if stream.source == "chat" {
 		return stream.chat(map[string]any{"role": "assistant", "content": ""}, nil)
 	}
@@ -128,6 +140,9 @@ func (stream *crossStreamRenderer) start() error {
 func (stream *crossStreamRenderer) text(text string) error {
 	if text == "" {
 		return nil
+	}
+	if stream.source == "responses" {
+		return stream.responsesPart("message", text)
 	}
 	if err := stream.stopThinking(); err != nil {
 		return err
@@ -170,6 +185,13 @@ func (stream *crossStreamRenderer) toolStart(block gatewayinfra.RelayBlock) (int
 	}
 	index := stream.nextTool
 	stream.nextTool++
+	if stream.source == "responses" {
+		if err := stream.closeResponsesPart("completed"); err != nil {
+			return 0, err
+		}
+		index, item := stream.responses.addItem("function_call", map[string]any{"call_id": block.ID, "name": block.Name, "arguments": ""})
+		return index, stream.responsesEvent("response.output_item.added", map[string]any{"output_index": index, "item": item})
+	}
 	if stream.source == "chat" {
 		return index, stream.chat(map[string]any{"tool_calls": []any{map[string]any{"index": index, "id": block.ID, "type": "function", "function": map[string]any{"name": block.Name, "arguments": ""}}}}, nil)
 	}
@@ -181,6 +203,11 @@ func (stream *crossStreamRenderer) toolStart(block gatewayinfra.RelayBlock) (int
 	return index, stream.emit("content_block_start", map[string]any{"type": "content_block_start", "index": index, "content_block": map[string]any{"type": "tool_use", "id": block.ID, "name": block.Name, "input": map[string]any{}}})
 }
 func (stream *crossStreamRenderer) toolArguments(index int, args string) error {
+	if stream.source == "responses" {
+		item := stream.responses.items[index]
+		item["arguments"] = args
+		return stream.responsesEvent("response.function_call_arguments.delta", map[string]any{"output_index": index, "item_id": item["id"], "delta": args})
+	}
 	if stream.source == "chat" {
 		return stream.chat(map[string]any{"tool_calls": []any{map[string]any{"index": index, "function": map[string]any{"arguments": args}}}}, nil)
 	}
@@ -190,6 +217,18 @@ func (stream *crossStreamRenderer) toolArguments(index int, args string) error {
 	return stream.emit("content_block_delta", map[string]any{"type": "content_block_delta", "index": index, "delta": map[string]any{"type": "input_json_delta", "partial_json": args}})
 }
 func (stream *crossStreamRenderer) toolStop(index int) error {
+	if stream.source == "responses" {
+		item := stream.responses.items[index]
+		fields := map[string]any{"output_index": index, "item_id": item["id"], "arguments": item["arguments"], "name": item["name"]}
+		if item["namespace"] != nil {
+			fields["namespace"] = item["namespace"]
+		}
+		if err := stream.responsesEvent("response.function_call_arguments.done", fields); err != nil {
+			return err
+		}
+		item["status"] = "completed"
+		return stream.responsesEvent("response.output_item.done", map[string]any{"output_index": index, "item": item})
+	}
 	if stream.source == "chat" || stream.source == "gemini" {
 		return nil
 	}
@@ -207,6 +246,17 @@ func (stream *crossStreamRenderer) finish() error {
 	}
 	if err := stream.start(); err != nil {
 		return err
+	}
+	if stream.source == "responses" {
+		status := "completed"
+		if stream.reply.Stop == "length" || stream.reply.Stop == "content_filter" {
+			status = "incomplete"
+		}
+		if err := stream.closeResponsesPart(status); err != nil {
+			return err
+		}
+		event := stream.responses.completed(stream.reply)
+		return stream.responsesEvent(event, map[string]any{"response": stream.responses.root})
 	}
 	if stream.source == "messages" {
 		if err := stream.emit("message_delta", map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": stream.reply.MessagesStop(), "stop_sequence": nil}, "usage": stream.reply.MessagesUsage()}); err != nil {
@@ -244,12 +294,12 @@ func responseFieldError(field, reason string) error {
 	return &gatewayinfra.ConversionError{Field: "response." + field, Reason: reason}
 }
 
-func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body io.Reader, q gatewayinfra.RelayRequest, target, source, model, id string) {
+func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body io.Reader, q gatewayinfra.RelayRequest, target, source, model, id string, save func([]byte) error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(200)
-	writer := &toolBodyWriter{app: a, request: r, writer: w, filter: a.toolDeliveryFilter(r), scanner: securityAuditScanner{app: a, request: r}, isSSE: true, inspectTools: true}
+	writer := &toolBodyWriter{app: a, request: r, writer: w, filter: a.toolDeliveryFilter(r), scanner: securityAuditScanner{app: a, request: r}, isSSE: true, inspectTools: true, saveChatHistory: save}
 	upstreamUsage := &usageMetricsState{}
 	// Billing is based solely on upstream metrics, never synthesized protocol
 	// start events or an optional client-facing usage chunk.
@@ -276,12 +326,26 @@ func (a *app) crossProtocolStream(w http.ResponseWriter, r *http.Request, body i
 		event := ""
 		if source == "messages" {
 			event = "error"
+		} else if source == "responses" {
+			event = "error"
+			detail := envelope["error"].(map[string]any)
+			sequence := 0
+			if renderer.responses != nil {
+				sequence = renderer.responses.sequence
+			}
+			envelope = map[string]any{"type": "error", "code": code, "message": detail["message"], "param": detail["param"], "sequence_number": sequence}
 		}
 		if !writeToolChunks(w, [][]byte{sseJSON(event, envelope)}) {
 			recordGatewayFailure(r, "response_write", errorcode.DeliveryInterrupted, "response.body", "downstream response write failed")
 		}
 	}
 	failure := func(err error) {
+		if writer.chatHistoryErr != nil {
+			_, code, failure := chatHistoryWriteFailure(writer.chatHistoryErr)
+			recordGatewayFailure(r, "response_write", code, failure.Field, failure.Reason)
+			emitFailure(code, failure)
+			return
+		}
 		if errors.Is(err, io.ErrClosedPipe) {
 			recordGatewayFailure(r, "response_write", errorcode.DeliveryInterrupted, "response.body", "downstream response write failed")
 			return
