@@ -1,6 +1,7 @@
 package interfaces
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -47,7 +48,7 @@ func restoreResponseModelJSON(payload []byte, reqModel string) []byte {
 		return payload
 	}
 	var doc map[string]any
-	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.UseNumber()
 	if err := decoder.Decode(&doc); err != nil {
 		return payload
