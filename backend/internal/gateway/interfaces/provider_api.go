@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -70,12 +71,12 @@ func (a *app) createProvider(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, errorcode.InvalidRequest)
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	p := provider{ID: nextProviderID(a.data.Providers), Name: input.Name, Platform: "openai", Type: "api_key", Status: input.Status, BaseURL: base, APIKey: input.APIKey, Models: input.Models, Pricing: input.Pricing}
-	a.data.Providers = append(a.data.Providers, p)
-	if a.save() != nil {
-		a.data.Providers = a.data.Providers[:len(a.data.Providers)-1]
+	var p provider
+	if err := a.updateLocalData(func(next *data) bool {
+		p = provider{ID: nextProviderID(next.Providers), Name: input.Name, Platform: "openai", Type: "api_key", Status: input.Status, BaseURL: base, APIKey: input.APIKey, Models: input.Models, Pricing: input.Pricing}
+		next.Providers = append(next.Providers, p)
+		return true
+	}); err != nil {
 		fail(w, 500, errorcode.StorageFailed)
 		return
 	}
@@ -98,25 +99,27 @@ func (a *app) updateProvider(w http.ResponseWriter, r *http.Request, path string
 		fail(w, 400, errorcode.InvalidRequest)
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for i, previous := range a.data.Providers {
-		if previous.ID != id || previous.Type != "api_key" {
-			continue
+	found := false
+	if err := a.updateLocalData(func(next *data) bool {
+		for i := range next.Providers {
+			p := &next.Providers[i]
+			if p.ID != id || p.Type != "api_key" {
+				continue
+			}
+			p.Name, p.Status, p.BaseURL = input.Name, input.Status, base
+			p.Models, p.Pricing = input.Models, input.Pricing
+			if input.APIKey != "" {
+				p.APIKey = input.APIKey
+			}
+			found = true
+			return true
 		}
-		a.data.Providers[i].Name = input.Name
-		a.data.Providers[i].Status = input.Status
-		a.data.Providers[i].BaseURL = base
-		a.data.Providers[i].Models = input.Models
-		a.data.Providers[i].Pricing = input.Pricing
-		if input.APIKey != "" {
-			a.data.Providers[i].APIKey = input.APIKey
-		}
-		if a.save() != nil {
-			a.data.Providers[i] = previous
-			fail(w, 500, errorcode.StorageFailed)
-			return
-		}
+		return false
+	}); err != nil {
+		fail(w, 500, errorcode.StorageFailed)
+		return
+	}
+	if found {
 		respond(w, 200, map[string]any{"data": map[string]int{"id": id}})
 		return
 	}
@@ -258,14 +261,15 @@ func containsConfiguredModel(models []string, wanted string) bool {
 }
 
 func (a *app) usage(w http.ResponseWriter, r *http.Request) {
-	hash := a.authenticatedKeyHash(r)
-	a.mu.Lock()
-	current := a.data.Usage[hash]
-	a.mu.Unlock()
 	key, _ := a.authenticatedKey(r)
-	today := current.Daily[time.Now().In(usagetime.Location()).Format("2006-01-02")]
-	models := make([]map[string]any, 0, len(current.Models))
-	for model, stats := range current.Models {
+	day := time.Now().In(usagetime.Location()).Format("2006-01-02")
+	a.mu.Lock()
+	current := a.data.Usage[key.Hash]
+	today := current.Daily[day]
+	byModel := maps.Clone(current.Models)
+	a.mu.Unlock()
+	models := make([]map[string]any, 0, len(byModel))
+	for model, stats := range byModel {
 		models = append(models, map[string]any{
 			"model": model, "requests": stats.Requests, "successes": stats.Successes,
 			"errors": stats.Errors, "input_tokens": stats.InputTokens,

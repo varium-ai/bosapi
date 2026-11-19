@@ -611,18 +611,22 @@ func gatewayUsageRecord(event usageEvent) userinfra.GatewayUsageRecord {
 }
 
 func (a *app) settleLocalQuota(event usageEvent) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for index, key := range a.data.Keys {
-		if key.Hash != event.KeyHash {
-			continue
+	found := false
+	if err := a.updateLocalData(func(next *data) bool {
+		for index, key := range next.Keys {
+			if key.Hash != event.KeyHash {
+				continue
+			}
+			next.Keys[index].QuotaUsedTokens += max(0, event.Metrics.TotalTokens)
+			next.Keys[index].QuotaUsedAmount += max(0, event.Metrics.Cost)
+			found = true
+			return true
 		}
-		a.data.Keys[index].QuotaUsedTokens += max(0, event.Metrics.TotalTokens)
-		a.data.Keys[index].QuotaUsedAmount += max(0, event.Metrics.Cost)
-		if err := a.save(); err != nil {
-			a.data.Keys[index] = key
-			return err
-		}
+		return false
+	}); err != nil {
+		return err
+	}
+	if found {
 		return nil
 	}
 	return errors.New("gateway key unavailable for quota settlement")
