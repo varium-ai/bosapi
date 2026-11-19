@@ -49,6 +49,8 @@ type DatabaseSecurityEventSink struct {
 	database *gorm.DB
 	queue    chan domain.SecurityEvent
 	done     chan struct{}
+	mu       sync.Mutex
+	closed   bool
 }
 
 func NewDatabaseSecurityEventSink(database *gorm.DB, buffer int) *DatabaseSecurityEventSink {
@@ -67,6 +69,15 @@ func (sink *DatabaseSecurityEventSink) Publish(ctx context.Context, event domain
 	if event.ToolCall != nil {
 		metadata := *event.ToolCall
 		event.ToolCall = &metadata
+	}
+
+	// Publish and Close must be serialized. A select with a default case does
+	// not make sending to a closed channel safe: the send case panics instead
+	// of selecting the default branch.
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	if sink.closed {
+		return nil
 	}
 	select {
 	case sink.queue <- event:
@@ -197,7 +208,18 @@ func (sink *DatabaseSecurityEventSink) persist(event domain.SecurityEvent) {
 	}
 }
 
-func (sink *DatabaseSecurityEventSink) Close() { close(sink.queue); <-sink.done }
+func (sink *DatabaseSecurityEventSink) Close() {
+	sink.mu.Lock()
+	if !sink.closed {
+		sink.closed = true
+		close(sink.queue)
+	}
+	done := sink.done
+	sink.mu.Unlock()
+	if done != nil {
+		<-done
+	}
+}
 
 // RuleSecurityEventSink applies local secret-pattern checks and publishes events
 // through the configured sink. Deployments can replace it with a remote policy engine.

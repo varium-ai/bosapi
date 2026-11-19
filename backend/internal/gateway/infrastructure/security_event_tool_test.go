@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,6 +89,44 @@ func TestEventQueueOwnsNormalizedEvidenceAndMetadata(t *testing.T) {
 	if queued.Evidence[0].Path != "messages[0].content" || queued.Evidence[0].Snippet != "[Credential hidden]" || queued.ToolCall.Name != "shell" || queued.ClientIP[0] != 192 {
 		t.Fatalf("queue changed or leaked: %+v", queued)
 	}
+}
+
+func TestSecurityEventSinkConcurrentPublishAndClose(t *testing.T) {
+	sink := &DatabaseSecurityEventSink{
+		queue: make(chan domain.SecurityEvent, 64),
+		done:  make(chan struct{}),
+	}
+	close(sink.done)
+
+	start := make(chan struct{})
+	var publishers sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		publishers.Add(1)
+		go func() {
+			defer publishers.Done()
+			<-start
+			for j := 0; j < 100; j++ {
+				_ = sink.Publish(context.Background(), domain.SecurityEvent{RuleID: "concurrent-close"})
+			}
+		}()
+	}
+
+	var closers sync.WaitGroup
+	closers.Add(2)
+	go func() {
+		defer closers.Done()
+		<-start
+		sink.Close()
+	}()
+	go func() {
+		defer closers.Done()
+		<-start
+		sink.Close()
+	}()
+
+	close(start)
+	publishers.Wait()
+	closers.Wait()
 }
 
 func TestExpiredEvidenceCleanupKeepsEventMetadata(t *testing.T) {
