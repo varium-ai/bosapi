@@ -28,7 +28,7 @@ type Service interface {
 	Logout(context.Context, string, string, time.Time) error
 	VerifyAccess(context.Context, string) (domain.User, string, time.Time, error)
 	ChangePassword(context.Context, uint64, string, string) error
-	RequestPasswordReset(context.Context, string) (int, string, error)
+	RequestPasswordReset(context.Context, string) (int, error)
 	ResetPasswordWithOTP(context.Context, string, string, string) error
 	RecordLoginAttempt(context.Context, string, string, bool, string, time.Time) error
 }
@@ -350,17 +350,18 @@ func (handler *Handler) forgotPassword(ctx *gin.Context) {
 		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "valid email is required")
 		return
 	}
-	expiresIn, devCode, err := handler.service.RequestPasswordReset(ctx.Request.Context(), request.Email)
+	expiresIn, err := handler.service.RequestPasswordReset(ctx.Request.Context(), request.Email)
 	if err != nil {
+		if errors.Is(err, application.ErrPasswordResetUnavailable) {
+			httpapi.WriteError(ctx, http.StatusServiceUnavailable, errorcode.ProviderUnavailable, "password reset is temporarily unavailable; please try again later")
+			return
+		}
 		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, err.Error())
 		return
 	}
 	data := map[string]any{
 		"message":    "Verification code sent successfully",
 		"expires_in": expiresIn,
-	}
-	if devCode != "" {
-		data["dev_code"] = devCode
 	}
 	httpapi.WriteSuccess(ctx, http.StatusOK, data)
 }

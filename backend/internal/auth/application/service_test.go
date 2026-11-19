@@ -121,6 +121,12 @@ func (m *mockAuthRepository) RecordLoginAttempt(context.Context, string, string,
 	return nil
 }
 
+type otpNotifierFunc func(context.Context, string, string) error
+
+func (notify otpNotifierFunc) SendOTP(ctx context.Context, email, code string) error {
+	return notify(ctx, email, code)
+}
+
 func TestForgotPasswordAndResetFlow(t *testing.T) {
 	initialHash, err := HashPassword("old-secret-password-123")
 	if err != nil {
@@ -142,43 +148,55 @@ func TestForgotPasswordAndResetFlow(t *testing.T) {
 	}
 
 	secret := []byte("01234567890123456789012345678901")
-	svc := NewService(repo, secret, 15*time.Minute, 7*24*time.Hour)
+	var deliveredCode string
+	notifier := otpNotifierFunc(func(_ context.Context, email, code string) error {
+		if email != "user@example.com" {
+			t.Fatalf("unexpected OTP recipient: %s", email)
+		}
+		deliveredCode = code
+		return nil
+	})
+	svc := NewService(repo, secret, 15*time.Minute, 7*24*time.Hour, notifier)
 
 	// 1. Request reset for non-existing email
-	_, _, err = svc.RequestPasswordReset(context.Background(), "unknown@example.com")
+	_, err = svc.RequestPasswordReset(context.Background(), "unknown@example.com")
 	if err == nil {
 		t.Fatal("expected error for non-existent user")
 	}
 
-	// 2. Request reset for valid email (without notifier, returns dev code)
-	expiresIn, devCode, err := svc.RequestPasswordReset(context.Background(), "user@example.com")
+	// 2. Request reset for valid email; the notifier receives the code.
+	expiresIn, err := svc.RequestPasswordReset(context.Background(), " USER@example.com ")
 	if err != nil {
 		t.Fatalf("unexpected error requesting reset: %v", err)
 	}
-	if expiresIn != 300 || len(devCode) != 6 {
-		t.Fatalf("expected 300s expiry and 6-digit code, got %d, %s", expiresIn, devCode)
+	if expiresIn != 300 || len(deliveredCode) != 6 {
+		t.Fatalf("expected 300s expiry and 6-digit delivered code, got expiry=%d code length=%d", expiresIn, len(deliveredCode))
 	}
 
 	// 3. Request immediately again - should be rate limited
-	_, _, err = svc.RequestPasswordReset(context.Background(), "user@example.com")
+	_, err = svc.RequestPasswordReset(context.Background(), "user@example.com")
 	if err == nil {
 		t.Fatal("expected rate limit error")
 	}
 
 	// 4. Reset with wrong OTP
-	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", "000000", "new-secret-password-456")
+	wrongCode := "000000"
+	if deliveredCode == wrongCode {
+		wrongCode = "111111"
+	}
+	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", wrongCode, "new-secret-password-456")
 	if err == nil {
 		t.Fatal("expected error with wrong OTP")
 	}
 
 	// 5. Reset with invalid weak password
-	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", devCode, "short")
+	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", deliveredCode, "short")
 	if err == nil {
 		t.Fatal("expected error with weak password")
 	}
 
 	// 6. Reset with correct OTP and valid password
-	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", devCode, "new-secret-password-456")
+	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", deliveredCode, "new-secret-password-456")
 	if err != nil {
 		t.Fatalf("unexpected error resetting password: %v", err)
 	}
@@ -193,9 +211,105 @@ func TestForgotPasswordAndResetFlow(t *testing.T) {
 	}
 
 	// 7. Verify OTP cannot be reused
-	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", devCode, "another-valid-password-789")
+	err = svc.ResetPasswordWithOTP(context.Background(), "user@example.com", deliveredCode, "another-valid-password-789")
 	if err == nil {
 		t.Fatal("expected error reusing OTP")
+	}
+}
+
+func TestPasswordResetWithoutNotifierFailsClosed(t *testing.T) {
+	user := domain.User{ID: 42, Email: "user@example.com", Status: "active"}
+	repo := &mockAuthRepository{users: map[string]domain.User{user.Email: user}}
+	for _, notifiers := range [][]OTPNotifier{nil, {nil}} {
+		svc := NewService(repo, []byte("01234567890123456789012345678901"), time.Minute, time.Hour, notifiers...)
+		expiresIn, err := svc.RequestPasswordReset(context.Background(), user.Email)
+		if !errors.Is(err, ErrPasswordResetUnavailable) || expiresIn != 0 {
+			t.Fatalf("expected unavailable reset, got expiry=%d err=%v", expiresIn, err)
+		}
+		if len(svc.challenges) != 0 {
+			t.Fatal("missing notifier must not create a challenge")
+		}
+	}
+}
+
+func TestPasswordResetDeliveryFailureAllowsImmediateRetry(t *testing.T) {
+	user := domain.User{ID: 42, Email: "user@example.com", Status: "active"}
+	repo := &mockAuthRepository{users: map[string]domain.User{user.Email: user}}
+	var code string
+	deliveryErr := errors.New("SMTP unavailable")
+	svc := NewService(repo, []byte("01234567890123456789012345678901"), time.Minute, time.Hour,
+		otpNotifierFunc(func(_ context.Context, _ string, sentCode string) error {
+			code = sentCode
+			return deliveryErr
+		}))
+	expiresIn, err := svc.RequestPasswordReset(context.Background(), user.Email)
+	if !errors.Is(err, ErrPasswordResetUnavailable) || expiresIn != 0 {
+		t.Fatalf("expected delivery failure, got expiry=%d err=%v", expiresIn, err)
+	}
+	if len(svc.challenges) != 0 {
+		t.Fatal("failed delivery must remove its challenge")
+	}
+	if err := svc.ResetPasswordWithOTP(context.Background(), user.Email, code, "new-secret-password-456"); err == nil {
+		t.Fatal("failed delivery code must not authorize a password reset")
+	}
+	deliveryErr = nil
+	if expiresIn, err := svc.RequestPasswordReset(context.Background(), user.Email); err != nil || expiresIn != 300 {
+		t.Fatalf("failed delivery must permit immediate retry: expiry=%d err=%v", expiresIn, err)
+	}
+}
+
+func TestPasswordResetLateDeliveryFailurePreservesNewerChallenge(t *testing.T) {
+	user := domain.User{ID: 42, Email: "user@example.com", Status: "active"}
+	repo := &mockAuthRepository{
+		users:       map[string]domain.User{user.Email: user},
+		usersByID:   map[uint64]domain.User{user.ID: user},
+		updatedPass: make(map[uint64]string),
+	}
+	firstCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan string, 1)
+	var newerCode string
+	svc := NewService(repo, []byte("01234567890123456789012345678901"), time.Minute, time.Hour,
+		otpNotifierFunc(func(ctx context.Context, _ string, code string) error {
+			if ctx == firstCtx {
+				started <- code
+				<-ctx.Done()
+				return ctx.Err()
+			}
+			newerCode = code
+			return nil
+		}))
+	now := time.Now().UTC()
+	svc.now = func() time.Time { return now }
+	result := make(chan error, 1)
+	go func() {
+		_, err := svc.RequestPasswordReset(firstCtx, user.Email)
+		result <- err
+	}()
+	select {
+	case code := <-started:
+		if err := svc.ResetPasswordWithOTP(context.Background(), user.Email, code, "new-secret-password-456"); err == nil {
+			t.Fatal("code must not authorize a reset before delivery succeeds")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("first delivery did not start")
+	}
+
+	now = now.Add(31 * time.Second)
+	if _, err := svc.RequestPasswordReset(context.Background(), user.Email); err != nil {
+		t.Fatalf("newer delivery failed: %v", err)
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, ErrPasswordResetUnavailable) {
+			t.Fatalf("expected first delivery to fail, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("first delivery did not finish")
+	}
+	if err := svc.ResetPasswordWithOTP(context.Background(), user.Email, newerCode, "new-secret-password-456"); err != nil {
+		t.Fatalf("old delivery failure invalidated the newer code: %v", err)
 	}
 }
 

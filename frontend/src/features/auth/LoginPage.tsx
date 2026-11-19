@@ -17,12 +17,10 @@ import {
   LockOutlined,
   MailOutlined,
   SafetyCertificateOutlined,
-  CopyOutlined,
   KeyOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../api/client';
-import { copyText } from '../common/copyText';
 import { useI18n, LocaleSettingsControl } from '../../i18n';
 
 const { Title, Text } = Typography;
@@ -43,7 +41,6 @@ export const LoginPage: React.FC = () => {
   const [resetting, setResetting] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [devCode, setDevCode] = useState('');
 
   useEffect(() => {
     document.title = `${t('auth.login_title', 'Sign In')} - BOS API`;
@@ -183,9 +180,6 @@ export const LoginPage: React.FC = () => {
       );
       setOtpSent(true);
       setCountdown(60);
-      if (res.data?.data?.dev_code) {
-        setDevCode(res.data.data.dev_code);
-      }
     } catch {
       // Validation error or handled by interceptor
     } finally {
@@ -217,7 +211,6 @@ export const LoginPage: React.FC = () => {
       loginForm.setFieldValue('password', '');
       forgotForm.resetFields();
       setOtpSent(false);
-      setDevCode('');
     } catch {
       // Handled by interceptor
     } finally {
@@ -573,7 +566,6 @@ export const LoginPage: React.FC = () => {
                       onClick={() => {
                         forgotForm.resetFields();
                         setOtpSent(false);
-                        setDevCode('');
                         const currentEmail = loginForm.getFieldValue('email');
                         if (currentEmail) {
                           forgotForm.setFieldValue('email', currentEmail);
@@ -654,7 +646,6 @@ export const LoginPage: React.FC = () => {
           setForgotVisible(false);
           forgotForm.resetFields();
           setOtpSent(false);
-          setDevCode('');
         }}
         footer={null}
         width={440}
@@ -712,38 +703,6 @@ export const LoginPage: React.FC = () => {
               </Button>
             </Space.Compact>
           </Form.Item>
-
-          {devCode && (
-            <Alert
-              type="warning"
-              showIcon
-              message={
-                <div
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <span>
-                    {t('auth.dev_otp_label', 'Development OTP:')} <strong>{devCode}</strong>
-                  </span>
-                  <Button
-                    size="small"
-                    type="link"
-                    icon={<CopyOutlined />}
-                    onClick={async () => {
-                      forgotForm.setFieldValue('otp', devCode);
-                      if (await copyText(devCode)) {
-                        message.success(t('auth.code_copied_filled', 'Code copied and filled'));
-                      } else {
-                        message.warning(t('auth.code_filled_not_copied'));
-                      }
-                    }}
-                  >
-                    {t('auth.fill_code', 'Fill')}
-                  </Button>
-                </div>
-              }
-              style={{ marginBottom: 16, borderRadius: 8 }}
-            />
-          )}
 
           {otpSent && (
             <>
