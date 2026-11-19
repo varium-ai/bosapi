@@ -1090,6 +1090,7 @@ export const OrganizationsPage: React.FC = () => {
           </Form.Item>
           <Form.Item
             name="security_inspection_upstream_enabled"
+            valuePropName="checked"
             label={t('organizations.security_inspection_upstream', 'Upstream security inspection')}
             extra={t('organizations.security_inspection_help', 'Disable to skip content security inspection for requests from this organization.')}
           >
@@ -1097,6 +1098,7 @@ export const OrganizationsPage: React.FC = () => {
           </Form.Item>
           <Form.Item
             name="security_inspection_downstream_enabled"
+            valuePropName="checked"
             label={t('organizations.security_inspection_downstream', 'Downstream security inspection')}
             extra={t('organizations.security_inspection_help', 'Disable to skip content security inspection for responses from this organization.')}
           >
