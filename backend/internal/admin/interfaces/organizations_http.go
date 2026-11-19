@@ -78,12 +78,14 @@ func (handler *OrganizationHandler) list(ctx *gin.Context) {
 }
 
 type organizationRequest struct {
-	Bindings           []domain.ProviderBinding `json:"bindings"`
-	Name               *string                  `json:"name"`
-	Description        *string                  `json:"description"`
-	Status             *string                  `json:"status"`
-	AllowedProviderIDs *[]uint64                `json:"allowed_provider_ids"`
-	AllowedModels      *[]string                `json:"allowed_models"`
+	Bindings                            []domain.ProviderBinding `json:"bindings"`
+	Name                                *string                  `json:"name"`
+	Description                         *string                  `json:"description"`
+	Status                              *string                  `json:"status"`
+	AllowedProviderIDs                  *[]uint64                `json:"allowed_provider_ids"`
+	AllowedModels                       *[]string                `json:"allowed_models"`
+	SecurityInspectionUpstreamEnabled   *bool                    `json:"security_inspection_upstream_enabled"`
+	SecurityInspectionDownstreamEnabled *bool                    `json:"security_inspection_downstream_enabled"`
 }
 
 func (handler *OrganizationHandler) create(ctx *gin.Context) {
@@ -224,6 +226,9 @@ func (request organizationRequest) toDomain() domain.Organization {
 	if request.AllowedModels != nil {
 		organization.AllowedModels = *request.AllowedModels
 	}
+	organization.SecurityInspectionUpstreamEnabled = request.SecurityInspectionUpstreamEnabled == nil || *request.SecurityInspectionUpstreamEnabled
+	organization.SecurityInspectionDownstreamEnabled = request.SecurityInspectionDownstreamEnabled == nil || *request.SecurityInspectionDownstreamEnabled
+	organization.SecurityInspectionEnabled = organization.SecurityInspectionUpstreamEnabled && organization.SecurityInspectionDownstreamEnabled
 	return organization
 }
 
@@ -243,6 +248,12 @@ func (request organizationRequest) values() map[string]any {
 	}
 	if request.AllowedModels != nil {
 		updates["allowed_models"] = *request.AllowedModels
+	}
+	if request.SecurityInspectionUpstreamEnabled != nil {
+		updates["security_inspection_upstream_enabled"] = *request.SecurityInspectionUpstreamEnabled
+	}
+	if request.SecurityInspectionDownstreamEnabled != nil {
+		updates["security_inspection_downstream_enabled"] = *request.SecurityInspectionDownstreamEnabled
 	}
 	return updates
 }

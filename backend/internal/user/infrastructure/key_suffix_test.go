@@ -61,8 +61,8 @@ func TestFindGatewayKeyBackfillsOnlyAuthenticatedMissingSuffix(t *testing.T) {
 				organizationState = "active"
 			}
 			if !test.missingKey {
-				mock.ExpectQuery("SELECT status FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
-					WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(organizationState))
+				mock.ExpectQuery("SELECT status, security_inspection_upstream_enabled, security_inspection_downstream_enabled FROM `organizations` WHERE id = \\?").WithArgs(uint64(2)).
+					WillReturnRows(sqlmock.NewRows([]string{"status", "security_inspection_upstream_enabled", "security_inspection_downstream_enabled"}).AddRow(organizationState, true, true))
 			}
 			if suffix := domain.SafeKeySuffix(raw, "vend"); !test.missingKey && organizationState == "active" && test.storedSuffix == "" && suffix != "" {
 				update := mock.ExpectExec(regexp.QuoteMeta("UPDATE `api_keys` SET `key_suffix`=? WHERE id = ? AND key_hash = ? AND organization_id = ? AND status = ? AND key_suffix = ? AND (expires_at IS NULL OR expires_at > ?)")).

@@ -58,6 +58,13 @@ type APIKeyRecord struct {
 // TableName maps the key entity to its dedicated table.
 func (APIKeyRecord) TableName() string { return "api_keys" }
 
+// organizationInspectionFlags is one organization row's safe inspection state.
+type organizationInspectionFlags struct {
+	Status                              string
+	SecurityInspectionUpstreamEnabled   bool
+	SecurityInspectionDownstreamEnabled bool
+}
+
 // KeyRepository implements organization-scoped key operations through Gorm.
 type KeyRepository struct {
 	database        *gorm.DB
@@ -258,15 +265,20 @@ func (repository *KeyRepository) FindGatewayKey(ctx context.Context, rawKey stri
 		logging.Printf(ctx, "ERROR", "user.api_key.lookup_failed", "err=%v", err)
 		return domain.APIKey{}, false, err
 	}
-	var organizationStatus string
-	if err := repository.database.WithContext(ctx).Table("organizations").Select("status").Where("id = ?", record.OrganizationID).Scan(&organizationStatus).Error; err != nil {
+	var organization organizationInspectionFlags
+	if err := repository.database.WithContext(ctx).Table("organizations").Select("status, security_inspection_upstream_enabled, security_inspection_downstream_enabled").Where("id = ?", record.OrganizationID).Scan(&organization).Error; err != nil {
 		logging.Printf(ctx, "ERROR", "user.api_key.organization_lookup_failed", "organization_id=%d err=%v", record.OrganizationID, err)
 		return domain.APIKey{}, false, err
 	}
-	if organizationStatus != "active" {
+	if organization.Status != "active" {
 		return domain.APIKey{}, false, nil
 	}
 	key, err := recordToDomain(record)
+	if err == nil {
+		upstream, downstream := organization.SecurityInspectionUpstreamEnabled, organization.SecurityInspectionDownstreamEnabled
+		key.OrgSecurityInspectionUpstreamEnabled = &upstream
+		key.OrgSecurityInspectionDownstreamEnabled = &downstream
+	}
 	if err == nil && (key.DailyQuotaTokens != nil || key.WeeklyQuotaTokens != nil || key.MonthlyQuotaTokens != nil || key.DailyQuotaAmount != nil || key.WeeklyQuotaAmount != nil || key.MonthlyQuotaAmount != nil) {
 		keys := []domain.APIKey{key}
 		err = repository.populatePeriodicUsageAt(ctx, keys, now)
@@ -299,14 +311,19 @@ func (repository *KeyRepository) FindActiveKeyIdentityByID(ctx context.Context, 
 	if err != nil {
 		return domain.APIKey{}, false, err
 	}
-	var organizationStatus string
-	if err := repository.database.WithContext(ctx).Table("organizations").Select("status").Where("id = ?", record.OrganizationID).Scan(&organizationStatus).Error; err != nil {
+	var organization organizationInspectionFlags
+	if err := repository.database.WithContext(ctx).Table("organizations").Select("status, security_inspection_upstream_enabled, security_inspection_downstream_enabled").Where("id = ?", record.OrganizationID).Scan(&organization).Error; err != nil {
 		return domain.APIKey{}, false, err
 	}
-	if organizationStatus != "active" {
+	if organization.Status != "active" {
 		return domain.APIKey{}, false, nil
 	}
 	key, err := recordToDomain(record)
+	if err == nil {
+		upstream, downstream := organization.SecurityInspectionUpstreamEnabled, organization.SecurityInspectionDownstreamEnabled
+		key.OrgSecurityInspectionUpstreamEnabled = &upstream
+		key.OrgSecurityInspectionDownstreamEnabled = &downstream
+	}
 	if err != nil {
 		return domain.APIKey{}, false, err
 	}

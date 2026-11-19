@@ -16,7 +16,7 @@ func TestToolSecurityPolicyDefaultsPersistsAndValidates(t *testing.T) {
 		t.Fatalf("default=%+v err=%v", policy, err)
 	}
 	actor := SecurityPolicyActor{UserID: 7, Role: "super_admin"}
-	for _, mode := range []string{"block", "observe"} {
+	for _, mode := range []string{"block", "disabled", "observe"} {
 		if err := service.UpdateToolSecurityPolicy(ctx, domain.ToolSecurityPolicy{Mode: mode}, actor); err != nil {
 			t.Fatal(err)
 		}

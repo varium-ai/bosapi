@@ -135,33 +135,34 @@ type app struct {
 	usageReporting       *analyticsapp.Service
 	usageReportingWorker *analyticsinfra.Worker
 	toolSecurityPolicy   func(context.Context) (admindomain.ToolSecurityPolicy, error)
-	maxRequestBodyBytes  int64
-	mu                   sync.Mutex
-	data                 data
-	sessions             map[string]oauthSession
-	completed            map[string]completedOAuth
-	liveCalls            map[string]liveCall
-	path                 string
-	encryptionKey        []byte
-	client               *http.Client
-	database             *gorm.DB
-	jwtSecret            []byte
-	background           BackgroundServices
-	portalLoginLock      authDomain.LoginLockStore
-	keyExpiryWorker      *userinfra.KeyExpiryWorker
-	store                *gatewayinfra.EncryptedStore
-	keyRepository        gatewayKeyRepository
-	redisClient          redis.UniversalClient
-	monitorRedis         *redis.Client
-	usageQueue           chan usageEvent
-	usageQueueDone       chan struct{}
-	usageQueueWG         sync.WaitGroup
-	usageQueueDropped    atomic.Uint64
-	usageQueueFailed     atomic.Uint64
-	quotaMu              sync.Mutex
-	quotaAdmissions      map[string]*quotaAdmission
-	organizationQuota    organizationQuotaRuntime
-	monitorClose         func()
+
+	maxRequestBodyBytes int64
+	mu                  sync.Mutex
+	data                data
+	sessions            map[string]oauthSession
+	completed           map[string]completedOAuth
+	liveCalls           map[string]liveCall
+	path                string
+	encryptionKey       []byte
+	client              *http.Client
+	database            *gorm.DB
+	jwtSecret           []byte
+	background          BackgroundServices
+	portalLoginLock     authDomain.LoginLockStore
+	keyExpiryWorker     *userinfra.KeyExpiryWorker
+	store               *gatewayinfra.EncryptedStore
+	keyRepository       gatewayKeyRepository
+	redisClient         redis.UniversalClient
+	monitorRedis        *redis.Client
+	usageQueue          chan usageEvent
+	usageQueueDone      chan struct{}
+	usageQueueWG        sync.WaitGroup
+	usageQueueDropped   atomic.Uint64
+	usageQueueFailed    atomic.Uint64
+	quotaMu             sync.Mutex
+	quotaAdmissions     map[string]*quotaAdmission
+	organizationQuota   organizationQuotaRuntime
+	monitorClose        func()
 
 	organizationPendingMu    sync.Mutex
 	organizationPending      map[uint64]*organizationPendingReceipts
@@ -866,7 +867,9 @@ func (a *app) databaseKey(r *http.Request) (apiKey, bool) {
 	gatewayKey := apiKey{
 		AllowedProviderIDs: key.AllowedProviderIDs, AllowedModels: key.AllowedModels,
 		ID: int(key.ID), Name: key.Name, OrgID: int(key.OrganizationID), Prefix: key.KeyPrefix, Hash: digest(secret), Status: key.Status,
-		SecurityInspectionUpstreamEnabled: &key.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: &key.SecurityInspectionDownstreamEnabled, ExpiresAt: key.ExpiresAt,
+		SecurityInspectionUpstreamEnabled: &key.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: &key.SecurityInspectionDownstreamEnabled,
+		OrgSecurityInspectionUpstreamEnabled: key.OrgSecurityInspectionUpstreamEnabled, OrgSecurityInspectionDownstreamEnabled: key.OrgSecurityInspectionDownstreamEnabled,
+		ExpiresAt:   key.ExpiresAt,
 		QuotaAmount: key.QuotaAmount, QuotaTokens: key.QuotaTokens, QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: key.QuotaUsedTokens,
 		DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
 		DailyQuotaTokens: key.DailyQuotaTokens, WeeklyQuotaTokens: key.WeeklyQuotaTokens, MonthlyQuotaTokens: key.MonthlyQuotaTokens,

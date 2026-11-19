@@ -36,7 +36,7 @@ func (handler *SystemSettingHandler) updateToolSecurityPolicy(ctx *gin.Context) 
 	}
 	var policy domain.ToolSecurityPolicy
 	if err := ctx.ShouldBindJSON(&policy); err != nil {
-		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "mode must be observe or block")
+		httpapi.WriteError(ctx, http.StatusBadRequest, errorcode.InvalidRequest, "mode must be observe, block, or disabled")
 		return
 	}
 	if err := handler.service.UpdateToolSecurityPolicy(ctx.Request.Context(), policy, actor); err != nil {

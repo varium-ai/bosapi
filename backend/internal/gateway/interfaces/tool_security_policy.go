@@ -21,6 +21,11 @@ func (a *app) readToolSecurityPolicy(ctx context.Context) (admindomain.ToolSecur
 }
 
 // Capture one mode per request/connection so a live stream has consistent behavior.
+func globalSecurityInspectionDisabled(ctx context.Context) bool {
+	mode, ok := ctx.Value(gatewayToolSecurityModeKey{}).(string)
+	return ok && mode == "disabled"
+}
+
 func (a *app) toolSecurityBlocks(r *http.Request) bool {
 	if mode, ok := r.Context().Value(gatewayToolSecurityModeKey{}).(string); ok {
 		return mode == "block"

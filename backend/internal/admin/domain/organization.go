@@ -7,18 +7,21 @@ import (
 
 // Organization is the tenant boundary used to scope users, keys, and providers.
 type Organization struct {
-	InitialBindings     []ProviderBinding `json:"-"`
-	ID                  uint64            `json:"id"`
-	Name                string            `json:"name"`
-	Description         string            `json:"description"`
-	Status              string            `json:"status"`
-	AllowedProviderIDs  []uint64          `json:"allowed_provider_ids"`
-	AllowedModels       []string          `json:"allowed_models"`
-	HasActiveBindings   bool              `json:"has_active_bindings"`
-	HasProviderBindings bool              `json:"has_provider_bindings"`
-	HasAPIKeys          bool              `json:"has_api_keys"`
-	CreatedAt           time.Time         `json:"created_at"`
-	UpdatedAt           time.Time         `json:"updated_at"`
+	InitialBindings                     []ProviderBinding `json:"-"`
+	ID                                  uint64            `json:"id"`
+	Name                                string            `json:"name"`
+	Description                         string            `json:"description"`
+	Status                              string            `json:"status"`
+	AllowedProviderIDs                  []uint64          `json:"allowed_provider_ids"`
+	AllowedModels                       []string          `json:"allowed_models"`
+	SecurityInspectionUpstreamEnabled   bool              `json:"security_inspection_upstream_enabled"`
+	SecurityInspectionDownstreamEnabled bool              `json:"security_inspection_downstream_enabled"`
+	SecurityInspectionEnabled           bool              `json:"security_inspection_enabled"`
+	HasActiveBindings                   bool              `json:"has_active_bindings"`
+	HasProviderBindings                 bool              `json:"has_provider_bindings"`
+	HasAPIKeys                          bool              `json:"has_api_keys"`
+	CreatedAt                           time.Time         `json:"created_at"`
+	UpdatedAt                           time.Time         `json:"updated_at"`
 }
 
 // OrganizationRepository defines tenant persistence operations.
