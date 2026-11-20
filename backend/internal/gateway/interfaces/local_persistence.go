@@ -26,13 +26,24 @@ func (a *app) load() error {
 	a.mu.Lock()
 	a.data = next
 	a.mu.Unlock()
+	a.localOAuthSavePending.Store(false)
 	return nil
 }
 
 func (a *app) save() error {
 	a.persistenceMu.Lock()
 	defer a.persistenceMu.Unlock()
-	return a.encryptedStore().Save(a.localDataSnapshot())
+	return a.persistLocalData(a.localDataSnapshot())
+}
+
+// persistLocalData requires persistenceMu. Every successful aggregate write
+// includes the latest OAuth credentials, including any unsaved rotations.
+func (a *app) persistLocalData(snapshot data) error {
+	if err := a.encryptedStore().Save(snapshot); err != nil {
+		return err
+	}
+	a.localOAuthSavePending.Store(false)
+	return nil
 }
 
 // updateLocalData stages configuration/quota changes separately from committed
@@ -47,7 +58,7 @@ func (a *app) updateLocalData(update func(*data) bool) error {
 	if !update(&next) {
 		return nil
 	}
-	if err := a.encryptedStore().Save(next); err != nil {
+	if err := a.persistLocalData(next); err != nil {
 		return err
 	}
 	a.mu.Lock()

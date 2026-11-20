@@ -16,6 +16,12 @@ modify. Usage statistics remain in memory after failed saves and are included in
 the next save. The usage worker coalesces already queued events into batches of
 up to 128, without waiting to fill a batch, and drains queued batches on shutdown.
 
+Local OAuth rotations are published in memory even if the encrypted save fails:
+the upstream may already have invalidated the old refresh token. Subsequent OAuth
+requests can retry the save without another exchange, and successful aggregate
+writes also persist pending rotations. A rotation that has not been saved cannot
+survive a process restart.
+
 ### Request diagnostics
 
 Search container logs or persisted request logs by `request_id`. The

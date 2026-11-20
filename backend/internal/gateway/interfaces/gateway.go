@@ -172,6 +172,9 @@ type app struct {
 	quotaRetryBackoffs       map[uint64]quotaRetryBackoff
 	quotaRetryDone           chan struct{}
 	quotaRetryWG             sync.WaitGroup
+
+	localOAuthRefreshes   map[int]chan struct{} // guarded by mu; one exchange per provider
+	localOAuthSavePending atomic.Bool           // updated under persistenceMu
 }
 
 // Config is kept as a compatibility alias for the application-layer startup configuration.
@@ -1624,7 +1627,7 @@ func (a *app) processUsageEvents(events []usageEvent) {
 	// and quota saves. Neither serialization, encryption, IO nor backoff holds mu.
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {
-		err = a.encryptedStore().Save(snapshot)
+		err = a.persistLocalData(snapshot)
 		if err == nil {
 			break
 		}
@@ -1991,35 +1994,7 @@ func (a *app) refresh(ctx context.Context, p provider) (provider, error) {
 		}
 		return withSubscriptionCredential(p, credentials), nil
 	}
-	if time.Until(p.ExpiresAt) > time.Minute {
-		return p, nil
-	}
-	t, err := a.exchange(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {p.RefreshToken}, "client_id": {clientID}, "scope": {"openid profile email"}})
-	if err != nil {
-		return provider{}, err
-	}
-	var refreshed provider
-	if err := a.updateLocalData(func(next *data) bool {
-		for i := range next.Providers {
-			if next.Providers[i].ID != p.ID {
-				continue
-			}
-			next.Providers[i].AccessToken = t.AccessToken
-			if t.RefreshToken != "" {
-				next.Providers[i].RefreshToken = t.RefreshToken
-			}
-			next.Providers[i].ExpiresAt = time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)
-			refreshed = next.Providers[i]
-			return true
-		}
-		return false
-	}); err != nil {
-		return provider{}, err
-	}
-	if refreshed.ID != 0 {
-		return refreshed, nil
-	}
-	return provider{}, errors.New("provider removed")
+	return a.refreshLocalOAuth(ctx, p)
 }
 func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")

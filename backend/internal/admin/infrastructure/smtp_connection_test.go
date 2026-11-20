@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/textproto"
 	"strings"
 	"testing"
 	"time"
@@ -104,5 +105,92 @@ func TestSMTPProbeRejectsNonEmailConfiguration(t *testing.T) {
 	notifier := NewConfiguredMessageNotifier(reportNotificationSettings{value: `{"provider":"lark"}`})
 	if _, err := notifier.TestSMTP(context.Background()); err == nil {
 		t.Fatal("unconfigured SMTP passed")
+	}
+}
+
+func TestSMTPOTPDeliveryUsesDataAcknowledgement(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		dataReply string
+		closeConn bool
+		wantError bool
+	}{
+		{"accepted and quit", "250 queued", false, false},
+		{"accepted and disconnected", "250 queued", true, false},
+		{"rejected", "550 message rejected", true, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			served := make(chan error, 1)
+			go func() {
+				served <- serveSMTPOTP(t.Context(), listener, test.dataReply, test.closeConn)
+			}()
+			port := listener.Addr().(*net.TCPAddr).Port
+			config := fmt.Sprintf(`{"provider":"email","smtp_host":"127.0.0.1","smtp_port":%d,"from_email":"sender@example.test"}`, port)
+			notifier := NewConfiguredMessageNotifier(reportNotificationSettings{value: config})
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			err = notifier.SendOTP(ctx, "recipient@example.test", "123456")
+			select {
+			case serverErr := <-served:
+				if serverErr != nil {
+					t.Fatal(serverErr)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			if (err != nil) != test.wantError {
+				t.Fatalf("SendOTP error = %v, want error = %t", err, test.wantError)
+			}
+		})
+	}
+}
+
+func serveSMTPOTP(ctx context.Context, listener net.Listener, dataReply string, closeConn bool) error {
+	conn, err := listener.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+	wire := textproto.NewConn(conn)
+	if err := wire.PrintfLine("220 fixture SMTP"); err != nil {
+		return err
+	}
+	for {
+		line, err := wire.ReadLine()
+		if err != nil {
+			return err
+		}
+		switch cmd, _, _ := strings.Cut(line, " "); cmd {
+		case "EHLO", "MAIL", "RCPT":
+			if err := wire.PrintfLine("250 OK"); err != nil {
+				return err
+			}
+		case "DATA":
+			if err := wire.PrintfLine("354 Continue"); err != nil {
+				return err
+			}
+			body, err := wire.ReadDotBytes()
+			if err != nil {
+				return err
+			}
+			if !strings.Contains(string(body), "123456") {
+				return fmt.Errorf("test email did not contain the verification code")
+			}
+			if err := wire.PrintfLine("%s", dataReply); err != nil || closeConn {
+				return err
+			}
+		case "QUIT":
+			return wire.PrintfLine("221 bye")
+		default:
+			return fmt.Errorf("unexpected SMTP command %s", cmd)
+		}
 	}
 }
