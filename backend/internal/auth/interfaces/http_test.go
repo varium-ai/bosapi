@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -78,8 +79,11 @@ func (s *stubAuthService) VerifyAccess(context.Context, string) (domain.User, st
 func (s *stubAuthService) ChangePassword(context.Context, uint64, string, string) error {
 	return nil
 }
-func (s *stubAuthService) RequestPasswordReset(context.Context, string) (int, string, error) {
-	return 0, "", nil
+func (s *stubAuthService) RequestPasswordReset(context.Context, string) (int, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+	return 300, nil
 }
 func (s *stubAuthService) ResetPasswordWithOTP(context.Context, string, string, string) error {
 	return nil
@@ -87,6 +91,54 @@ func (s *stubAuthService) ResetPasswordWithOTP(context.Context, string, string, 
 func (s *stubAuthService) RecordLoginAttempt(_ context.Context, _ string, _ string, _ bool, reason string, _ time.Time) error {
 	s.reasons = append(s.reasons, reason)
 	return nil
+}
+
+func TestForgotPasswordResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, test := range []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "sent", wantStatus: http.StatusOK},
+		{name: "unavailable", err: application.ErrPasswordResetUnavailable, wantStatus: http.StatusServiceUnavailable},
+		{name: "wrapped delivery failure", err: fmt.Errorf("%w: SMTP rejected OTP 123456", application.ErrPasswordResetUnavailable), wantStatus: http.StatusServiceUnavailable},
+		{name: "invalid request", err: fmt.Errorf("user account is inactive or disabled"), wantStatus: http.StatusBadRequest},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			router := gin.New()
+			NewHandler(&stubAuthService{err: test.err}).RegisterPublicRoutes(router.Group("/api/v1/auth"))
+			request := httptest.NewRequest("POST", "/api/v1/auth/forgot-password", strings.NewReader(`{"email":"user@example.com"}`))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != test.wantStatus {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body)
+			}
+			var body struct {
+				Data  map[string]any `json:"data"`
+				Error struct {
+					Code    string `json:"code"`
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if test.wantStatus == http.StatusOK {
+				if len(body.Data) != 2 || body.Data["expires_in"] != float64(300) || body.Data["message"] != "Verification code sent successfully" {
+					t.Fatalf("success response must contain only the message and expiry: %s", response.Body)
+				}
+			} else if body.Data != nil {
+				t.Fatalf("failed delivery must not return success data: %s", response.Body)
+			}
+			if test.wantStatus == http.StatusServiceUnavailable {
+				if body.Error.Code != "provider_unavailable" || body.Error.Message != "password reset is temporarily unavailable; please try again later" {
+					t.Fatalf("delivery failure must return a safe error: %s", response.Body)
+				}
+			}
+		})
+	}
 }
 
 func TestMFAStatusEndpoint(t *testing.T) {

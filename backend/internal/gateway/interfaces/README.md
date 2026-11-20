@@ -2,6 +2,26 @@
 
 HTTP adapters belong in this package. The current gateway keeps its compatibility HTTP adapter in the parent package while the migration is performed incrementally; new endpoints should be added here rather than to the domain or infrastructure packages.
 
+### Local data persistence
+
+All local gateway data writers acquire `persistenceMu` before taking `mu` for
+brief state reads or updates. JSON encoding, encryption, filesystem writes and
+retry backoff run without `mu`, so slow storage does not block authentication or
+usage queries. The writer lock keeps each aggregate snapshot stable and orders
+usage, configuration and quota saves. New writers must follow this same order.
+
+Configuration and local quota changes are staged on copied slices and published
+only after a successful save; callbacks must copy any nested maps or slices they
+modify. Usage statistics remain in memory after failed saves and are included in
+the next save. The usage worker coalesces already queued events into batches of
+up to 128, without waiting to fill a batch, and drains queued batches on shutdown.
+
+Local OAuth rotations are published in memory even if the encrypted save fails:
+the upstream may already have invalidated the old refresh token. Subsequent OAuth
+requests can retry the save without another exchange, and successful aggregate
+writes also persist pending rotations. A rotation that has not been saved cannot
+survive a process restart.
+
 ### Request diagnostics
 
 Search container logs or persisted request logs by `request_id`. The

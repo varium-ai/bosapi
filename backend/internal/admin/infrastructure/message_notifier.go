@@ -139,9 +139,10 @@ func (notifier *ConfiguredMessageNotifier) sendEmail(ctx context.Context, config
 	if err := writer.Close(); err != nil {
 		return fail(err)
 	}
-	stage = "quit"
+	// The server accepted the message at the end of DATA. A lost QUIT reply
+	// must not turn an accepted OTP (or alert) into a failed delivery.
 	if err := client.Quit(); err != nil {
-		return fail(err)
+		logging.Event(ctx, "WARN", "notification.email.quit_failed", fmt.Sprintf("smtp_host=%s smtp_port=%d recipients=%d", config.SMTPHost, config.SMTPPort, len(to)))
 	}
 	logging.Event(ctx, "INFO", "notification.email.send_succeeded", fmt.Sprintf("smtp_host=%s smtp_port=%d recipients=%d", config.SMTPHost, config.SMTPPort, len(to)))
 	return nil

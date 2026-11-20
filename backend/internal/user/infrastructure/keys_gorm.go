@@ -148,6 +148,7 @@ func (repository *KeyRepository) AddUsage(ctx context.Context, id uint64, tokens
 }
 
 // RecordGatewayUsageAndQuota persists one request and charges its quota exactly once.
+// Deleted keys still contribute to the authenticated organization's usage ledger.
 func (repository *KeyRepository) RecordGatewayUsageAndQuota(ctx context.Context, value GatewayUsageRecord) (bool, error) {
 	if repository == nil || repository.database == nil || value.APIKeyID == 0 || value.RequestID == "" {
 		return false, errors.New("invalid gateway usage record")
@@ -155,9 +156,15 @@ func (repository *KeyRepository) RecordGatewayUsageAndQuota(ctx context.Context,
 	var inserted bool
 	err := repository.database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var key APIKeyRecord
-		// Charge the tenant captured at authentication; historical ledger rows are immutable.
-		if err := tx.Select("id", "user_id", "organization_id").Where("id = ?", value.APIKeyID).First(&key).Error; err != nil {
-			return err
+		// Serialize a live key's charge with deletion. Missing keys must still
+		// settle against the tenant captured at authentication so retries drain.
+		lookup := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", value.APIKeyID).Limit(1).Find(&key)
+		if lookup.Error != nil {
+			return lookup.Error
+		}
+		keyExists := lookup.RowsAffected > 0
+		if !keyExists && value.OrganizationID == 0 {
+			return gorm.ErrRecordNotFound
 		}
 		record := UsageRecord{
 			RequestID: value.RequestID, UsageID: value.UsageID, OrganizationID: value.OrganizationID, APIKeyID: value.APIKeyID,
@@ -172,13 +179,27 @@ func (repository *KeyRepository) RecordGatewayUsageAndQuota(ctx context.Context,
 			return err
 		}
 		inserted = true
+		if !keyExists {
+			// The immutable ledger remains authoritative for organization quotas;
+			// a permanently deleted key has no live counters left to update.
+			return nil
+		}
 		// Charge the receipt's rounded DECIMAL even for a late expired request.
 		storedCost := tx.Table("usage_log_receipts").Select("cost_amount").Where("request_id = ? AND usage_id = ?", value.RequestID, value.UsageID)
-		return tx.Model(&APIKeyRecord{}).Where("id = ?", value.APIKeyID).UpdateColumns(map[string]any{
+		result := tx.Model(&APIKeyRecord{}).Where("id = ?", value.APIKeyID).UpdateColumns(map[string]any{
 			"quota_used_tokens": gorm.Expr("COALESCE(quota_used_tokens, 0) + ?", value.TotalTokens),
 			"quota_used_amount": gorm.Expr("COALESCE(quota_used_amount, 0) + (?)", storedCost),
 			"last_used_at":      value.CreatedAt,
-		}).Error
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			// MySQL also reports zero changed rows for a zero-usage receipt whose
+			// timestamp is unchanged. Verify existence rather than rejecting it.
+			return tx.Select("id").Where("id = ?", value.APIKeyID).Take(&APIKeyRecord{}).Error
+		}
+		return nil
 	})
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return false, nil

@@ -138,6 +138,7 @@ type app struct {
 
 	maxRequestBodyBytes int64
 	mu                  sync.Mutex
+	persistenceMu       sync.Mutex
 	data                data
 	sessions            map[string]oauthSession
 	completed           map[string]completedOAuth
@@ -150,7 +151,7 @@ type app struct {
 	background          BackgroundServices
 	portalLoginLock     authDomain.LoginLockStore
 	keyExpiryWorker     *userinfra.KeyExpiryWorker
-	store               *gatewayinfra.EncryptedStore
+	store               gatewayDataStore
 	keyRepository       gatewayKeyRepository
 	redisClient         redis.UniversalClient
 	monitorRedis        *redis.Client
@@ -171,6 +172,9 @@ type app struct {
 	quotaRetryBackoffs       map[uint64]quotaRetryBackoff
 	quotaRetryDone           chan struct{}
 	quotaRetryWG             sync.WaitGroup
+
+	localOAuthRefreshes   map[int]chan struct{} // guarded by mu; one exchange per provider
+	localOAuthSavePending atomic.Bool           // updated under persistenceMu
 }
 
 // Config is kept as a compatibility alias for the application-layer startup configuration.
@@ -522,15 +526,17 @@ func (a *app) finishOAuth(w http.ResponseWriter, r *http.Request) {
 		fail(w, 502, errorcode.AccountIdentityMissing)
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	n := nextProviderID(a.data.Providers)
-	a.data.Providers = append(a.data.Providers, provider{ID: n, Name: "ChatGPT Codex", Platform: "openai", Type: "oauth", Status: "active", AccessToken: t.AccessToken, RefreshToken: t.RefreshToken, AccountID: id, ExpiresAt: time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)})
-	if err := a.save(); err != nil {
-		a.data.Providers = a.data.Providers[:len(a.data.Providers)-1]
+	var n int
+	if err := a.updateLocalData(func(next *data) bool {
+		n = nextProviderID(next.Providers)
+		next.Providers = append(next.Providers, provider{ID: n, Name: "ChatGPT Codex", Platform: "openai", Type: "oauth", Status: "active", AccessToken: t.AccessToken, RefreshToken: t.RefreshToken, AccountID: id, ExpiresAt: time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)})
+		return true
+	}); err != nil {
 		fail(w, 500, errorcode.StorageFailed)
 		return
 	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.completed == nil {
 		a.completed = map[string]completedOAuth{}
 	}
@@ -616,37 +622,42 @@ func (a *app) createKey(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, errorcode.InvalidRequest)
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if len(a.data.Keys) >= edition.MaxAPIKeys {
-		fail(w, http.StatusConflict, errorcode.Conflict)
-		return
-	}
-	if len(a.data.Providers) == 0 {
-		fail(w, 409, errorcode.ProviderUnavailable)
-		return
-	}
-	providerID := q.ProviderID
-	if providerID == 0 {
-		providerID = a.data.Providers[0].ID
-	}
-	found := false
-	for _, p := range a.data.Providers {
-		if p.ID == providerID && p.Status == "active" {
-			found = true
+	var id int
+	var secret string
+	var rejection errorcode.Code
+	if err := a.updateLocalData(func(next *data) bool {
+		if len(next.Keys) >= edition.MaxAPIKeys {
+			rejection = errorcode.Conflict
+			return false
 		}
-	}
-	if !found {
-		fail(w, 400, errorcode.InvalidProvider)
+		if len(next.Providers) == 0 {
+			rejection = errorcode.ProviderUnavailable
+			return false
+		}
+		providerID := q.ProviderID
+		if providerID == 0 {
+			providerID = next.Providers[0].ID
+		}
+		for _, p := range next.Providers {
+			if p.ID == providerID && p.Status == "active" {
+				secret = "sk-gw-" + hex.EncodeToString(randomBytes(32))
+				id = nextKeyID(next.Keys)
+				next.Keys = append(next.Keys, apiKey{ID: id, Name: q.Name, OrgID: 1, Prefix: secret[:14], Hash: digest(secret), Status: "active", ProviderID: providerID})
+				return true
+			}
+		}
+		rejection = errorcode.InvalidProvider
+		return false
+	}); err != nil {
+		fail(w, http.StatusInternalServerError, errorcode.StorageFailed)
 		return
 	}
-	secret := "sk-gw-" + hex.EncodeToString(randomBytes(32))
-	id := nextKeyID(a.data.Keys)
-	k := apiKey{ID: id, Name: q.Name, OrgID: 1, Prefix: secret[:14], Hash: digest(secret), Status: "active", ProviderID: providerID}
-	a.data.Keys = append(a.data.Keys, k)
-	if err := a.save(); err != nil {
-		a.data.Keys = a.data.Keys[:len(a.data.Keys)-1]
-		fail(w, 500, errorcode.StorageFailed)
+	switch rejection {
+	case errorcode.Conflict, errorcode.ProviderUnavailable:
+		fail(w, http.StatusConflict, rejection)
+		return
+	case errorcode.InvalidProvider:
+		fail(w, http.StatusBadRequest, rejection)
 		return
 	}
 	respond(w, 201, map[string]any{"data": map[string]any{"id": id, "key": secret}})
@@ -658,55 +669,59 @@ func (a *app) keyAction(w http.ResponseWriter, r *http.Request, path string) {
 		fail(w, 404, errorcode.NotFound)
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for i := range a.data.Keys {
-		if a.data.Keys[i].ID != id {
-			continue
-		}
-		old := a.data.Keys[i]
-		if r.Method == "DELETE" && len(parts) == 1 {
-			a.data.Keys = append(a.data.Keys[:i], a.data.Keys[i+1:]...)
-			if a.save() != nil {
-				a.data.Keys = append(a.data.Keys[:i], append([]apiKey{old}, a.data.Keys[i:]...)...)
-				fail(w, 500, errorcode.StorageFailed)
-				return
-			}
-			respond(w, 200, map[string]any{"data": map[string]bool{"ok": true}})
-			return
-		}
-		if r.Method == "PATCH" && len(parts) == 2 && parts[1] == "status" {
-			var q struct {
-				Status string `json:"status"`
-			}
-			if body(r, &q) != nil || (q.Status != "active" && q.Status != "disabled") {
-				fail(w, 400, errorcode.InvalidRequest)
-				return
-			}
-			a.data.Keys[i].Status = q.Status
-			if a.save() != nil {
-				a.data.Keys[i] = old
-				fail(w, 500, errorcode.StorageFailed)
-				return
-			}
-			respond(w, 200, map[string]any{"data": map[string]bool{"ok": true}})
-			return
-		}
-		if r.Method == "POST" && len(parts) == 2 && parts[1] == "reset" {
-			secret := "sk-gw-" + hex.EncodeToString(randomBytes(32))
-			a.data.Keys[i].Hash = digest(secret)
-			a.data.Keys[i].Prefix = secret[:14]
-			if a.save() != nil {
-				a.data.Keys[i] = old
-				fail(w, 500, errorcode.StorageFailed)
-				return
-			}
-			respond(w, 200, map[string]any{"data": map[string]string{"key": secret}})
-			return
-		}
-		break
+	deleteKey := r.Method == "DELETE" && len(parts) == 1
+	changeStatus := r.Method == "PATCH" && len(parts) == 2 && parts[1] == "status"
+	reset := r.Method == "POST" && len(parts) == 2 && parts[1] == "reset"
+	if !deleteKey && !changeStatus && !reset {
+		fail(w, 404, errorcode.NotFound)
+		return
 	}
-	fail(w, 404, errorcode.NotFound)
+	var q struct {
+		Status string `json:"status"`
+	}
+	valid := !changeStatus || body(r, &q) == nil && (q.Status == "active" || q.Status == "disabled")
+	var secret string
+	if reset {
+		secret = "sk-gw-" + hex.EncodeToString(randomBytes(32))
+	}
+	found := false
+	if err := a.updateLocalData(func(next *data) bool {
+		for i := range next.Keys {
+			if next.Keys[i].ID != id {
+				continue
+			}
+			found = true
+			if !valid {
+				return false
+			}
+			switch {
+			case deleteKey:
+				next.Keys = append(next.Keys[:i], next.Keys[i+1:]...)
+			case changeStatus:
+				next.Keys[i].Status = q.Status
+			case reset:
+				next.Keys[i].Hash, next.Keys[i].Prefix = digest(secret), secret[:14]
+			}
+			return true
+		}
+		return false
+	}); err != nil {
+		fail(w, 500, errorcode.StorageFailed)
+		return
+	}
+	if !found {
+		fail(w, 404, errorcode.NotFound)
+		return
+	}
+	if !valid {
+		fail(w, 400, errorcode.InvalidRequest)
+		return
+	}
+	if reset {
+		respond(w, 200, map[string]any{"data": map[string]string{"key": secret}})
+		return
+	}
+	respond(w, 200, map[string]any{"data": map[string]bool{"ok": true}})
 }
 func (a *app) providerAction(w http.ResponseWriter, r *http.Request, path string) {
 	if r.Method == "POST" && strings.HasSuffix(path, "/test") {
@@ -722,33 +737,39 @@ func (a *app) providerAction(w http.ResponseWriter, r *http.Request, path string
 		fail(w, 404, errorcode.NotFound)
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, k := range a.data.Keys {
-		if k.ProviderID == id {
-			fail(w, 409, errorcode.ProviderInUse)
-			return
-		}
-	}
-	for i, p := range a.data.Providers {
-		if p.ID == id {
-			a.data.Providers = append(a.data.Providers[:i], a.data.Providers[i+1:]...)
-			if a.save() != nil {
-				a.data.Providers = append(a.data.Providers[:i], append([]provider{p}, a.data.Providers[i:]...)...)
-				fail(w, 500, errorcode.StorageFailed)
-				return
+	inUse, found := false, false
+	if err := a.updateLocalData(func(next *data) bool {
+		for _, k := range next.Keys {
+			if k.ProviderID == id {
+				inUse = true
+				return false
 			}
-			respond(w, 200, map[string]any{"data": map[string]bool{"ok": true}})
-			return
 		}
+		for i, p := range next.Providers {
+			if p.ID == id {
+				next.Providers = append(next.Providers[:i], next.Providers[i+1:]...)
+				found = true
+				return true
+			}
+		}
+		return false
+	}); err != nil {
+		fail(w, 500, errorcode.StorageFailed)
+		return
 	}
-	fail(w, 404, errorcode.NotFound)
+	if inUse {
+		fail(w, 409, errorcode.ProviderInUse)
+		return
+	}
+	if !found {
+		fail(w, 404, errorcode.NotFound)
+		return
+	}
+	respond(w, 200, map[string]any{"data": map[string]bool{"ok": true}})
 }
-func (a *app) load() error { return a.encryptedStore().Load(&a.data) }
 
-func (a *app) save() error { return a.encryptedStore().Save(a.data) }
-
-func (a *app) encryptedStore() *gatewayinfra.EncryptedStore {
+// encryptedStore requires persistenceMu after initialization.
+func (a *app) encryptedStore() gatewayDataStore {
 	if a.store == nil {
 		a.store = gatewayinfra.NewEncryptedStore(a.path, a.encryptionKey)
 	}
@@ -803,25 +824,6 @@ func (a *app) authenticateKey(r *http.Request) (provider, bool) {
 		}
 	}
 	return provider{}, false
-}
-
-func (a *app) authenticatedKeyHash(r *http.Request) string {
-	secret := requestSecret(r)
-	if !validGatewayKeyFormat(secret) {
-		return ""
-	}
-	hash := digest(secret)
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, key := range a.data.Keys {
-		if keyUsable(key, r) && subtle.ConstantTimeCompare([]byte(key.Hash), []byte(hash)) == 1 {
-			return hash
-		}
-	}
-	if k, ok := a.databaseKey(r); ok {
-		return k.Hash
-	}
-	return ""
 }
 
 func (a *app) authenticatedKey(r *http.Request) (apiKey, bool) {
@@ -1553,14 +1555,12 @@ func (a *app) startUsageQueue() {
 		for {
 			select {
 			case event := <-a.usageQueue:
-				if event.KeyHash != "" || event.Key.ID > 0 {
-					a.processUsageEvent(event)
-				}
+				a.processQueuedUsageEvents(event)
 			case <-a.usageQueueDone:
 				for {
 					select {
 					case event := <-a.usageQueue:
-						a.processUsageEvent(event)
+						a.processQueuedUsageEvents(event)
 					default:
 						return
 					}
@@ -1591,7 +1591,58 @@ func (a *app) stopUsageQueue() {
 }
 
 func (a *app) processUsageEvent(event usageEvent) {
+	a.processUsageEvents([]usageEvent{event})
+}
+
+// Coalesce queued statistics without delaying low-volume traffic. Bounding each
+// batch lets configuration changes and quota settlements share the writer.
+func (a *app) processQueuedUsageEvents(first usageEvent) {
+	const maxBatchSize = 128
+	pending := min(len(a.usageQueue), maxBatchSize-1)
+	events := make([]usageEvent, 0, pending+1)
+	if first.KeyHash != "" || first.Key.ID > 0 {
+		events = append(events, first)
+	}
+	for range pending {
+		event := <-a.usageQueue
+		if event.KeyHash != "" || event.Key.ID > 0 {
+			events = append(events, event)
+		}
+	}
+	if len(events) > 0 {
+		a.processUsageEvents(events)
+	}
+}
+
+func (a *app) processUsageEvents(events []usageEvent) {
+	a.persistenceMu.Lock()
+	defer a.persistenceMu.Unlock()
 	a.mu.Lock()
+	for _, event := range events {
+		a.applyUsageEventLocked(event)
+	}
+	snapshot := a.data
+	a.mu.Unlock()
+	// persistenceMu keeps this snapshot stable and orders it with configuration
+	// and quota saves. Neither serialization, encryption, IO nor backoff holds mu.
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		err = a.persistLocalData(snapshot)
+		if err == nil {
+			break
+		}
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * 25 * time.Millisecond)
+		}
+	}
+	if err != nil {
+		a.usageQueueFailed.Add(uint64(len(events)))
+		logging.Printf(events[len(events)-1].Context, "ERROR", "gateway.usage.persist_failed", "attempts=3 events=%d failed=%d err=%v", len(events), a.usageQueueFailed.Load(), err)
+	}
+}
+
+// applyUsageEventLocked requires both persistenceMu and mu.
+func (a *app) applyUsageEventLocked(event usageEvent) {
 	if a.data.Usage == nil {
 		a.data.Usage = make(map[string]usage)
 	}
@@ -1635,21 +1686,6 @@ func (a *app) processUsageEvent(event usageEvent) {
 	}
 	current.Daily[day] = daily
 	a.data.Usage[event.KeyHash] = current
-	var err error
-	for attempt := 1; attempt <= 3; attempt++ {
-		err = a.save()
-		if err == nil {
-			break
-		}
-		if attempt < 3 {
-			time.Sleep(time.Duration(attempt) * 25 * time.Millisecond)
-		}
-	}
-	a.mu.Unlock()
-	if err != nil {
-		a.usageQueueFailed.Add(1)
-		logging.Printf(event.Context, "ERROR", "gateway.usage.persist_failed", "attempts=3 failed=%d err=%v", a.usageQueueFailed.Load(), err)
-	}
 }
 
 type gatewayUsageContextKey struct{}
@@ -1958,29 +1994,7 @@ func (a *app) refresh(ctx context.Context, p provider) (provider, error) {
 		}
 		return withSubscriptionCredential(p, credentials), nil
 	}
-	if time.Until(p.ExpiresAt) > time.Minute {
-		return p, nil
-	}
-	t, err := a.exchange(ctx, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {p.RefreshToken}, "client_id": {clientID}, "scope": {"openid profile email"}})
-	if err != nil {
-		return provider{}, err
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for i := range a.data.Providers {
-		if a.data.Providers[i].ID == p.ID {
-			a.data.Providers[i].AccessToken = t.AccessToken
-			if t.RefreshToken != "" {
-				a.data.Providers[i].RefreshToken = t.RefreshToken
-			}
-			a.data.Providers[i].ExpiresAt = time.Now().Add(time.Duration(t.ExpiresIn) * time.Second)
-			if err := a.save(); err != nil {
-				return provider{}, err
-			}
-			return a.data.Providers[i], nil
-		}
-	}
-	return provider{}, errors.New("provider removed")
+	return a.refreshLocalOAuth(ctx, p)
 }
 func (a *app) gateway(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")

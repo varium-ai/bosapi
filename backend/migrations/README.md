@@ -344,6 +344,10 @@ isolation, cancellation, and error propagation with SQL mocks.
 request has completed but its usage and organization quota transaction could not
 be committed. The gateway retries these rows with the original request and usage
 identity, then deletes each row only after the idempotent settlement succeeds.
+Settlement locks a live key until its usage and counters commit. If the key was
+already permanently deleted, settlement still records usage against the
+organization captured at authentication, without recreating the key. These
+receipts remain idempotent and can drain from the outbox after key deletion.
 The outbox contains usage metadata only; credentials and request bodies are not
 stored. The matching `.down.sql` removes the outbox table and should be applied
 only after all pending rows have been drained.

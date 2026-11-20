@@ -267,22 +267,22 @@ func (a *app) persistProtocolDetection(ctx context.Context, p provider, result p
 		}
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for i := range a.data.Providers {
-		stored := &a.data.Providers[i]
-		if stored.ID != p.ID || protocolFingerprint(*stored) != result.Fingerprint {
-			continue
+	if err := a.updateLocalData(func(next *data) bool {
+		for i := range next.Providers {
+			stored := &next.Providers[i]
+			if stored.ID != p.ID || protocolFingerprint(*stored) != result.Fingerprint {
+				continue
+			}
+			capabilities := make(map[string]any, len(stored.Capabilities)+1)
+			for key, value := range stored.Capabilities {
+				capabilities[key] = value
+			}
+			capabilities["protocol_detection"] = result
+			stored.Capabilities = capabilities
+			return true
 		}
-		capabilities := make(map[string]any, len(stored.Capabilities)+1)
-		for key, value := range stored.Capabilities {
-			capabilities[key] = value
-		}
-		capabilities["protocol_detection"] = result
-		stored.Capabilities = capabilities
-		if err := a.save(); err != nil {
-			logging.Printf(ctx, "WARN", "gateway.provider.protocol_detection_persist_failed", "provider_id=%d", p.ID)
-		}
-		return
+		return false
+	}); err != nil {
+		logging.Printf(ctx, "WARN", "gateway.provider.protocol_detection_persist_failed", "provider_id=%d", p.ID)
 	}
 }

@@ -27,14 +27,15 @@ import (
 )
 
 var (
-	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrInvalidRefreshToken = errors.New("invalid refresh token")
-	ErrInactiveUser        = errors.New("user is inactive")
-	ErrLoginLocked         = errors.New("login is temporarily locked")
-	ErrInvalidMFA          = errors.New("invalid verification code")
-	ErrMFANotEnabled       = errors.New("two-factor authentication is not enabled")
-	ErrMFAAlreadyEnabled   = errors.New("two-factor authentication is already enabled")
-	ErrMFASetupExpired     = errors.New("mfa setup session expired")
+	ErrInvalidCredentials       = errors.New("invalid credentials")
+	ErrInvalidRefreshToken      = errors.New("invalid refresh token")
+	ErrInactiveUser             = errors.New("user is inactive")
+	ErrPasswordResetUnavailable = errors.New("password reset is temporarily unavailable")
+	ErrLoginLocked              = errors.New("login is temporarily locked")
+	ErrInvalidMFA               = errors.New("invalid verification code")
+	ErrMFANotEnabled            = errors.New("two-factor authentication is not enabled")
+	ErrMFAAlreadyEnabled        = errors.New("two-factor authentication is already enabled")
+	ErrMFASetupExpired          = errors.New("mfa setup session expired")
 )
 
 // Cipher defines authenticated encryption for TOTP secrets.
@@ -96,6 +97,7 @@ type resetChallenge struct {
 	attempts  int
 	expiresAt time.Time
 	createdAt time.Time
+	delivered bool
 }
 
 type pendingMFASetup struct {
@@ -144,7 +146,7 @@ type Service struct {
 	refreshTTL      time.Duration
 	now             func() time.Time
 	notifier        OTPNotifier
-	challenges      map[string]resetChallenge
+	challenges      map[string]*resetChallenge
 	cipher          Cipher
 	pendingMFA      map[uint64]pendingMFASetup
 	usedMFASteps    map[string]time.Time
@@ -189,7 +191,7 @@ func NewService(repository Repository, secret []byte, accessTTL, refreshTTL time
 		refreshTTL:   refreshTTL,
 		now:          time.Now,
 		notifier:     notifier,
-		challenges:   make(map[string]resetChallenge),
+		challenges:   make(map[string]*resetChallenge),
 		cipher:       defCipher,
 		pendingMFA:   make(map[uint64]pendingMFASetup),
 		usedMFASteps: make(map[string]time.Time),
@@ -486,19 +488,22 @@ func (service *Service) ChangePassword(ctx context.Context, userID uint64, curre
 	return nil
 }
 
-// RequestPasswordReset creates a 6-digit challenge code and dispatches it via notifier or console log.
-func (service *Service) RequestPasswordReset(ctx context.Context, email string) (int, string, error) {
+// RequestPasswordReset dispatches a 6-digit challenge code and returns its lifetime.
+func (service *Service) RequestPasswordReset(ctx context.Context, email string) (int, error) {
 	normEmail := strings.ToLower(strings.TrimSpace(email))
 	if normEmail == "" || len(normEmail) > 320 || !strings.Contains(normEmail, "@") {
-		return 0, "", errors.New("please provide a valid email address")
+		return 0, errors.New("please provide a valid email address")
+	}
+	if service.notifier == nil {
+		return 0, ErrPasswordResetUnavailable
 	}
 
 	user, err := service.repository.FindByEmail(ctx, normEmail)
 	if err != nil {
-		return 0, "", errors.New("user with this email does not exist")
+		return 0, errors.New("user with this email does not exist")
 	}
 	if user.Status != "active" {
-		return 0, "", errors.New("user account is inactive or disabled")
+		return 0, errors.New("user account is inactive or disabled")
 	}
 
 	now := service.now().UTC()
@@ -506,18 +511,18 @@ func (service *Service) RequestPasswordReset(ctx context.Context, email string) 
 	if existing, found := service.challenges[normEmail]; found && now.Before(existing.expiresAt) {
 		if now.Sub(existing.createdAt) < 30*time.Second {
 			service.mu.Unlock()
-			return 0, "", errors.New("verification code was recently requested; please wait 30 seconds")
+			return 0, errors.New("verification code was recently requested; please wait 30 seconds")
 		}
 	}
 
 	number, err := rand.Int(rand.Reader, big.NewInt(1000000))
 	if err != nil {
 		service.mu.Unlock()
-		return 0, "", fmt.Errorf("generate verification code: %w", err)
+		return 0, fmt.Errorf("generate verification code: %w", err)
 	}
 	code := fmt.Sprintf("%06d", number.Int64())
 	hash := service.codeHash(normEmail, code)
-	service.challenges[normEmail] = resetChallenge{
+	challenge := &resetChallenge{
 		email:     normEmail,
 		userID:    user.ID,
 		codeHash:  hash,
@@ -525,17 +530,29 @@ func (service *Service) RequestPasswordReset(ctx context.Context, email string) 
 		expiresAt: now.Add(5 * time.Minute),
 		createdAt: now,
 	}
+	service.challenges[normEmail] = challenge
 	service.mu.Unlock()
 
-	var devCode string
-	if service.notifier != nil {
-		_ = service.notifier.SendOTP(ctx, normEmail, code)
-	} else {
-		devCode = code
+	if err := service.notifier.SendOTP(ctx, normEmail, code); err != nil {
+		service.mu.Lock()
+		// A slow failed delivery must not remove a newer request's challenge.
+		if service.challenges[normEmail] == challenge {
+			delete(service.challenges, normEmail)
+		}
+		service.mu.Unlock()
+		logging.Event(ctx, "ERROR", "auth.password_reset.delivery_failed", "verification code delivery failed")
+		return 0, ErrPasswordResetUnavailable
 	}
-	logging.Event(ctx, "INFO", "auth.password_reset.requested", "verification code generated")
+	service.mu.Lock()
+	if service.challenges[normEmail] != challenge {
+		service.mu.Unlock()
+		return 0, ErrPasswordResetUnavailable
+	}
+	challenge.delivered = true
+	service.mu.Unlock()
+	logging.Event(ctx, "INFO", "auth.password_reset.requested", "verification code sent")
 
-	return 300, devCode, nil
+	return 300, nil
 }
 
 // ResetPasswordWithOTP verifies the 6-digit challenge code and updates the user's password.
@@ -557,6 +574,10 @@ func (service *Service) ResetPasswordWithOTP(ctx context.Context, email, otp, ne
 		service.mu.Unlock()
 		return errors.New("verification code has expired or was not requested; please request a new code")
 	}
+	if !challenge.delivered {
+		service.mu.Unlock()
+		return errors.New("verification code has expired or was not requested; please request a new code")
+	}
 
 	if challenge.attempts >= 5 {
 		delete(service.challenges, normEmail)
@@ -567,7 +588,6 @@ func (service *Service) ResetPasswordWithOTP(ctx context.Context, email, otp, ne
 	expectedHash := service.codeHash(normEmail, otp)
 	if subtle.ConstantTimeCompare([]byte(challenge.codeHash), []byte(expectedHash)) != 1 {
 		challenge.attempts++
-		service.challenges[normEmail] = challenge
 		service.mu.Unlock()
 		return errors.New("invalid verification code")
 	}
