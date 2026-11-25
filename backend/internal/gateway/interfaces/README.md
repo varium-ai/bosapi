@@ -377,6 +377,12 @@ without per-client beta/thinking disable switches. Its optional
 `dangerous_tool_use` safeguard envelope no longer needs a rejected request and
 retry; missing server classification results let the CLI use its own fallback.
 This is a bounded Chat bridge, not full native Claude capability support.
+For Messages → Chat, boolean `tools[].defer_loading` flags are consumed and
+complete custom tools are eagerly declared as Chat functions, preserving their
+names, descriptions and input schemas. This may increase upstream context/token
+usage compared with native deferred discovery. Non-boolean flags, tools without
+input schemas, server-hosted tool search and `tool_reference` content remain
+unsupported; this fallback does not implement Anthropic tool search.
 Model authorization and tool permissions are unchanged. To exercise an
 installed Claude CLI against a real Chat upstream with its default capabilities,
 set `BOS_CHAT_LIVE_URL`, `BOS_CHAT_LIVE_KEY` and `BOS_CHAT_LIVE_MODEL`, then run

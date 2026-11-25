@@ -69,6 +69,22 @@ func (q *RelayRequest) normalizeChatHints(root map[string]any) error {
 			return err
 		}
 	}
+	// Chat has no deferred tool discovery. Eagerly expose complete custom tool
+	// declarations instead; the normal parser still validates type and schema.
+	// Only consume this flag on declarations, never on schemas or arguments.
+	tools, _ := root["tools"].([]any)
+	for index, entry := range tools {
+		tool, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if value, exists := tool["defer_loading"]; exists {
+			if _, ok := value.(bool); !ok {
+				return conversionError(fmt.Sprintf("tools[%d].defer_loading", index), "expected a boolean")
+			}
+			delete(tool, "defer_loading")
+		}
+	}
 	messages, _ := root["messages"].([]any)
 	for index, entry := range messages {
 		if message, ok := entry.(map[string]any); ok {
