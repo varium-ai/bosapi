@@ -36,6 +36,7 @@ func TestMessagesChatJSONAndSSE(t *testing.T) {
 				sink := &toolRecordingSink{block: blocked}
 				a.background.SecurityEvents = sink
 				body := strings.Replace(crossMessagesRequest, `"model":`, `"thinking":{"type":"enabled","budget_tokens":0},"reasoning_effort":"provider-defined","enable_thinking":false,"output_config":{"effort":"high"},"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"model":`, 1)
+				body = strings.Replace(body, `"name":"read","input_schema"`, `"name":"read","defer_loading":true,"input_schema"`, 1)
 				response, kind := crossOpenAIResponse, "application/json"
 				if stream {
 					body = strings.Replace(body, `"model":"alias"`, `"model":"alias","stream":true`, 1)
@@ -52,6 +53,11 @@ func TestMessagesChatJSONAndSSE(t *testing.T) {
 					var upstream map[string]any
 					if err := json.Unmarshal(raw, &upstream); err != nil {
 						t.Fatal(err)
+					}
+					tools := upstream["tools"].([]any)
+					function := tools[0].(map[string]any)["function"].(map[string]any)
+					if len(tools) != 1 || function["name"] != "read" || function["parameters"] == nil || strings.Contains(string(raw), "defer_loading") {
+						t.Fatalf("deferred tool was not eagerly declared: %s", raw)
 					}
 					thinking, ok := upstream["thinking"].(map[string]any)
 					if !ok || thinking["type"] != "enabled" || thinking["budget_tokens"] != float64(0) || upstream["reasoning_effort"] != "provider-defined" || upstream["enable_thinking"] != false {
