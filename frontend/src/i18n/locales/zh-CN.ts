@@ -1133,6 +1133,7 @@ export const zhCN = {
     org_limits_link: '限额',
     org_view_limits_link: '查看组织限额',
     save_failed: '保存限额失败，请重试。',
+    key_refresh_failed: '未能读取已保存的实际配置，请点击刷新，核对配置后再重试。',
 
     title: '并发管控与限流策略',
     subtitle:

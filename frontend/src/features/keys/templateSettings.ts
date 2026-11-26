@@ -28,6 +28,7 @@ export function emptyKeyTemplateSettings(organizationID?: number): KeyTemplateSe
     allowed_provider_ids: [],
     allowed_models: [],
     expires_at: null,
+    quota_reset_start_at: null,
     quota_amount: null,
     quota_tokens: null,
     daily_quota_amount: null,

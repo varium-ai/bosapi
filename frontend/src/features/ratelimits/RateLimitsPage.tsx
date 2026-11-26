@@ -1,4 +1,5 @@
 import { QuotaResetStartField } from '../keys/QuotaResetStartField';
+import { PartialKeySaveError, saveKeyPolicy } from '../keys/saveKeyPolicy';
 import { compactKey } from '../common/display';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -38,6 +39,7 @@ import {
   PERIODS,
   type QuotaUser,
   type OrganizationQuotaValues,
+  type RateLimitSnapshot,
 } from './organizationQuota';
 import { OrganizationQuotaUsage } from './OrganizationQuotaUsage';
 
@@ -54,6 +56,30 @@ interface KeyOptionItem {
 interface OrganizationOption {
   id: number;
   name: string;
+}
+
+function keyQuotaFormValues(
+  details: Record<string, unknown>,
+  rolling: NonNullable<RateLimitSnapshot['key']>,
+) {
+  return {
+    ...details,
+    ...rolling,
+    ...Object.fromEntries(
+      [
+        'quota_reset_start_at',
+        ...PERIODS.flatMap(period =>
+          ['tokens', 'amount'].map(metric => `${period}_quota_${metric}`),
+        ),
+      ].map(field => [field, details[field] ?? null]),
+    ),
+    quota_5h: rolling.quota_5h ?? null,
+    quota_1d: rolling.quota_1d ?? null,
+    quota_7d: rolling.quota_7d ?? null,
+    quota_5h_amount: rolling.quota_5h_amount ?? null,
+    quota_1d_amount: rolling.quota_1d_amount ?? null,
+    quota_7d_amount: rolling.quota_7d_amount ?? null,
+  };
 }
 
 export const RateLimitsPage: React.FC = () => {
@@ -130,6 +156,7 @@ const RateLimitsEditor: React.FC<{
   const qpsRangeRule = { type: 'integer' as const, min: 0, max: MAX_QPS, message: qpsRangeMessage };
   const formatKeyDisplay = compactKey;
   const [savingScope, setSavingScope] = useState<'global' | 'org' | 'key' | null>(null);
+  const [keyRefreshRequired, setKeyRefreshRequired] = useState(false);
   const saving = savingScope !== null;
   const saveInFlight = useRef(false);
   const mounted = useRef(true);
@@ -163,7 +190,8 @@ const RateLimitsEditor: React.FC<{
     enabled: validKey,
     retry: false,
     queryFn: async ({ signal }) =>
-      (await client.get(`/admin/keys/${selectedKeyId}`, { signal })).data?.data,
+      (await client.get(`/admin/keys/${selectedKeyId}`, { signal, skipGlobalErrorMessage: true }))
+        .data?.data,
   });
   const keysLoading = keysQuery.isFetching;
   const keysError = keysQuery.isError;
@@ -180,6 +208,7 @@ const RateLimitsEditor: React.FC<{
     !loadError &&
     !!snapshot &&
     !saving &&
+    !keyRefreshRequired &&
     validKey &&
     !keysError &&
     keyDetailsQuery.isSuccess &&
@@ -198,32 +227,57 @@ const RateLimitsEditor: React.FC<{
   }, [superAdmin, snapshot, organizationQuery.dataUpdatedAt, globalForm, orgForm]);
   useEffect(() => {
     if (!keyQuery.data?.key || !keyDetailsQuery.data) return;
-    keyForm.setFieldsValue({
-      ...keyDetailsQuery.data,
-      ...keyQuery.data.key,
-      quota_5h: keyQuery.data.key.quota_5h ?? null,
-      quota_1d: keyQuery.data.key.quota_1d ?? null,
-      quota_7d: keyQuery.data.key.quota_7d ?? null,
-      quota_5h_amount: keyQuery.data.key.quota_5h_amount ?? null,
-      quota_1d_amount: keyQuery.data.key.quota_1d_amount ?? null,
-      quota_7d_amount: keyQuery.data.key.quota_7d_amount ?? null,
-    });
+    keyForm.setFieldsValue(keyQuotaFormValues(keyDetailsQuery.data, keyQuery.data.key));
     setKeyFormReady(true);
-  }, [keyQuery.data, keyQuery.dataUpdatedAt, keyDetailsQuery.data, keyForm]);
+  }, [
+    keyQuery.data,
+    keyQuery.dataUpdatedAt,
+    keyDetailsQuery.data,
+    keyDetailsQuery.dataUpdatedAt,
+    keyForm,
+  ]);
+
+  const refreshKeyPolicy = async () => {
+    if (!validKey) return;
+    setKeyRefreshRequired(true);
+    try {
+      const [limits, details] = await Promise.all([
+        keyQuery.refetch({ throwOnError: true }),
+        keyDetailsQuery.refetch({ throwOnError: true }),
+      ]);
+      if (!limits.data?.key || !details.data) throw new Error('key configuration is unavailable');
+      if (mounted.current) {
+        keyForm.setFieldsValue(keyQuotaFormValues(details.data, limits.data.key));
+        setKeyFormReady(true);
+        setKeyRefreshRequired(false);
+      }
+    } catch {
+      if (mounted.current) message.warning(t('ratelimits.key_refresh_failed'));
+    }
+  };
+
+  const invalidateKeyQueries = (refetchType: 'active' | 'none' = 'active') =>
+    Promise.all(
+      [
+        ['rate-limit-key-details', selectedKeyId],
+        ['admin-keys'],
+        ['admin-key-info', selectedKeyId],
+        ['organization-rate-limits', ...quotaScope(user), selectedOrgId],
+      ].map(queryKey => queryClient.invalidateQueries({ queryKey, refetchType })),
+    );
 
   const fetchRateLimits = () => {
     void organizationQuery.refetch();
-    if (validKey) void keyQuery.refetch();
+    if (validKey) void refreshKeyPolicy();
   };
   const save = async (scope: 'global' | 'org' | 'key', payload: unknown, success: string) => {
     if ((!superAdmin && scope !== 'key') || saveInFlight.current || !mounted.current) return;
     saveInFlight.current = true;
     setSavingScope(scope);
     try {
-      await client.put('/admin/rate-limits', payload);
       if (scope === 'key') {
         const values = keyForm.getFieldsValue();
-        await client.put(`/admin/keys/${selectedKeyId}`, {
+        const keyPayload = {
           quota_reset_start_at: values.quota_reset_start_at ?? null,
           ...Object.fromEntries(
             PERIODS.flatMap(period =>
@@ -233,23 +287,34 @@ const RateLimitsEditor: React.FC<{
               }),
             ),
           ),
-        });
+        };
+        await saveKeyPolicy(
+          () => client.put('/admin/rate-limits', payload, { skipGlobalErrorMessage: true }),
+          () =>
+            client.put(`/admin/keys/${selectedKeyId}`, keyPayload, {
+              skipGlobalErrorMessage: true,
+            }),
+        );
+        await invalidateKeyQueries();
+      } else {
+        await client.put('/admin/rate-limits', payload);
+        // Invalidate the organization snapshot shared with the home summary as well.
         await queryClient.invalidateQueries({
-          queryKey: ['rate-limit-key-details', selectedKeyId],
+          queryKey:
+            scope === 'global'
+              ? ['organization-rate-limits', ...quotaScope(user)]
+              : ['organization-rate-limits', ...quotaScope(user), selectedOrgId],
         });
-        await queryClient.invalidateQueries({ queryKey: ['admin-keys'] });
-        await queryClient.invalidateQueries({ queryKey: ['admin-key-info', selectedKeyId] });
       }
-      // Invalidate the organization snapshot shared with the home summary as well.
-      await queryClient.invalidateQueries({
-        queryKey:
-          scope === 'global'
-            ? ['organization-rate-limits', ...quotaScope(user)]
-            : ['organization-rate-limits', ...quotaScope(user), selectedOrgId],
-      });
       if (mounted.current) message.success(success);
     } catch (err: any) {
-      if (mounted.current) message.error(err?.userMessage || t('ratelimits.save_failed'));
+      if (err instanceof PartialKeySaveError) {
+        if (mounted.current) message.warning(t('keys.partial_save'));
+        await invalidateKeyQueries('none');
+        if (mounted.current) await refreshKeyPolicy();
+      } else if (mounted.current) {
+        message.error(err?.userMessage || t('ratelimits.save_failed'));
+      }
     } finally {
       saveInFlight.current = false;
       if (mounted.current) setSavingScope(null);
@@ -322,6 +387,7 @@ const RateLimitsEditor: React.FC<{
       title={t('ratelimits.title', 'Rate Limits & Rolling Quotas')}
       extra={
         <RefreshButton
+          disabled={saving}
           onClick={() => {
             fetchLookups();
             if (selectedOrgId) void keysQuery.refetch();
@@ -817,10 +883,10 @@ const RateLimitsEditor: React.FC<{
 
               <Divider style={{ margin: '16px 0 20px' }} />
 
-              {keyQuery.isError && (
+              {(keyQuery.isError || keyDetailsQuery.isError || keyRefreshRequired) && (
                 <LoadError
                   retry={() => {
-                    void keyQuery.refetch();
+                    void refreshKeyPolicy();
                   }}
                 />
               )}

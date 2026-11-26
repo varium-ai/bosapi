@@ -1750,6 +1750,8 @@ export const esES: typeof enUS = {
     org_limits_link: 'Limits',
     org_view_limits_link: 'View organization limits',
     save_failed: 'Failed to save rate limits. Please retry.',
+    key_refresh_failed:
+      'No se pudo cargar la configuración guardada. Pulsa Actualizar antes de volver a intentarlo.',
 
     title: 'Límites de frecuencia y cuotas móviles',
     subtitle:

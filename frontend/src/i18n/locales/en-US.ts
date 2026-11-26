@@ -1188,6 +1188,7 @@ export const enUS = {
     org_limits_link: 'Limits',
     org_view_limits_link: 'View organization limits',
     save_failed: 'Failed to save rate limits. Please retry.',
+    key_refresh_failed: 'Could not refresh the saved configuration. Click Refresh before retrying.',
 
     title: 'Rate Limits & Rolling Quotas',
     subtitle:

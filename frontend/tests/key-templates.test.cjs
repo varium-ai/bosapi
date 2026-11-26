@@ -84,3 +84,23 @@ test('switching templates clears limits omitted by the new template and isolates
     emptyKeyTemplateSettings(3),
   );
 });
+
+test('custom quota cycle survives import and template saves and clears when switching templates', () => {
+  const start = '2026-11-26T00:00:00Z';
+  const settings = getKeyTemplateSettings({ organization_id: 3, quota_reset_start_at: start });
+  assert.equal(settings.quota_reset_start_at, start);
+  const payload = { keys: [{ name: 'Imported', api_key: 'import-fixture' }], ...settings };
+  assert.equal(JSON.parse(JSON.stringify(payload)).quota_reset_start_at, start);
+  const switched = { ...settings, ...getKeyTemplateSettings({ organization_id: 3 }) };
+  assert.equal(switched.quota_reset_start_at, null);
+  assert.equal(getKeyTemplateSettings({ quota_reset_start_at: null }).quota_reset_start_at, null);
+});
+
+test('batch import hides unsupported rolling and concurrency fields while keeping periodic quotas', () => {
+  const source = fs.readFileSync(path.join(root, 'src/features/keys/KeysPage.tsx'), 'utf8');
+  const fields = source.match(/<KeyConfigurationFields\b[\s\S]*?\/>/g);
+  const imported = fields.find(field => field.includes('selectedImportTemplateID'));
+  assert.ok(imported);
+  assert.match(imported, /showRollingLimits=\{false\}/);
+  assert.match(imported, /showTokenLimits=\{true\}/);
+});

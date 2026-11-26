@@ -1716,6 +1716,8 @@ export const jaJP: typeof enUS = {
     org_limits_link: 'Limits',
     org_view_limits_link: 'View organization limits',
     save_failed: 'Failed to save rate limits. Please retry.',
+    key_refresh_failed:
+      '保存済みの設定を取得できませんでした。「更新」で設定を確認してから再試行してください。',
 
     title: 'レート制限とローリング上限',
     subtitle: '階層 QPS（全体 → 組織 → キー）と5時間・1日・7日のトークン上限',

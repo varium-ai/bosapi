@@ -885,6 +885,7 @@ export const KeysPage: React.FC = () => {
             enabled={importModalVisible}
             currentUser={currentUser}
             advancedOpen={!!selectedImportTemplateID}
+            showRollingLimits={false}
             showTokenLimits={true}
           />
         </Form>

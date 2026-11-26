@@ -1761,6 +1761,8 @@ export const deDE: typeof enUS = {
     org_limits_link: 'Limits',
     org_view_limits_link: 'View organization limits',
     save_failed: 'Failed to save rate limits. Please retry.',
+    key_refresh_failed:
+      'Die gespeicherte Konfiguration konnte nicht geladen werden. Klicken Sie vor einem erneuten Versuch auf Aktualisieren.',
 
     title: 'Ratenlimits und rollende Kontingente',
     subtitle:
