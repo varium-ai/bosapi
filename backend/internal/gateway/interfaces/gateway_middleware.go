@@ -576,7 +576,11 @@ func (a *app) gatewayRateLimitMiddleware() gin.HandlerFunc {
 			}
 			limit := ""
 			if decision.Limit > 0 {
-				limit = strconv.FormatInt(decision.Limit, 10)
+				if decision.Amount {
+					limit = strconv.FormatFloat(float64(decision.Limit)/100_000_000, 'f', -1, 64)
+				} else {
+					limit = strconv.FormatInt(decision.Limit, 10)
+				}
 			}
 			reason := decision.Reason
 			if reason == "" {

@@ -1181,6 +1181,11 @@ export const jaJP: typeof enUS = {
     usage_title: '使用量の概要',
   },
   keys: {
+    custom_quota_cycle: 'カスタムクォータ周期',
+    quota_reset_start_at: '周期の開始時刻',
+    quota_cycle_help:
+      '既定は UTC カレンダーです。カスタム周期は開始時刻から 24 時間、7 日、30 日ごとに更新されます。開始時刻までは周期クォータを適用しません。',
+
     import_guide_title: 'API キーのインポート：ファイルの準備',
     import_supported_files:
       'CSV (.csv) と Excel (.xls, .xlsx) に対応。最大10 MB、1回500件。Excel は最初のシートのみ読み込みます。',
@@ -1213,9 +1218,19 @@ export const jaJP: typeof enUS = {
       'ローカル時間で設定します。空欄は無期限。期限切れでキーは無効になります。延長または期限の解除後、手動で再有効化してください。',
     no_expiration: '無期限',
     field_ip_blocklist: 'IP 拒否リスト',
-    rate_limit_5h: '5時間のトークン上限',
-    rate_limit_1d: '1日のトークン上限',
-    rate_limit_7d: '7日間のトークン上限',
+    partial_save:
+      '利用上限は保存されましたが、キーのその他の変更は成功を確認できませんでした。サーバーからフォームを再読み込みしています。再試行する前に内容を確認してください。',
+    partial_save_refresh_failed:
+      '保存済み設定を再読み込みできませんでした。再試行する前に編集画面を開き直して実際の設定を確認してください。',
+    rolling_quota_help:
+      '最初の確定済み利用から固定長の期間が始まります。確定済み利用のみを集計するため、処理中のリクエストで上限を超える場合があります。スライド式の集計期間や厳密な支出上限ではありません。',
+    rolling_token_limits: 'ローリング使用量上限',
+    quota_5h: '5時間のToken上限',
+    quota_1d: '24時間のToken上限',
+    quota_7d: '7日間のToken上限',
+    quota_5h_amount: '5時間のローリング金額上限（USD）',
+    quota_1d_amount: '24時間のローリング金額上限（USD）',
+    quota_7d_amount: '7日間のローリング金額上限（USD）',
     usage_column: '使用量',
     usage_today: '今日',
     usage_30d: '過去30日間',
@@ -1279,7 +1294,8 @@ export const jaJP: typeof enUS = {
     security_inspection_enabled: '有効',
     security_inspection_disabled: '無効',
     inspection_mode_title: 'グローバルセキュリティ検査モード',
-    inspection_mode_note: 'Disabled は security_inspection を完全にスキップしますが、認証・クォータ・レート制限・アクセス制御には影響しません。',
+    inspection_mode_note:
+      'Disabled は security_inspection を完全にスキップしますが、認証・クォータ・レート制限・アクセス制御には影響しません。',
     mode_disabled: '無効',
     col_ip_allowlist: 'IP 許可リスト',
     col_created: '作成日時',
@@ -1430,7 +1446,8 @@ export const jaJP: typeof enUS = {
     all_published_models: 'すべての公開モデル',
     security_inspection_upstream: 'アップストリームセキュリティ検査',
     security_inspection_downstream: 'ダウンストリームセキュリティ検査',
-    security_inspection_help: '無効にすると、該当方向のコンテンツセキュリティ検査をスキップします。',
+    security_inspection_help:
+      '無効にすると、該当方向のコンテンツセキュリティ検査をスキップします。',
     btn_bindings: '紐付け',
     disable_confirm: '組織を無効化しますか？',
     disable_confirm_desc: 'この組織のすべての API キーからのリクエストが直ちに拒否されます。',
@@ -1699,6 +1716,8 @@ export const jaJP: typeof enUS = {
     org_limits_link: 'Limits',
     org_view_limits_link: 'View organization limits',
     save_failed: 'Failed to save rate limits. Please retry.',
+    key_refresh_failed:
+      '保存済みの設定を取得できませんでした。「更新」で設定を確認してから再試行してください。',
 
     title: 'レート制限とローリング上限',
     subtitle: '階層 QPS（全体 → 組織 → キー）と5時間・1日・7日のトークン上限',
@@ -1752,6 +1771,8 @@ export const jaJP: typeof enUS = {
     no_keys_in_org: 'この組織には API キーがありません',
     key_id_label: 'API キー ID',
     key_qps_label: 'キーの QPS 上限',
+    key_concurrency_title: '同時リクエスト数',
+    sessions_unit: 'セッション',
     quota_5h_label: '直近5時間のトークン上限（任意）',
     quota_1d_label: '直近24時間のトークン上限（任意）',
     quota_7d_label: '直近7日間のトークン上限（任意）',

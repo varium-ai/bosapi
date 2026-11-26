@@ -87,8 +87,7 @@ func (handler *AdminKeyHandler) createBatch(ctx *gin.Context) {
 	inputs := make([]application.AdminKeyInput, 0, len(request.Names))
 	for _, name := range request.Names {
 		inputs = append(inputs, application.AdminKeyInput{Name: name, Status: request.Status, OrganizationID: request.OrganizationID, AllowedProviderIDs: request.AllowedProviderIDs, AllowedModels: request.AllowedModels,
-			ExpiresAt: request.ExpiresAt, QuotaAmount: request.QuotaAmount, QuotaTokens: request.QuotaTokens,
-			DailyQuotaAmount: request.DailyQuotaAmount, WeeklyQuotaAmount: request.WeeklyQuotaAmount, MonthlyQuotaAmount: request.MonthlyQuotaAmount,
+			ExpiresAt: request.ExpiresAt, QuotaAmount: request.QuotaAmount, QuotaTokens: request.QuotaTokens, QuotaResetStartAt: request.QuotaResetStartAt, DailyQuotaAmount: request.DailyQuotaAmount, WeeklyQuotaAmount: request.WeeklyQuotaAmount, MonthlyQuotaAmount: request.MonthlyQuotaAmount,
 			DailyQuotaTokens: request.DailyQuotaTokens, WeeklyQuotaTokens: request.WeeklyQuotaTokens, MonthlyQuotaTokens: request.MonthlyQuotaTokens,
 			RateLimit5H: request.RateLimit5H, RateLimit1D: request.RateLimit1D, RateLimit7D: request.RateLimit7D, IPAllowlist: request.IPAllowlist, IPBlocklist: request.IPBlocklist})
 	}
@@ -155,7 +154,7 @@ func (handler *AdminKeyHandler) importKeys(ctx *gin.Context) {
 			OrganizationID: request.OrganizationID,
 			ExpiresAt:      request.ExpiresAt,
 			QuotaAmount:    request.QuotaAmount, QuotaTokens: request.QuotaTokens,
-			DailyQuotaAmount: request.DailyQuotaAmount, WeeklyQuotaAmount: request.WeeklyQuotaAmount, MonthlyQuotaAmount: request.MonthlyQuotaAmount,
+			QuotaResetStartAt: request.QuotaResetStartAt, DailyQuotaAmount: request.DailyQuotaAmount, WeeklyQuotaAmount: request.WeeklyQuotaAmount, MonthlyQuotaAmount: request.MonthlyQuotaAmount,
 			DailyQuotaTokens: request.DailyQuotaTokens, WeeklyQuotaTokens: request.WeeklyQuotaTokens, MonthlyQuotaTokens: request.MonthlyQuotaTokens,
 			RateLimit5H: request.RateLimit5H, RateLimit1D: request.RateLimit1D, RateLimit7D: request.RateLimit7D,
 			IPAllowlist: request.IPAllowlist, IPBlocklist: request.IPBlocklist,
@@ -193,6 +192,7 @@ func (handler *AdminKeyHandler) update(ctx *gin.Context) {
 		return
 	}
 	var request struct {
+		QuotaResetStartAt                   json.RawMessage `json:"quota_reset_start_at"`
 		ExpiresAt                           json.RawMessage `json:"expires_at"`
 		Name                                *string         `json:"name"`
 		UserID                              json.RawMessage `json:"user_id"`
@@ -244,6 +244,14 @@ func (handler *AdminKeyHandler) update(ctx *gin.Context) {
 	}
 	if request.SecurityInspectionDownstreamEnabled != nil {
 		updates["security_inspection_downstream_enabled"] = *request.SecurityInspectionDownstreamEnabled
+	}
+	if len(request.QuotaResetStartAt) > 0 {
+		var start *time.Time
+		if err := json.Unmarshal(request.QuotaResetStartAt, &start); err != nil || start != nil && (start.Year() < 1970 || start.Year() > 9999) {
+			httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "quota start time is invalid")
+			return
+		}
+		updates["quota_reset_start_at"] = start
 	}
 	if len(request.ExpiresAt) > 0 {
 		var expiresAt *time.Time
@@ -300,6 +308,7 @@ func (handler *AdminKeyHandler) create(ctx *gin.Context) {
 		ExpiresAt          *time.Time `json:"expires_at"`
 		QuotaAmount        *float64   `json:"quota_amount"`
 		QuotaTokens        *int64     `json:"quota_tokens"`
+		QuotaResetStartAt  *time.Time `json:"quota_reset_start_at"`
 		DailyQuotaAmount   *float64   `json:"daily_quota_amount"`
 		WeeklyQuotaAmount  *float64   `json:"weekly_quota_amount"`
 		MonthlyQuotaAmount *float64   `json:"monthly_quota_amount"`
@@ -332,7 +341,7 @@ func (handler *AdminKeyHandler) create(ctx *gin.Context) {
 		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "api key is invalid")
 		return
 	}
-	created, err := handler.service.Create(ctx.Request.Context(), application.AdminKeyInput{Status: request.Status, Name: request.Name, APIKey: request.APIKey, UserID: request.UserID, OrganizationID: request.OrganizationID, AllowedProviderIDs: request.AllowedProviderIDs, AllowedModels: request.AllowedModels, ExpiresAt: request.ExpiresAt, QuotaAmount: request.QuotaAmount, QuotaTokens: request.QuotaTokens, DailyQuotaAmount: request.DailyQuotaAmount, WeeklyQuotaAmount: request.WeeklyQuotaAmount, MonthlyQuotaAmount: request.MonthlyQuotaAmount, DailyQuotaTokens: request.DailyQuotaTokens, WeeklyQuotaTokens: request.WeeklyQuotaTokens, MonthlyQuotaTokens: request.MonthlyQuotaTokens, RateLimit5H: request.RateLimit5H, RateLimit1D: request.RateLimit1D, RateLimit7D: request.RateLimit7D, IPAllowlist: request.IPAllowlist, IPBlocklist: request.IPBlocklist})
+	created, err := handler.service.Create(ctx.Request.Context(), application.AdminKeyInput{Status: request.Status, Name: request.Name, APIKey: request.APIKey, UserID: request.UserID, OrganizationID: request.OrganizationID, AllowedProviderIDs: request.AllowedProviderIDs, AllowedModels: request.AllowedModels, ExpiresAt: request.ExpiresAt, QuotaAmount: request.QuotaAmount, QuotaTokens: request.QuotaTokens, QuotaResetStartAt: request.QuotaResetStartAt, DailyQuotaAmount: request.DailyQuotaAmount, WeeklyQuotaAmount: request.WeeklyQuotaAmount, MonthlyQuotaAmount: request.MonthlyQuotaAmount, DailyQuotaTokens: request.DailyQuotaTokens, WeeklyQuotaTokens: request.WeeklyQuotaTokens, MonthlyQuotaTokens: request.MonthlyQuotaTokens, RateLimit5H: request.RateLimit5H, RateLimit1D: request.RateLimit1D, RateLimit7D: request.RateLimit7D, IPAllowlist: request.IPAllowlist, IPBlocklist: request.IPBlocklist})
 	if err != nil {
 		logging.Printf(ctx.Request.Context(), "ERROR", "admin.api_key.create_failed", "organization_id=%d user_id=%d actor_id=%d name=%q error=%v", request.OrganizationID, request.UserID, claims.UserID, request.Name, err)
 		keyFailure(ctx, err)

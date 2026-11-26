@@ -239,7 +239,8 @@ func TestGeminiModelAndOperationDoNotSplitKeyQuota(t *testing.T) {
 	a, key := geminiTestApp(t)
 	a.data.Providers[0].Models = []string{"alias", "second"}
 	a.data.Providers[0].ModelMapping = nil
-	a.background.RateLimiter = gatewayinfra.NewLocalRateLimiter(gatewayRateLimitRepository{config: adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 7, RateLimitConfig: adminDomain.RateLimitConfig{Quota5H: int64Ptr(1)}}}}})
+	limiter := gatewayinfra.NewLocalRateLimiter(gatewayRateLimitRepository{config: adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 7, RateLimitConfig: adminDomain.RateLimitConfig{Quota5H: int64Ptr(1)}}}}})
+	a.background.RateLimiter = limiter
 	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
 	})}
@@ -255,6 +256,11 @@ func TestGeminiModelAndOperationDoNotSplitKeyQuota(t *testing.T) {
 		}
 		if w.Code != want {
 			t.Fatalf("key quota bypass: %d %s", w.Code, w.Body.String())
+		}
+		if index == 0 {
+			if err := limiter.RecordTokenUsage(t.Context(), 7, "usage-1", 1, 0, time.Now()); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 }

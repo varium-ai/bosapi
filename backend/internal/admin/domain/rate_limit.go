@@ -1,13 +1,21 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-// RateLimitConfig stores a concurrent-session limit in the legacy qps field, plus optional rolling token quotas.
+// RateLimitConfig stores a concurrent-session limit in the legacy qps field,
+// plus optional rolling token or amount quotas anchored to the first settled use.
 type RateLimitConfig struct {
-	QPS     int64  `json:"qps"`
-	Quota5H *int64 `json:"quota_5h,omitempty"`
-	Quota1D *int64 `json:"quota_1d,omitempty"`
-	Quota7D *int64 `json:"quota_7d,omitempty"`
+	QuotaResetStartAt *time.Time `json:"quota_reset_start_at,omitempty"`
+	QPS               int64      `json:"qps"`
+	Quota5H           *int64     `json:"quota_5h,omitempty"`
+	Quota1D           *int64     `json:"quota_1d,omitempty"`
+	Quota7D           *int64     `json:"quota_7d,omitempty"`
+	Quota5HAmount     *float64   `json:"quota_5h_amount,omitempty"`
+	Quota1DAmount     *float64   `json:"quota_1d_amount,omitempty"`
+	Quota7DAmount     *float64   `json:"quota_7d_amount,omitempty"`
 }
 
 // OrganizationRateLimit associates a concurrent-session limit and optional calendar quotas with an organization.
@@ -15,12 +23,13 @@ type OrganizationRateLimit struct {
 	OrganizationID uint64 `json:"organization_id"`
 	QPS            int64  `json:"qps"`
 
-	DailyQuotaTokens   *int64   `json:"daily_quota_tokens,omitempty"`
-	WeeklyQuotaTokens  *int64   `json:"weekly_quota_tokens,omitempty"`
-	MonthlyQuotaTokens *int64   `json:"monthly_quota_tokens,omitempty"`
-	DailyQuotaAmount   *float64 `json:"daily_quota_amount,omitempty"`
-	WeeklyQuotaAmount  *float64 `json:"weekly_quota_amount,omitempty"`
-	MonthlyQuotaAmount *float64 `json:"monthly_quota_amount,omitempty"`
+	QuotaResetStartAt  *time.Time `json:"quota_reset_start_at"`
+	DailyQuotaTokens   *int64     `json:"daily_quota_tokens,omitempty"`
+	WeeklyQuotaTokens  *int64     `json:"weekly_quota_tokens,omitempty"`
+	MonthlyQuotaTokens *int64     `json:"monthly_quota_tokens,omitempty"`
+	DailyQuotaAmount   *float64   `json:"daily_quota_amount,omitempty"`
+	WeeklyQuotaAmount  *float64   `json:"weekly_quota_amount,omitempty"`
+	MonthlyQuotaAmount *float64   `json:"monthly_quota_amount,omitempty"`
 }
 
 // KeyRateLimit associates a concurrent-session limit and quota settings with an API key.

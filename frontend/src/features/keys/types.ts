@@ -20,4 +20,11 @@ export interface APIKeyFormValues extends Partial<KeyTemplateSettings> {
   api_key?: string;
   security_inspection_upstream_enabled?: boolean;
   security_inspection_downstream_enabled?: boolean;
+  quota_5h?: number | null;
+  quota_1d?: number | null;
+  quota_7d?: number | null;
+  quota_5h_amount?: number | null;
+  quota_1d_amount?: number | null;
+  quota_7d_amount?: number | null;
+  rate_limit_qps?: number;
 }

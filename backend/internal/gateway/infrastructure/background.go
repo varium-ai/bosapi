@@ -379,15 +379,21 @@ func DefaultBackgroundServices() domain.BackgroundServices {
 
 // RedisRateLimiter enforces Admin-configured limits in a shared Redis instance.
 type RedisRateLimiter struct {
-	client     redis.UniversalClient
-	repository adminDomain.RateLimitRepository
-	prefix     string
+	client        redis.UniversalClient
+	repository    adminDomain.RateLimitRepository
+	prefix        string
+	cleanupOnce   sync.Once
+	cleanupCancel context.CancelFunc
+	cleanupDone   chan struct{}
 }
 
 func (limiter *RedisRateLimiter) Decide(ctx context.Context, key domain.RateLimitKey, now time.Time) (domain.RateLimitDecision, error) {
-	decision, err := limiter.decideRedis(ctx, key)
+	decision, err := limiter.decideRedis(ctx, key, now)
 	if err != nil {
 		return domain.RateLimitDecision{Allowed: true, Degraded: true}, nil
+	}
+	if !decision.Allowed {
+		return decision, nil
 	}
 	return decision, nil
 }
@@ -542,47 +548,12 @@ func configuredConcurrencyRules(config adminDomain.RateLimitUpdate, key domain.R
 	return rules
 }
 
-var rateLimitScript = redis.NewScript(`
-local deniedIndex = 0
-local retryAfter = 0
-for index, key in ipairs(KEYS) do
-  local limit = tonumber(ARGV[(index - 1) * 2 + 1])
-  local window = tonumber(ARGV[(index - 1) * 2 + 2])
-  local current = tonumber(redis.call('GET', key) or '0')
-  if current + 1 > limit then
-    local ttl = redis.call('PTTL', key)
-    if ttl < 0 then
-      redis.call('PEXPIRE', key, window)
-      ttl = window
-    end
-    if deniedIndex == 0 or ttl > retryAfter then
-      deniedIndex = index
-      retryAfter = ttl
-    end
-  end
-end
-if deniedIndex > 0 then return {0, deniedIndex, 0, retryAfter} end
-local tightestIndex = 0
-local remaining = 0
-for index, key in ipairs(KEYS) do
-  local limit = tonumber(ARGV[(index - 1) * 2 + 1])
-  local window = tonumber(ARGV[(index - 1) * 2 + 2])
-  local current = redis.call('INCR', key)
-  if current == 1 then redis.call('PEXPIRE', key, window) end
-  if tightestIndex == 0 or limit - current < remaining then
-    tightestIndex = index
-    remaining = limit - current
-  end
-end
-return {1, tightestIndex, remaining, 0}
-`)
-
 func (limiter *RedisRateLimiter) Allow(ctx context.Context, key domain.RateLimitKey, now time.Time) (bool, error) {
 	decision, err := limiter.Decide(ctx, key, now)
 	return decision.Allowed, err
 }
 
-func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.RateLimitKey) (domain.RateLimitDecision, error) {
+func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.RateLimitKey, now time.Time) (domain.RateLimitDecision, error) {
 	if limiter.client == nil || limiter.repository == nil {
 		return domain.RateLimitDecision{}, errors.New("redis rate limiter is not configured")
 	}
@@ -592,16 +563,18 @@ func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.Rat
 	}
 	limits := limiter.rules(config, key)
 	keys := make([]string, 0, len(limits))
-	args := make([]any, 0, len(limits)*2)
+	args := make([]any, 0, len(limits)*2+1)
 	activeRules := make([]redisLimitRule, 0, len(limits))
 	for _, rule := range limits {
 		if rule.limit <= 0 {
 			continue
 		}
-		keys = append(keys, rateLimitBucket(limiter.prefix, rule.name, key))
+		bucket := rateLimitBucket(limiter.prefix, rule.name, key)
+		keys = append(keys, bucket+":v2", bucket+":state", bucket)
 		args = append(args, rule.limit, rule.window.Milliseconds())
 		activeRules = append(activeRules, rule)
 	}
+	args = append(args, now.UnixMilli())
 	if len(keys) == 0 {
 		return domain.RateLimitDecision{Allowed: true}, nil
 	}
@@ -613,7 +586,7 @@ func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.Rat
 		return domain.RateLimitDecision{}, errors.New("invalid redis rate limit decision")
 	}
 	rule := activeRules[result[1]-1]
-	decision := domain.RateLimitDecision{Allowed: result[0] == 1, Limit: rule.limit, Remaining: result[2], RetryAfter: time.Duration(result[3]) * time.Millisecond}
+	decision := domain.RateLimitDecision{Allowed: result[0] == 1, Limit: rule.limit, Amount: strings.HasSuffix(rule.name, "_amount"), Remaining: result[2], RetryAfter: time.Duration(result[3]) * time.Millisecond}
 	if !decision.Allowed {
 		decision.Reason = rule.reason()
 	}
@@ -631,7 +604,13 @@ type redisLimitRule struct {
 }
 
 func (rule redisLimitRule) reason() domain.RateLimitReason {
-	switch rule.name {
+	switch strings.TrimSuffix(rule.name, "_amount") {
+	case "quota_5h":
+		return domain.RateLimitQuota5H
+	case "quota_1d":
+		return domain.RateLimitQuota1D
+	case "quota_7d":
+		return domain.RateLimitQuota7D
 	case "global":
 		return domain.RateLimitGlobalConcurrency
 	case "organization":
@@ -662,7 +641,18 @@ func configuredRateLimitRules(config adminDomain.RateLimitUpdate, key domain.Rat
 	// Legacy QPS fields are now enforced as active-session caps in AcquireSession.
 	for _, item := range config.Keys {
 		if item.KeyID == key.APIKeyID {
-			rules = append(rules, redisLimitRule{"quota_5h", pointerOrZero(item.Quota5H), 5 * time.Hour}, redisLimitRule{"quota_1d", pointerOrZero(item.Quota1D), 24 * time.Hour}, redisLimitRule{"quota_7d", pointerOrZero(item.Quota7D), 7 * 24 * time.Hour})
+			appendQuotaRules := func(name string, tokens *int64, amount *float64, window time.Duration) {
+				if tokens != nil {
+					rules = append(rules, redisLimitRule{name, *tokens, window})
+				}
+				if amount != nil {
+					amountName := name + "_amount"
+					rules = append(rules, redisLimitRule{amountName, amountInt(*amount), window})
+				}
+			}
+			appendQuotaRules("quota_5h", item.Quota5H, item.Quota5HAmount, 5*time.Hour)
+			appendQuotaRules("quota_1d", item.Quota1D, item.Quota1DAmount, 24*time.Hour)
+			appendQuotaRules("quota_7d", item.Quota7D, item.Quota7DAmount, 7*24*time.Hour)
 		}
 	}
 	return rules

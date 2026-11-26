@@ -105,10 +105,8 @@ type OrganizationQuotaDenial struct {
 // EvaluateOrganizationQuota reports the longest automatic blocker. A zero limit
 // always blocks and deliberately has no automatic recovery duration.
 func EvaluateOrganizationQuota(config adminDomain.OrganizationRateLimit, usage userInfra.OrganizationPeriodicUsage, now time.Time) *OrganizationQuotaDenial {
-	day, week, month := usagetime.PeriodStarts(now)
-	dayReset := day.AddDate(0, 0, 1)
-	weekReset := week.AddDate(0, 0, 7)
-	monthReset := month.In(usagetime.Location()).AddDate(0, 1, 0)
+	_, resets := usagetime.QuotaPeriods(now, config.QuotaResetStartAt)
+	dayReset, weekReset, monthReset := resets[0], resets[1], resets[2]
 	var denial *OrganizationQuotaDenial
 	add := func(reason, limit string, reset time.Time) {
 		retry := time.Duration(0)
@@ -134,6 +132,9 @@ func EvaluateOrganizationQuota(config adminDomain.OrganizationRateLimit, usage u
 			}
 			add(reason, strconv.FormatFloat(*limit, 'f', -1, 64), reset)
 		}
+	}
+	if config.QuotaResetStartAt != nil && now.Before(*config.QuotaResetStartAt) {
+		return denial
 	}
 	tokens("organization_daily_tokens", config.DailyQuotaTokens, usage.DailyTokens, dayReset)
 	amount("organization_daily_amount", config.DailyQuotaAmount, usage.DailyAmount, dayReset)
@@ -319,7 +320,7 @@ func (c *OrganizationQuotaCounter) config(ctx context.Context, id uint64, now ti
 	if generation != c.generations[id] {
 		return config, errors.New("organization quota configuration changed during read")
 	}
-	if ok && !hasOrganizationQuotaFields(entry.config) && hasOrganizationQuotaFields(config) {
+	if ok && ((!hasOrganizationQuotaFields(entry.config) && hasOrganizationQuotaFields(config)) || !sameQuotaAnchor(entry.config.QuotaResetStartAt, config.QuotaResetStartAt)) {
 		c.markRepairLocked(id)
 	}
 	c.configs[id] = organizationQuotaConfigEntry{config: config, expiresAt: now.Add(c.configTTL)}
@@ -381,7 +382,17 @@ func (c *OrganizationQuotaCounter) recent(id uint64, now time.Time) (userInfra.O
 	c.mu.Lock()
 	s, ok := c.states[id]
 	needsRepair := c.repairs[id]
+	anchor := c.configs[id].config.QuotaResetStartAt
 	c.mu.Unlock()
+	if anchor != nil {
+		before, _ := usagetime.QuotaPeriods(s.observed, anchor)
+		after, _ := usagetime.QuotaPeriods(now, anchor)
+		for i := range before {
+			if !before[i].Equal(after[i]) {
+				return s.snapshot, false
+			}
+		}
+	}
 	return s.snapshot, ok && !needsRepair && !s.observed.IsZero() && !now.Before(s.observed) && now.Sub(s.observed) <= c.snapshotGrace && usagetime.DayStart(s.observed).Equal(usagetime.DayStart(now))
 }
 func (c *OrganizationQuotaCounter) redisUsage(ctx context.Context, id uint64, now time.Time) (userInfra.OrganizationPeriodicUsage, error) {
@@ -390,7 +401,11 @@ func (c *OrganizationQuotaCounter) redisUsage(ctx context.Context, id uint64, no
 	}
 	op, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
 	defer cancel()
-	values, err := c.client.MGet(op, organizationQuotaKeys(c.prefix, id, now)...).Result()
+	config, err := c.config(ctx, id, now)
+	if err != nil {
+		return userInfra.OrganizationPeriodicUsage{}, err
+	}
+	values, err := c.client.MGet(op, organizationQuotaKeys(c.prefix, id, now, config.QuotaResetStartAt)...).Result()
 	if err != nil {
 		return userInfra.OrganizationPeriodicUsage{}, err
 	}
@@ -506,7 +521,7 @@ func (c *OrganizationQuotaCounter) Usage(ctx context.Context, id uint64, now tim
 func (c *OrganizationQuotaCounter) Settle(ctx context.Context, id uint64, tokens int64, amount float64, at time.Time, persist func(context.Context) (bool, error)) error {
 	version, _ := c.usageVersion(id)
 	config, configErr := c.config(ctx, id, time.Now())
-	if configErr == nil && !hasOrganizationQuotaFields(config) {
+	if configErr == nil && (!hasOrganizationQuotaFields(config) || config.QuotaResetStartAt != nil && at.Before(*config.QuotaResetStartAt)) {
 		_, err := persist(ctx)
 		// A quota can be enabled and seeded while this unmetered commit is
 		// still in flight. Fence that seed even if the commit response is lost.
@@ -527,9 +542,9 @@ func (c *OrganizationQuotaCounter) Settle(ctx context.Context, id uint64, tokens
 		if !inserted {
 			// An earlier commit may have succeeded despite a lost DB response.
 			// Rebuild from receipts instead of guessing whether Redis saw it.
-			return c.client.Del(op, organizationQuotaKeys(c.prefix, id, at)...).Err()
+			return c.client.Del(op, organizationQuotaKeys(c.prefix, id, at, config.QuotaResetStartAt)...).Err()
 		}
-		keys, args := quotaArguments(c.prefix, id, at, []int64{max(0, tokens), amountInt(amount), max(0, tokens), amountInt(amount), max(0, tokens), amountInt(amount)})
+		keys, args := quotaArguments(c.prefix, id, at, []int64{max(0, tokens), amountInt(amount), max(0, tokens), amountInt(amount), max(0, tokens), amountInt(amount)}, config.QuotaResetStartAt)
 		keys = append(keys, c.lockKey(id))
 		args = append(args, token)
 		result, e := quotaIncrementScript.Run(op, c.client, keys, args...).Int64()
@@ -555,6 +570,7 @@ func (c *OrganizationQuotaCounter) Settle(ctx context.Context, id uint64, tokens
 	return ledgerErr
 }
 func (c *OrganizationQuotaCounter) discard(ctx context.Context, id uint64, at time.Time) {
+	config, _ := c.config(ctx, id, at)
 	c.mu.Lock()
 	c.markRepairLocked(id)
 	c.mu.Unlock()
@@ -563,7 +579,7 @@ func (c *OrganizationQuotaCounter) discard(ctx context.Context, id uint64, at ti
 		defer cancel()
 		// DEL is atomic: removing the lease fences any older DB snapshot writer.
 		// Its script will reject the lost token instead of recreating stale keys.
-		keys := append(organizationQuotaKeys(c.prefix, id, at), c.lockKey(id))
+		keys := append(organizationQuotaKeys(c.prefix, id, at, config.QuotaResetStartAt), c.lockKey(id))
 		if err := c.client.Del(op, keys...).Err(); err != nil {
 			logging.Printf(op, "WARN", "organization_quota.repair_pending", "organization_id=%d err=%v", id, err)
 		}
@@ -653,7 +669,11 @@ func (c *OrganizationQuotaCounter) Calibrate(ctx context.Context, now time.Time)
 	return errors.Join(failures...)
 }
 func (c *OrganizationQuotaCounter) writeCurrent(ctx context.Context, id uint64, u userInfra.OrganizationPeriodicUsage, now time.Time, token string) error {
-	keys, args := quotaArguments(c.prefix, id, now, []int64{u.DailyTokens, amountInt(u.DailyAmount), u.WeeklyTokens, amountInt(u.WeeklyAmount), u.MonthlyTokens, amountInt(u.MonthlyAmount)})
+	config, err := c.config(ctx, id, now)
+	if err != nil {
+		return err
+	}
+	keys, args := quotaArguments(c.prefix, id, now, []int64{u.DailyTokens, amountInt(u.DailyAmount), u.WeeklyTokens, amountInt(u.WeeklyAmount), u.MonthlyTokens, amountInt(u.MonthlyAmount)}, config.QuotaResetStartAt)
 	keys = append(keys, c.lockKey(id))
 	args = append(args, token)
 	result, err := quotaCurrentScript.Run(ctx, c.client, keys, args...).Int64()
@@ -662,14 +682,17 @@ func (c *OrganizationQuotaCounter) writeCurrent(ctx context.Context, id uint64, 
 	}
 	return err
 }
-func quotaArguments(prefix string, id uint64, now time.Time, values []int64) ([]string, []any) {
-	day, week, month := usagetime.PeriodStarts(now)
-	ends := []time.Time{day.AddDate(0, 0, 1), week.AddDate(0, 0, 7), month.In(usagetime.Location()).AddDate(0, 1, 0)}
+func quotaArguments(prefix string, id uint64, now time.Time, values []int64, anchors ...*time.Time) ([]string, []any) {
+	var anchor *time.Time
+	if len(anchors) > 0 {
+		anchor = anchors[0]
+	}
+	_, ends := usagetime.QuotaPeriods(now, anchor)
 	args := make([]any, 0, 13)
 	for i, value := range values {
 		args = append(args, strconv.FormatInt(max(0, value), 10), ends[i/2].Add(5*time.Minute).UnixMilli())
 	}
-	return organizationQuotaKeys(prefix, id, now), args
+	return organizationQuotaKeys(prefix, id, now, anchors...), args
 }
 func amountInt(value float64) int64 {
 	if math.IsNaN(value) || value <= 0 {
@@ -699,7 +722,16 @@ func usageFromRedis(values []any) (userInfra.OrganizationPeriodicUsage, error) {
 	}
 	return userInfra.OrganizationPeriodicUsage{DailyTokens: ints[0], DailyAmount: float64(ints[1]) / float64(amountScale), WeeklyTokens: ints[2], WeeklyAmount: float64(ints[3]) / float64(amountScale), MonthlyTokens: ints[4], MonthlyAmount: float64(ints[5]) / float64(amountScale)}, nil
 }
-func organizationQuotaKeys(prefix string, id uint64, now time.Time) []string {
+func organizationQuotaKeys(prefix string, id uint64, now time.Time, anchors ...*time.Time) []string {
+	if len(anchors) > 0 && anchors[0] != nil {
+		starts, _ := usagetime.QuotaPeriods(now, anchors[0])
+		result := make([]string, 0, 6)
+		for i, start := range starts {
+			base := fmt.Sprintf("%s:{%d}:custom:%s:%d:%s", prefix, id, anchors[0].UTC().Format(time.RFC3339Nano), i, start.Format(time.RFC3339Nano))
+			result = append(result, base+":tokens", base+":amount")
+		}
+		return result
+	}
 	day, week, month := usagetime.PeriodStarts(now)
 	loc := usagetime.Location()
 	base := fmt.Sprintf("%s:{%d}:", prefix, id)
@@ -746,3 +778,10 @@ for i=1,6 do
 end
 return 1
 `)
+
+func sameQuotaAnchor(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(*b)
+}

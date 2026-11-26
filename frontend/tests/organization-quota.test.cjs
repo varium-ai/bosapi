@@ -69,6 +69,8 @@ function harness(user = admin, search = 'organization_id=10') {
     invalidations: [],
     errors: [],
     successes: [],
+    warnings: [],
+    refetches: [],
   };
   const hooks = {
     useState(initial) {
@@ -109,6 +111,9 @@ function harness(user = admin, search = 'organization_id=10') {
       values: {},
       setFieldsValue(values) {
         Object.assign(this.values, values);
+      },
+      getFieldsValue() {
+        return { ...this.values };
       },
     }))[0],
   ];
@@ -151,6 +156,7 @@ function harness(user = admin, search = 'organization_id=10') {
       message: {
         error: value => state.errors.push(value),
         success: value => state.successes.push(value),
+        warning: value => state.warnings.push(value),
       },
     },
     '@ant-design/icons': {},
@@ -214,6 +220,8 @@ function harness(user = admin, search = 'organization_id=10') {
           if (name.endsWith('/common/display')) return { compactKey: () => 'key' };
           if (name.endsWith('/common/RefreshButton'))
             return { RefreshButton: function RefreshButton() {} };
+          if (name.endsWith('/keys/QuotaResetStartField'))
+            return { QuotaResetStartField: function QuotaResetStartField() {} };
           if (name.endsWith('/common/ConsoleUX'))
             return { LoadError: 'LoadError', PageHelp: 'PageHelp' };
           if (name.endsWith('/onboarding/setupQueries'))
@@ -223,6 +231,7 @@ function harness(user = admin, search = 'organization_id=10') {
                 return [];
               },
             };
+          if (!name.startsWith('.')) return require(name);
           const resolved = path.resolve(path.dirname(filename), name);
           const extension = fs.existsSync(`${resolved}.ts`) ? '.ts' : '.tsx';
           return load(path.relative(root, resolved + extension));
@@ -260,7 +269,20 @@ function harness(user = admin, search = 'organization_id=10') {
   }
   const model = load('features/ratelimits/organizationQuota.ts');
   function respond(options, data, changes) {
-    state.responses.set(JSON.stringify(options.queryKey), result(data, changes));
+    state.responses.set(
+      JSON.stringify(options.queryKey),
+      result(data, {
+        refetch: async refetchOptions => {
+          state.refetches.push(options.queryKey);
+          const updated = state.refetch
+            ? await state.refetch(options.queryKey, refetchOptions)
+            : data;
+          respond(options, updated, { dataUpdatedAt: 2 });
+          return { data: updated };
+        },
+        ...changes,
+      }),
+    );
   }
   function page(data = snapshot(), changes = {}) {
     respond({ queryKey: ['rate-limit-organizations', ...model.quotaScope(state.user)] }, [
@@ -280,11 +302,132 @@ function harness(user = admin, search = 'organization_id=10') {
 
 const form = (ui, name) => nodes(ui.editor.tree, node => node.props.name === name)[0];
 
-test('selection ignores foreign org/key URL parameters for org admins and validates numeric IDs', () => {
+function keyPage() {
+  const h = harness(admin, 'organization_id=10&key_id=7');
+  const limits = { ...snapshot(), key: { key_id: 7, qps: 10, quota_5h: 100 } };
+  const details = { id: 7, daily_quota_tokens: 50, quota_reset_start_at: null };
+  h.respond({ queryKey: ['rate-limit-keys', ...h.model.quotaScope(admin), 10] }, [
+    { id: 7, name: 'Owned key' },
+  ]);
+  h.respond(h.model.rateLimitQueryOptions(admin, 10, 7), limits);
+  h.respond({ queryKey: ['rate-limit-key-details', 7] }, details);
+  const ui = h.page();
+  return { h, ui, limits, details };
+}
+
+test('key policy first-request failure stops the key update and retains edits', async () => {
+  const { h, ui } = keyPage();
+  const key = form(ui, 'key-limit');
+  key.props.form.setFieldsValue({ quota_5h: 200, daily_quota_tokens: 60 });
+  h.state.put = async () => {
+    throw new Error('rate limits rejected');
+  };
+  await key.props.onFinish(key.props.form.values);
+  ui.editor.render();
+  assert.equal(h.state.puts.length, 1);
+  assert.equal(h.state.errors.length, 1);
+  assert.equal(h.state.warnings.length, 0);
+  assert.equal(h.state.refetches.length, 0);
+  assert.equal(h.state.invalidations.length, 0);
+  assert.equal(form(ui, 'key-limit').props.form.values.daily_quota_tokens, 60);
+  assert.equal(form(ui, 'key-limit').props.disabled, false);
+});
+
+test('key policy success confirms both requests and refreshes dependent caches', async () => {
+  const { h, ui } = keyPage();
+  const key = form(ui, 'key-limit');
+  key.props.form.setFieldsValue({ quota_5h: 200, daily_quota_tokens: 60 });
+  await key.props.onFinish(key.props.form.values);
+  assert.deepEqual(
+    h.state.puts.map(args => args[0]),
+    ['/admin/rate-limits', '/admin/keys/7'],
+  );
+  assert.equal(h.state.puts[0][1].keys[0].quota_5h, 200);
+  assert.equal(h.state.puts[1][1].daily_quota_tokens, 60);
+  assert.equal(h.state.puts[1][1].weekly_quota_tokens, null);
+  assert.equal(h.state.successes.length, 1);
+  assert.equal(h.state.errors.length, 0);
+  assert.equal(h.state.warnings.length, 0);
+  assert.equal(h.state.invalidations.length, 4);
+});
+
+test('partial key policy save warns and reloads both server configurations before retry', async () => {
+  const { h, ui, limits, details } = keyPage();
+  const key = form(ui, 'key-limit');
+  key.props.form.setFieldsValue({ quota_5h: 200, quota_7d_amount: 5, daily_quota_tokens: 60 });
+  h.state.put = async url => {
+    if (url === '/admin/keys/7') throw new Error('key validation failed');
+  };
+  const refresh = deferred();
+  h.state.refetch = async (queryKey, options) => {
+    assert.equal(options.throwOnError, true);
+    await refresh.promise;
+    return queryKey[0] === 'rate-limit-key-details'
+      ? details
+      : {
+          ...limits,
+          key: { ...limits.key, quota_5h: 200 },
+        };
+  };
+  const pending = key.props.onFinish(key.props.form.values);
+  await new Promise(resolve => setImmediate(resolve));
+  ui.editor.render();
+  assert.equal(form(ui, 'key-limit').props.disabled, true);
+  await form(ui, 'key-limit').props.onFinish(key.props.form.values);
+  assert.equal(h.state.puts.length, 2);
+  refresh.resolve();
+  await pending;
+  ui.editor.render();
+  const current = form(ui, 'key-limit');
+  assert.equal(current.props.disabled, false);
+  assert.equal(current.props.form.values.quota_5h, 200);
+  assert.equal(current.props.form.values.quota_7d_amount, null);
+  assert.equal(current.props.form.values.daily_quota_tokens, 50);
+  assert.deepEqual(h.state.warnings, ['keys.partial_save']);
+  assert.equal(h.state.errors.length, 0);
+  assert.equal(h.state.successes.length, 0);
+  assert.deepEqual(h.state.refetches.map(key => key[0]).sort(), [
+    'organization-rate-limits',
+    'rate-limit-key-details',
+  ]);
+  assert.ok(h.state.puts.every(args => args[2].skipGlobalErrorMessage === true));
+  assert.ok(h.state.invalidations.every(options => options.refetchType === 'none'));
+});
+
+test('failed partial-save refresh blocks stale resubmission until both reads succeed', async () => {
+  const { h, ui, limits, details } = keyPage();
+  const key = form(ui, 'key-limit');
+  h.state.put = async url => {
+    if (url === '/admin/keys/7') throw new Error('key rejected');
+  };
+  h.state.refetch = async queryKey => {
+    if (queryKey[0] === 'rate-limit-key-details') throw new Error('read unavailable');
+    return limits;
+  };
+  await key.props.onFinish(key.props.form.values);
+  ui.editor.render();
+  assert.equal(form(ui, 'key-limit').props.disabled, true);
+  assert.deepEqual(h.state.warnings, ['keys.partial_save', 'ratelimits.key_refresh_failed']);
+  await form(ui, 'key-limit').props.onFinish(key.props.form.values);
+  assert.equal(h.state.puts.length, 2);
+  h.state.refetch = async queryKey =>
+    queryKey[0] === 'rate-limit-key-details'
+      ? { ...details, daily_quota_tokens: 45 }
+      : { ...limits, key: { ...limits.key, qps: 20 } };
+  nodes(ui.editor.tree, node => node.type === 'LoadError')[0].props.retry();
+  await new Promise(resolve => setImmediate(resolve));
+  ui.editor.render();
+  assert.equal(form(ui, 'key-limit').props.disabled, false);
+  assert.equal(form(ui, 'key-limit').props.form.values.daily_quota_tokens, 45);
+  assert.equal(form(ui, 'key-limit').props.form.values.qps, 20);
+  assert.equal(h.state.errors.length, 0);
+});
+
+test('selection locks organization scope and accepts only numeric key URL parameters', () => {
   const { model } = harness();
   assert.deepEqual(
     plain(model.resolveQuotaSelection(tenant, new URLSearchParams('organization_id=20&key_id=99'))),
-    { organizationId: 10 },
+    { organizationId: 10, keyId: 99 },
   );
   for (const bad of ['-1', '1.5', 'Infinity', 'NaN', '9007199254740992', '0', ''])
     assert.equal(model.positiveId(bad), undefined);
@@ -330,13 +473,13 @@ test('scoped query forbids foreign reads, validates response identity and propag
   const h = harness(tenant);
   for (const [user, org, key] of [
     [tenant, 20],
-    [tenant, 10, 7],
     [{ ...tenant, role: 'key_viewer' }, 10],
   ]) {
     const options = h.model.rateLimitQueryOptions(user, org, key);
     assert.equal(options.enabled, false);
     await assert.rejects(options.queryFn({ signal: new AbortController().signal }), /scope/);
   }
+  assert.equal(h.model.rateLimitQueryOptions(tenant, 10, 7).enabled, true);
   assert.equal(h.state.gets.length, 0);
   const options = h.model.rateLimitQueryOptions(tenant, 10);
   for (const data of [undefined, {}, snapshot(20), { organization: { organization_id: 10 } }]) {
@@ -362,7 +505,8 @@ test('all six quota fields round-trip null, zero and positive values without amo
   };
   const values = model.organizationQuotaValues(snapshot(10, quotas).organization);
   const update = model.organizationQuotaUpdate(values).organizations[0];
-  assert.equal(Object.keys(update).length, 8);
+  assert.equal(Object.keys(update).length, 9);
+  assert.equal(update.quota_reset_start_at, null);
   for (const period of model.PERIODS)
     for (const metric of ['tokens', 'amount'])
       assert.equal(update[`${period}_quota_${metric}`], quotas[`${period}_${metric}`]);
@@ -385,6 +529,23 @@ test('all six quota fields round-trip null, zero and positive values without amo
       () => model.organizationQuotaUpdate({ ...values, monthly_quota_tokens: bad }),
       /quota/,
     );
+});
+
+test('custom quota cycle start round-trips and clearing restores calendar periods', () => {
+  const { model } = harness();
+  const organization = snapshot().organization;
+  organization.quota_reset_start_at = '2026-11-26T03:15:00.000Z';
+  const values = model.organizationQuotaValues(organization);
+  assert.equal(values.quota_reset_start_at, organization.quota_reset_start_at);
+  assert.equal(
+    model.organizationQuotaUpdate(values).organizations[0].quota_reset_start_at,
+    organization.quota_reset_start_at,
+  );
+  assert.equal(
+    model.organizationQuotaUpdate({ ...values, quota_reset_start_at: null }).organizations[0]
+      .quota_reset_start_at,
+    null,
+  );
 });
 
 test('million-token presentation and input preserve raw token limits', () => {
@@ -530,13 +691,13 @@ test('unmounted save completion only invalidates its original scope and never ch
   assert.equal(form({ editor }, 'organization-limit').props.form.values.organization_id, undefined);
 });
 
-test('org admin exposes only its organization read and no editing, key or global forms', async () => {
+test('org admin can edit owned API keys while organization and global limits stay read-only', async () => {
   const h = harness(tenant, 'organization_id=20&key_id=77');
   const ui = h.page();
   assert.equal(ui.selection.props.selectedOrgId, 10);
-  assert.equal(ui.selection.props.selectedKeyId, undefined);
-  assert.equal(nodes(ui.editor.tree, node => node.type === h.Form).length, 0);
-  assert.equal(nodes(ui.editor.tree, node => node.props.htmlType === 'submit').length, 0);
+  assert.equal(ui.selection.props.selectedKeyId, 77);
+  assert.equal(nodes(ui.editor.tree, node => node.type === h.Form).length, 1);
+  assert.equal(nodes(ui.editor.tree, node => node.props.htmlType === 'submit').length, 1);
   const selector = nodes(ui.editor.tree, node => node.type === 'Select')[0];
   assert.equal(selector.props.disabled, true);
   assert.deepEqual(plain(selector.props.options.map(option => option.value)), [10]);
@@ -551,11 +712,7 @@ test('org admin exposes only its organization read and no editing, key or global
     { id: 10, name: 'Own organization' },
   ]);
   assert.equal(h.state.gets[0][0], '/admin/organizations/10');
-  assert.ok(
-    h.state.options
-      .filter(option => option.queryKey[0] === 'rate-limit-keys')
-      .every(option => !option.enabled),
-  );
+  assert.ok(h.state.options.find(option => option.queryKey[0] === 'rate-limit-keys').enabled);
 });
 
 test('key reads wait for membership and never replace the separate organization usage query', () => {
@@ -572,6 +729,9 @@ test('key reads wait for membership and never replace the separate organization 
     ...snapshot(),
     key: { key_id: 7, qps: 30 },
   });
+  ui.editor.render();
+  assert.equal(form(ui, 'key-limit').props.disabled, true);
+  h.respond({ queryKey: ['rate-limit-key-details', 7] }, { id: 7, organization_id: 10 });
   ui.editor.render();
   keyReads = h.state.options.filter(
     option => option.queryKey[0] === 'organization-rate-limits' && option.queryKey.at(-1) === 7,
@@ -679,7 +839,7 @@ test('home summary preserves usage for unlimited and blocked quotas; no request 
   assert.equal(h.state.options.at(-1).enabled, false);
 });
 
-test('a refreshed organization replaces all six form values, including fields cleared on the server', () => {
+test('a refreshed organization replaces quota values, including fields cleared on the server', () => {
   const h = harness();
   const ui = h.page(
     snapshot(10, {
@@ -706,7 +866,7 @@ test('a refreshed organization replaces all six form values, including fields cl
   ])
     assert.equal(values[field], null);
   const fields = nodes(
-    ui.editor.tree,
+    form(ui, 'organization-limit'),
     node => typeof node.props.name === 'string' && /_(tokens|amount)$/.test(node.props.name),
   );
   assert.equal(fields.length, 6);

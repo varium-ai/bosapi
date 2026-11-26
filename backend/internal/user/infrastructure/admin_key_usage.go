@@ -74,5 +74,5 @@ func (repository *KeyRepository) populateAdminKeyUsageAt(ctx context.Context, ke
 		today, recent := row.TodayAmount, row.RecentAmount
 		keys[i].UsageTodayAmount, keys[i].Usage30dAmount = &today, &recent
 	}
-	return nil
+	return repository.populateCustomPeriodicUsage(ctx, keys, now)
 }

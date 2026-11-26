@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	adminDomain "bosapi/backend/internal/admin/domain"
 	gatewayinfra "bosapi/backend/internal/gateway/infrastructure"
@@ -54,13 +55,32 @@ func TestGatewayReleasesSessionAfterResponse(t *testing.T) {
 	}
 }
 
+func TestGatewayRollingAmountLimitHeaderUsesUSD(t *testing.T) {
+	a := testApp(t)
+	secret := "sk-gw-" + random(32)
+	a.data.Providers = []provider{{ID: 1, Status: "active", Type: "unconfigured"}}
+	a.data.Keys = []apiKey{{ID: 3, OrgID: 1, Hash: digest(secret), Status: "active", ProviderID: 1}}
+	limit := .01
+	limiter := gatewayinfra.NewLocalRateLimiter(gatewayRateLimitRepository{config: adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota5HAmount: &limit}}}}})
+	a.background.RateLimiter = limiter
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "paid", 1, limit, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	request.Header.Set("Authorization", "Bearer "+secret)
+	response := httptest.NewRecorder()
+	a.routes().ServeHTTP(response, request)
+	assertGatewayLimitError(t, response, "quota_exceeded", "quota_5h", "18000", "0.01")
+}
+
 func testGatewayConfiguredLimit(t *testing.T, config adminDomain.RateLimitUpdate, code, reason, retry string) {
 	t.Helper()
 	a := testApp(t)
 	secret := "sk-gw-" + random(32)
 	a.data.Providers = []provider{{ID: 1, Status: "active", Type: "unconfigured"}}
 	a.data.Keys = []apiKey{{ID: 3, OrgID: 1, Hash: digest(secret), Status: "active", ProviderID: 1}}
-	a.background.RateLimiter = gatewayinfra.NewLocalRateLimiter(gatewayRateLimitRepository{config: config})
+	limiter := gatewayinfra.NewLocalRateLimiter(gatewayRateLimitRepository{config: config})
+	a.background.RateLimiter = limiter
 	handler := a.routes()
 	for index, want := range []int{http.StatusOK, http.StatusTooManyRequests} {
 		request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
@@ -69,6 +89,11 @@ func testGatewayConfiguredLimit(t *testing.T, config adminDomain.RateLimitUpdate
 		handler.ServeHTTP(response, request)
 		if response.Code != want {
 			t.Fatalf("request %d status=%d, want=%d, body=%s", index, response.Code, want, response.Body.String())
+		}
+		if index == 0 {
+			if err := limiter.RecordTokenUsage(t.Context(), 3, "settled-usage", 1, 0, time.Now()); err != nil {
+				t.Fatal(err)
+			}
 		}
 		if response.Header().Get("X-RateLimit-Degraded") != "true" {
 			t.Fatalf("request %d did not report local enforcement", index)

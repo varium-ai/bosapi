@@ -44,6 +44,7 @@ type APIKeyRecord struct {
 	QuotaUsedAmount                                         float64
 	QuotaUsedTokens                                         uint64
 	DailyQuotaAmount, WeeklyQuotaAmount, MonthlyQuotaAmount *float64
+	QuotaResetStartAt                                       *time.Time
 	DailyQuotaTokens, WeeklyQuotaTokens, MonthlyQuotaTokens *uint64
 	RateLimit5H                                             *uint32 `gorm:"column:rate_limit_5h"`
 	RateLimit1D                                             *uint32 `gorm:"column:rate_limit_1d"`
@@ -512,7 +513,7 @@ func (repository *KeyRepository) UpdateOwned(ctx context.Context, id, userID, or
 			updates["updated_at"] = deletedAt
 		}
 	}
-	allowed := map[string]struct{}{"allowed_provider_ids": {}, "allowed_models": {}, "name": {}, "status": {}, "expires_at": {}, "quota_amount": {}, "quota_tokens": {}, "daily_quota_amount": {}, "weekly_quota_amount": {}, "monthly_quota_amount": {}, "daily_quota_tokens": {}, "weekly_quota_tokens": {}, "monthly_quota_tokens": {}, "rate_limit_5h": {}, "rate_limit_1d": {}, "rate_limit_7d": {}, "ip_allowlist": {}, "ip_blocklist": {}, "updated_at": {}}
+	allowed := map[string]struct{}{"allowed_provider_ids": {}, "allowed_models": {}, "name": {}, "status": {}, "expires_at": {}, "quota_amount": {}, "quota_tokens": {}, "quota_reset_start_at": {}, "daily_quota_amount": {}, "weekly_quota_amount": {}, "monthly_quota_amount": {}, "daily_quota_tokens": {}, "weekly_quota_tokens": {}, "monthly_quota_tokens": {}, "rate_limit_5h": {}, "rate_limit_1d": {}, "rate_limit_7d": {}, "ip_allowlist": {}, "ip_blocklist": {}, "updated_at": {}}
 	for field := range updates {
 		if _, ok := allowed[field]; !ok {
 			return gorm.ErrInvalidData
@@ -560,7 +561,7 @@ func (repository *KeyRepository) DeleteOwned(ctx context.Context, id, userID, or
 
 // UpdateAdminKey applies the administrative edit allowlist within an optional organization boundary.
 func (repository *KeyRepository) UpdateAdminKey(ctx context.Context, id, organizationID uint64, updates map[string]any) error {
-	allowed := map[string]struct{}{"expires_at": {}, "status": {}, "security_inspection_upstream_enabled": {}, "security_inspection_downstream_enabled": {}, "name": {}, "organization_id": {}, "allowed_provider_ids": {}, "allowed_models": {}, "quota_amount": {}, "quota_tokens": {}, "daily_quota_amount": {}, "weekly_quota_amount": {}, "monthly_quota_amount": {}, "daily_quota_tokens": {}, "weekly_quota_tokens": {}, "monthly_quota_tokens": {}, "ip_allowlist": {}, "updated_at": {}}
+	allowed := map[string]struct{}{"expires_at": {}, "status": {}, "security_inspection_upstream_enabled": {}, "security_inspection_downstream_enabled": {}, "name": {}, "organization_id": {}, "allowed_provider_ids": {}, "allowed_models": {}, "quota_amount": {}, "quota_tokens": {}, "quota_reset_start_at": {}, "daily_quota_amount": {}, "weekly_quota_amount": {}, "monthly_quota_amount": {}, "daily_quota_tokens": {}, "weekly_quota_tokens": {}, "monthly_quota_tokens": {}, "ip_allowlist": {}, "updated_at": {}}
 	for field := range updates {
 		if _, ok := allowed[field]; !ok {
 			return gorm.ErrInvalidData
@@ -779,7 +780,7 @@ func (repository *KeyRepository) populatePeriodicUsageAt(ctx context.Context, ke
 		keys[i].MonthlyUsedTokens = u.MonthlyTokens
 		keys[i].MonthlyUsedAmount = u.MonthlyAmount
 	}
-	return nil
+	return repository.populateCustomPeriodicUsage(ctx, keys, now)
 }
 
 // SetAdminKeyStatus changes a key status inside the optional organization boundary.
@@ -827,7 +828,7 @@ func recordFromDomain(key domain.APIKey) (APIKeyRecord, error) {
 	}
 	providers, _ := json.Marshal(key.AllowedProviderIDs)
 	models, _ := json.Marshal(key.AllowedModels)
-	return APIKeyRecord{ID: key.ID, Name: key.Name, KeyHash: string(hash), KeyPrefix: key.KeyPrefix, KeySuffix: key.KeySuffix, KeyEncrypted: keyEncrypted, UserID: key.UserID, OrganizationID: key.OrganizationID, AllowedProviderIDs: string(providers), AllowedModels: string(models), Status: key.Status, SecurityInspectionUpstreamEnabled: key.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: key.SecurityInspectionDownstreamEnabled, ExpiresAt: key.ExpiresAt, QuotaAmount: key.QuotaAmount, QuotaTokens: uintPtr(key.QuotaTokens), QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: uint64(key.QuotaUsedTokens), DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount, DailyQuotaTokens: uintPtr(key.DailyQuotaTokens), WeeklyQuotaTokens: uintPtr(key.WeeklyQuotaTokens), MonthlyQuotaTokens: uintPtr(key.MonthlyQuotaTokens), RateLimit5H: uint32Ptr(key.RateLimit5H), RateLimit1D: uint32Ptr(key.RateLimit1D), RateLimit7D: uint32Ptr(key.RateLimit7D), IPAllowlist: string(allowlist), IPBlocklist: string(blocklist), LastUsedAt: key.LastUsedAt, CreatedAt: key.CreatedAt, UpdatedAt: key.UpdatedAt}, nil
+	return APIKeyRecord{ID: key.ID, Name: key.Name, KeyHash: string(hash), KeyPrefix: key.KeyPrefix, KeySuffix: key.KeySuffix, KeyEncrypted: keyEncrypted, UserID: key.UserID, OrganizationID: key.OrganizationID, AllowedProviderIDs: string(providers), AllowedModels: string(models), Status: key.Status, SecurityInspectionUpstreamEnabled: key.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: key.SecurityInspectionDownstreamEnabled, ExpiresAt: key.ExpiresAt, QuotaAmount: key.QuotaAmount, QuotaTokens: uintPtr(key.QuotaTokens), QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: uint64(key.QuotaUsedTokens), QuotaResetStartAt: key.QuotaResetStartAt, DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount, DailyQuotaTokens: uintPtr(key.DailyQuotaTokens), WeeklyQuotaTokens: uintPtr(key.WeeklyQuotaTokens), MonthlyQuotaTokens: uintPtr(key.MonthlyQuotaTokens), RateLimit5H: uint32Ptr(key.RateLimit5H), RateLimit1D: uint32Ptr(key.RateLimit1D), RateLimit7D: uint32Ptr(key.RateLimit7D), IPAllowlist: string(allowlist), IPBlocklist: string(blocklist), LastUsedAt: key.LastUsedAt, CreatedAt: key.CreatedAt, UpdatedAt: key.UpdatedAt}, nil
 }
 
 func recordToDomain(record APIKeyRecord) (domain.APIKey, error) {
@@ -858,7 +859,7 @@ func recordToDomain(record APIKeyRecord) (domain.APIKey, error) {
 	if record.KeyEncrypted != nil {
 		keyEncrypted = *record.KeyEncrypted
 	}
-	return domain.APIKey{ID: record.ID, Name: record.Name, KeyHash: hex.EncodeToString([]byte(record.KeyHash)), KeyPrefix: record.KeyPrefix, KeySuffix: record.KeySuffix, KeyEncrypted: keyEncrypted, UserID: record.UserID, OrganizationID: record.OrganizationID, AllowedProviderIDs: providers, AllowedModels: models, Status: record.Status, SecurityInspectionUpstreamEnabled: record.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: record.SecurityInspectionDownstreamEnabled, ExpiresAt: record.ExpiresAt, QuotaAmount: record.QuotaAmount, QuotaTokens: int64Ptr(record.QuotaTokens), QuotaUsedAmount: record.QuotaUsedAmount, QuotaUsedTokens: int64(record.QuotaUsedTokens), DailyQuotaAmount: record.DailyQuotaAmount, WeeklyQuotaAmount: record.WeeklyQuotaAmount, MonthlyQuotaAmount: record.MonthlyQuotaAmount, DailyQuotaTokens: int64Ptr(record.DailyQuotaTokens), WeeklyQuotaTokens: int64Ptr(record.WeeklyQuotaTokens), MonthlyQuotaTokens: int64Ptr(record.MonthlyQuotaTokens), RateLimit5H: int64Ptr32(record.RateLimit5H), RateLimit1D: int64Ptr32(record.RateLimit1D), RateLimit7D: int64Ptr32(record.RateLimit7D), IPAllowlist: allowlist, IPBlocklist: blocklist, LastUsedAt: record.LastUsedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
+	return domain.APIKey{ID: record.ID, Name: record.Name, KeyHash: hex.EncodeToString([]byte(record.KeyHash)), KeyPrefix: record.KeyPrefix, KeySuffix: record.KeySuffix, KeyEncrypted: keyEncrypted, UserID: record.UserID, OrganizationID: record.OrganizationID, AllowedProviderIDs: providers, AllowedModels: models, Status: record.Status, SecurityInspectionUpstreamEnabled: record.SecurityInspectionUpstreamEnabled, SecurityInspectionDownstreamEnabled: record.SecurityInspectionDownstreamEnabled, ExpiresAt: record.ExpiresAt, QuotaAmount: record.QuotaAmount, QuotaTokens: int64Ptr(record.QuotaTokens), QuotaUsedAmount: record.QuotaUsedAmount, QuotaUsedTokens: int64(record.QuotaUsedTokens), QuotaResetStartAt: record.QuotaResetStartAt, DailyQuotaAmount: record.DailyQuotaAmount, WeeklyQuotaAmount: record.WeeklyQuotaAmount, MonthlyQuotaAmount: record.MonthlyQuotaAmount, DailyQuotaTokens: int64Ptr(record.DailyQuotaTokens), WeeklyQuotaTokens: int64Ptr(record.WeeklyQuotaTokens), MonthlyQuotaTokens: int64Ptr(record.MonthlyQuotaTokens), RateLimit5H: int64Ptr32(record.RateLimit5H), RateLimit1D: int64Ptr32(record.RateLimit1D), RateLimit7D: int64Ptr32(record.RateLimit7D), IPAllowlist: allowlist, IPBlocklist: blocklist, LastUsedAt: record.LastUsedAt, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}, nil
 }
 
 func uintPtr(value *int64) *uint64 {

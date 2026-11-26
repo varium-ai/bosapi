@@ -317,6 +317,26 @@ func TestAdminKeyUpdateExpirationSupportsSetClearAndOmission(t *testing.T) {
 	}
 }
 
+func TestAdminKeyUpdateIgnoresRemovedRollingRequestLimits(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &adminKeyServiceStub{}
+	router := gin.New()
+	router.Use(func(ctx *gin.Context) {
+		ctx.Set("identity", httpapi.Claims{UserID: 19, OrganizationID: 3, Role: "org_admin"})
+	})
+	NewAdminKeyHandler(service).RegisterRoutes(router.Group("/admin"))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPut, "/admin/keys/7", strings.NewReader(`{"rate_limit_5h":12,"rate_limit_1d":null,"rate_limit_7d":34}`)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	for _, field := range []string{"rate_limit_5h", "rate_limit_1d", "rate_limit_7d"} {
+		if _, present := service.updated[field]; present {
+			t.Fatalf("removed rolling request limit %q reached service", field)
+		}
+	}
+}
+
 func TestAdminKeyUpdateSecurityInspectionEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, test := range []struct {

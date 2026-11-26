@@ -5,9 +5,79 @@ import { organizationOptionsQueryOptions } from '../../api/adminQueries';
 import { useI18n } from '../../i18n';
 import { AdvancedFields } from '../common/ConsoleUX';
 import { KeyExpiryInput } from './KeyExpiryInput';
+import { QuotaResetStartField } from './QuotaResetStartField';
 import { KeyAccessFields, KeyAccessReadiness } from './KeyAccessFields';
 
 const { Text } = Typography;
+
+export const KeyRollingLimitFields: React.FC<{
+  showTokenLimits?: boolean;
+}> = ({ showTokenLimits = true }) => {
+  const { t } = useI18n();
+  return (
+    <>
+      <Divider orientation="left">
+        {t('ratelimits.key_concurrency_title', 'Concurrent Requests')}
+      </Divider>
+      <Form.Item
+        name="rate_limit_qps"
+        label={t('ratelimits.key_qps_label', 'Key concurrent sessions')}
+      >
+        <InputNumber
+          min={0}
+          max={1_000_000}
+          precision={0}
+          style={{ width: '100%' }}
+          placeholder={t('keys.unlimited', 'No limit')}
+          addonAfter={t('ratelimits.sessions_unit', 'sessions')}
+        />
+      </Form.Item>
+      {showTokenLimits && (
+        <>
+          <Divider orientation="left">{t('keys.rolling_token_limits', 'Rolling Quotas')}</Divider>
+          <Alert
+            type="info"
+            showIcon
+            message={t('keys.rolling_quota_help')}
+            style={{ marginBottom: 16 }}
+          />
+          {(['5h', '1d', '7d'] as const).map(period => (
+            <Row gutter={16} align="top" key={period}>
+              <Col span={12}>
+                <Form.Item
+                  name={`quota_${period}`}
+                  label={t(`keys.quota_${period}`, `${period} Token limit`)}
+                >
+                  <InputNumber
+                    min={0}
+                    precision={0}
+                    style={{ width: '100%' }}
+                    placeholder={t('keys.quota_tokens_placeholder', 'Unlimited')}
+                    addonAfter="tokens"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name={`quota_${period}_amount`}
+                  label={t(`keys.quota_${period}_amount`, `${period} Amount limit (USD)`)}
+                >
+                  <InputNumber
+                    min={0}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    placeholder={t('keys.quota_amount_placeholder', 'Unlimited')}
+                    addonAfter="USD"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+          ))}
+        </>
+      )}
+    </>
+  );
+};
 
 export const KeyConfigurationFields: React.FC<{
   enabled: boolean;
@@ -15,6 +85,7 @@ export const KeyConfigurationFields: React.FC<{
   advancedOpen?: boolean;
   showStatus?: boolean;
   showRollingLimits?: boolean;
+  showTokenLimits?: boolean;
   showIPBlocklist?: boolean;
 }> = ({
   enabled,
@@ -22,6 +93,7 @@ export const KeyConfigurationFields: React.FC<{
   advancedOpen = false,
   showStatus = false,
   showRollingLimits = true,
+  showTokenLimits = true,
   showIPBlocklist = true,
 }) => {
   const { t } = useI18n();
@@ -54,6 +126,7 @@ export const KeyConfigurationFields: React.FC<{
         organizationID={organizationID}
         canManageOrganization={canChangeOrganization}
       />
+      <QuotaResetStartField />
       <AdvancedFields defaultOpen={advancedOpen}>
         <KeyAccessFields enabled={enabled} organizationID={organizationID} />
         <Form.Item
@@ -150,16 +223,7 @@ export const KeyConfigurationFields: React.FC<{
             />
           </Form.Item>
         )}
-        {showRollingLimits &&
-          (['5h', '1d', '7d'] as const).map(period => (
-            <Form.Item
-              key={period}
-              name={`rate_limit_${period}`}
-              label={t(`keys.rate_limit_${period}`)}
-            >
-              <InputNumber min={1} max={4294967295} precision={0} style={{ width: '100%' }} />
-            </Form.Item>
-          ))}
+        {showRollingLimits && <KeyRollingLimitFields showTokenLimits={showTokenLimits} />}
         {showIPBlocklist && (
           <Form.Item name="ip_blocklist" label={t('keys.field_ip_blocklist')}>
             <Select mode="tags" />

@@ -231,7 +231,9 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 			if err := a.redisClient.Ping(context.Background()).Err(); err != nil {
 				return nil, err
 			}
-			services.RateLimiter = gatewayinfra.NewRedisRateLimiter(a.redisClient, rateLimits, "bos:gateway:rate")
+			limiter := gatewayinfra.NewRedisRateLimiter(a.redisClient, rateLimits, "bos:gateway:rate")
+			limiter.StartLegacyCleanup()
+			services.RateLimiter = limiter
 			a.organizationQuota = gatewayinfra.NewOrganizationQuotaCounter(a.redisClient, gatewayinfra.NewGormOrganizationQuotaRepository(a.database), "bos:org:quota")
 			a.portalLoginLock = authinfra.NewLoginLockStore(
 				a.redisClient,
@@ -274,6 +276,9 @@ func (g *Gateway) CallbackHandler() http.Handler { return http.HandlerFunc(g.app
 
 // Close releases the optional database connection.
 func (g *Gateway) Close() error {
+	if limiter, ok := g.app.background.RateLimiter.(interface{ Close() }); ok {
+		limiter.Close()
+	}
 	if g.app.usageReportingWorker != nil {
 		g.app.usageReportingWorker.Close()
 	}
@@ -873,7 +878,7 @@ func (a *app) databaseKey(r *http.Request) (apiKey, bool) {
 		OrgSecurityInspectionUpstreamEnabled: key.OrgSecurityInspectionUpstreamEnabled, OrgSecurityInspectionDownstreamEnabled: key.OrgSecurityInspectionDownstreamEnabled,
 		ExpiresAt:   key.ExpiresAt,
 		QuotaAmount: key.QuotaAmount, QuotaTokens: key.QuotaTokens, QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: key.QuotaUsedTokens,
-		DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
+		QuotaResetStartAt: key.QuotaResetStartAt, DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
 		DailyQuotaTokens: key.DailyQuotaTokens, WeeklyQuotaTokens: key.WeeklyQuotaTokens, MonthlyQuotaTokens: key.MonthlyQuotaTokens,
 		DailyUsedAmount: key.DailyUsedAmount, WeeklyUsedAmount: key.WeeklyUsedAmount, MonthlyUsedAmount: key.MonthlyUsedAmount,
 		DailyUsedTokens: key.DailyUsedTokens, WeeklyUsedTokens: key.WeeklyUsedTokens, MonthlyUsedTokens: key.MonthlyUsedTokens,

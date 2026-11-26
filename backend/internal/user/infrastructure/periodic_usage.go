@@ -122,6 +122,14 @@ func organizationPeriodicUsageQuery(db *gorm.DB, organizationID uint64, now time
 
 // FindOrganizationPeriodicUsage returns calendar totals for a tenant.
 func FindOrganizationPeriodicUsage(ctx context.Context, db *gorm.DB, organizationID uint64, now time.Time) (OrganizationPeriodicUsage, error) {
+	anchor, err := organizationQuotaAnchor(ctx, db, organizationID)
+	if err != nil {
+		return OrganizationPeriodicUsage{}, err
+	}
+	if anchor != nil {
+		u, err := readCustomPeriods(ctx, db, "organization_id", organizationID, now, anchor)
+		return OrganizationPeriodicUsage{OrganizationID: organizationID, DailyTokens: u[0].Tokens, DailyAmount: u[0].Amount, WeeklyTokens: u[1].Tokens, WeeklyAmount: u[1].Amount, MonthlyTokens: u[2].Tokens, MonthlyAmount: u[2].Amount}, err
+	}
 	var records []organizationPeriodicUsageRecord
 	if err := organizationPeriodicUsageQuery(db.WithContext(ctx), organizationID, now).Find(&records).Error; err != nil {
 		return OrganizationPeriodicUsage{}, err

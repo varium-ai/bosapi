@@ -68,6 +68,10 @@ and `X-RateLimit-Remaining: 0` describe the exhausted policy when its limit is k
 
 - Concurrent session caps: `rate_limited`, with `global_concurrency`, `organization_concurrency`, or `key_concurrency`. Session leases are released when the request ends and expire after Redis failures/crashes.
 - Configured windows: `quota_exceeded`, with `quota_5h`, `quota_1d`, or `quota_7d`.
+  Each window starts at the first settled usage and limits either accumulated
+  tokens or cost over 5 hours, 24 hours, or 7 days; duplicate settlement retries
+  do not charge usage twice. Request count is limited only through concurrent
+  session caps.
 - Key budgets: `quota_exceeded`, with `total_tokens`, `total_amount`,
   `daily_tokens`, `daily_amount`, `weekly_tokens`, `weekly_amount`,
   `monthly_tokens`, or `monthly_amount`.

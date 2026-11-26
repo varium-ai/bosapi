@@ -1,3 +1,4 @@
+import { PartialKeySaveError, saveKeyPolicy } from './saveKeyPolicy';
 import { reportConfigurationError } from '../diagnostics/reportConfigurationError';
 import { ConsoleToolbar } from '../common/ConsoleToolbar';
 import { TableAction, TableActionMenu } from '../common/TableAction';
@@ -21,12 +22,7 @@ import {
   message,
   Alert,
   Typography,
-  InputNumber,
-  Row,
-  Col,
   Tooltip,
-  Divider,
-  Switch,
 } from 'antd';
 import {
   PlusOutlined,
@@ -39,14 +35,13 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AdvancedFields, LoadError, StatusTag, useDiscardChanges } from '../common/ConsoleUX';
+import { LoadError, StatusTag, useDiscardChanges } from '../common/ConsoleUX';
 import { apiClient } from '../../api/client';
 import { adminKeysQueryOptions, organizationOptionsQueryOptions } from '../../api/adminQueries';
 import { useI18n } from '../../i18n';
 import { type ImportedAPIKey, parseAPIKeyImportFile } from './importKeys';
 import { KeyClientImportModal, KeySecretActions } from './KeySecretActions';
 import { KeyConnectionInfo, KeyCopyAllButton } from './KeyConnectionInfo';
-import { KeyExpiryInput } from './KeyExpiryInput';
 import { KeyConfigurationFields } from './KeyConfigurationFields';
 import { KeyImportGuide } from './KeyImportGuide';
 import { KeyTemplatesModal } from './KeyTemplatesModal';
@@ -56,7 +51,7 @@ import {
   keyTemplatesQueryOptions,
 } from './keyTemplates';
 import { KeyUsageCell } from './KeyUsageCell';
-import { KeyAccessFields } from './KeyAccessFields';
+import { KeyEditFields } from './KeyEditFields';
 import type { APIResponse } from '../../api/types';
 import type { APIKeyFormValues, APIKeyRecord } from './types';
 import type { KeySecretInfo } from './KeySecretActions';
@@ -189,19 +184,50 @@ export const KeysPage: React.FC = () => {
         allowed_models: values.allowed_models || [],
         quota_amount: values.quota_amount ?? null,
         quota_tokens: values.quota_tokens ?? null,
+        quota_reset_start_at: values.quota_reset_start_at ?? null,
         daily_quota_amount: values.daily_quota_amount ?? null,
         weekly_quota_amount: values.weekly_quota_amount ?? null,
         monthly_quota_amount: values.monthly_quota_amount ?? null,
         daily_quota_tokens: values.daily_quota_tokens ?? null,
         weekly_quota_tokens: values.weekly_quota_tokens ?? null,
         monthly_quota_tokens: values.monthly_quota_tokens ?? null,
-        rate_limit_5h: values.rate_limit_5h ?? null,
-        rate_limit_1d: values.rate_limit_1d ?? null,
-        rate_limit_7d: values.rate_limit_7d ?? null,
         ip_allowlist: values.ip_allowlist || [],
         ip_blocklist: values.ip_blocklist || [],
       };
       const res = await apiClient.post('/admin/keys', payload);
+      const created = res.data?.data ?? res.data;
+      if (
+        created?.id &&
+        ((values.rate_limit_qps || 0) > 0 ||
+          [
+            values.quota_5h,
+            values.quota_1d,
+            values.quota_7d,
+            values.quota_5h_amount,
+            values.quota_1d_amount,
+            values.quota_7d_amount,
+          ].some(value => value != null))
+      ) {
+        try {
+          await apiClient.put('/admin/rate-limits', {
+            keys: [
+              {
+                key_id: created.id,
+                qps: values.rate_limit_qps ?? 0,
+                quota_5h: values.quota_5h ?? null,
+                quota_1d: values.quota_1d ?? null,
+                quota_7d: values.quota_7d ?? null,
+                quota_5h_amount: values.quota_5h_amount ?? null,
+                quota_1d_amount: values.quota_1d_amount ?? null,
+                quota_7d_amount: values.quota_7d_amount ?? null,
+              },
+            ],
+          });
+        } catch (error) {
+          await apiClient.delete(`/admin/keys/${created.id}`).catch(() => undefined);
+          throw error;
+        }
+      }
       return res.data;
     },
     onSuccess: data => {
@@ -327,6 +353,7 @@ export const KeysPage: React.FC = () => {
         allowed_models: values.allowed_models || [],
         quota_amount: values.quota_amount ?? null,
         quota_tokens: values.quota_tokens ?? null,
+        quota_reset_start_at: values.quota_reset_start_at ?? null,
         daily_quota_amount: values.daily_quota_amount ?? null,
         weekly_quota_amount: values.weekly_quota_amount ?? null,
         monthly_quota_amount: values.monthly_quota_amount ?? null,
@@ -338,17 +365,73 @@ export const KeysPage: React.FC = () => {
         security_inspection_downstream_enabled:
           values.security_inspection_downstream_enabled ?? true,
       };
-      return apiClient.put(`/admin/keys/${editingKey!.id}`, payload);
+      return saveKeyPolicy(
+        () =>
+          apiClient.put(
+            '/admin/rate-limits',
+            {
+              keys: [
+                {
+                  key_id: editingKey!.id,
+                  qps: values.rate_limit_qps ?? 0,
+                  quota_5h: values.quota_5h ?? null,
+                  quota_1d: values.quota_1d ?? null,
+                  quota_7d: values.quota_7d ?? null,
+                  quota_5h_amount: values.quota_5h_amount ?? null,
+                  quota_1d_amount: values.quota_1d_amount ?? null,
+                  quota_7d_amount: values.quota_7d_amount ?? null,
+                },
+              ],
+            },
+            { skipGlobalErrorMessage: true },
+          ),
+        () =>
+          apiClient.put(`/admin/keys/${editingKey!.id}`, payload, { skipGlobalErrorMessage: true }),
+      );
+    },
+    onError: async (error: any) => {
+      if (!(error instanceof PartialKeySaveError)) {
+        message.error(error?.userMessage || t('ratelimits.save_failed'));
+        return;
+      }
+      message.warning(t('keys.partial_save'));
+      invalidateKeyQueries();
+      void queryClient.invalidateQueries({
+        predicate: query => query.queryKey[0] === 'organization-rate-limits',
+      });
+      try {
+        const response = await apiClient.get(`/admin/keys/${editingKey!.id}`);
+        if (!(await handleOpenEdit(response.data.data))) {
+          setEditModalVisible(false);
+          message.warning(t('keys.partial_save_refresh_failed'));
+        }
+      } catch {
+        setEditModalVisible(false);
+        message.warning(t('keys.partial_save_refresh_failed'));
+      }
     },
     onSuccess: () => {
       setEditModalVisible(false);
       setEditingKey(null);
       invalidateKeyQueries();
+      void queryClient.invalidateQueries({
+        predicate: query => query.queryKey[0] === 'organization-rate-limits',
+      });
       message.success(t('keys.edit_success', 'API key updated'));
     },
   });
 
-  const handleOpenEdit = (record: APIKeyRecord) => {
+  const handleOpenEdit = async (record: APIKeyRecord) => {
+    let rolling: any;
+    try {
+      const response = await apiClient.get('/admin/rate-limits', {
+        params: { organization_id: record.organization_id, key_id: record.id },
+      });
+      rolling = response.data?.data?.key;
+    } catch (error: any) {
+      message.error(error?.userMessage || t('ratelimits.save_failed'));
+      return false;
+    }
     setEditingKey(record);
     editForm.setFieldsValue({
       name: record.name,
@@ -360,12 +443,20 @@ export const KeysPage: React.FC = () => {
       security_inspection_downstream_enabled: record.security_inspection_downstream_enabled ?? true,
       quota_amount: record.quota_amount,
       quota_tokens: record.quota_tokens,
+      quota_reset_start_at: record.quota_reset_start_at ?? null,
       daily_quota_amount: record.daily_quota_amount,
       weekly_quota_amount: record.weekly_quota_amount,
       monthly_quota_amount: record.monthly_quota_amount,
       daily_quota_tokens: record.daily_quota_tokens,
       weekly_quota_tokens: record.weekly_quota_tokens,
       monthly_quota_tokens: record.monthly_quota_tokens,
+      quota_5h: rolling?.quota_5h ?? null,
+      quota_1d: rolling?.quota_1d ?? null,
+      quota_7d: rolling?.quota_7d ?? null,
+      quota_5h_amount: rolling?.quota_5h_amount ?? null,
+      quota_1d_amount: rolling?.quota_1d_amount ?? null,
+      quota_7d_amount: rolling?.quota_7d_amount ?? null,
+      rate_limit_qps: rolling?.qps ?? 0,
       ip_allowlist: record.ip_allowlist || [],
     });
     editForm.setFields(
@@ -375,6 +466,7 @@ export const KeysPage: React.FC = () => {
       })),
     );
     setEditModalVisible(true);
+    return true;
   };
 
   const handleOpenCreate = (organizationID?: number) => {
@@ -793,6 +885,8 @@ export const KeysPage: React.FC = () => {
             enabled={importModalVisible}
             currentUser={currentUser}
             advancedOpen={!!selectedImportTemplateID}
+            showRollingLimits={false}
+            showTokenLimits={true}
           />
         </Form>
         <Table
@@ -932,7 +1026,6 @@ export const KeysPage: React.FC = () => {
             currentUser={currentUser}
             advancedOpen={!!duplicatingKey || !!selectedTemplateID}
             showStatus={!!duplicatingKey}
-            showRollingLimits={false}
             showIPBlocklist={false}
           />
         </Form>
@@ -991,145 +1084,15 @@ export const KeysPage: React.FC = () => {
             if (!updateMutation.isPending) updateMutation.mutate(values);
           }}
         >
-          <Form.Item
-            name="name"
-            label={t('keys.field_name', 'Key Name')}
-            rules={[
-              {
-                required: true,
-                whitespace: true,
-                message: t('keys.enter_key_name', 'Please enter key name'),
-              },
-            ]}
-          >
-            <Input maxLength={100} />
-          </Form.Item>
-          {currentUser?.role === 'super_admin' ? (
-            <Form.Item
-              name="organization_id"
-              label={t('keys.field_org')}
-              rules={[{ required: true }]}
-            >
-              <Select
-                showSearch
-                optionFilterProp="label"
-                options={(orgsData || [])
-                  .filter((org: any) => org.status === 'active')
-                  .map((org: any) => ({ value: org.id, label: org.name }))}
-              />
-            </Form.Item>
-          ) : (
-            <Form.Item label={t('keys.field_org')}>
-              <ResourceName kind="organizations" id={editingKey?.organization_id} />
-            </Form.Item>
-          )}
-          <Form.Item
-            name="security_inspection_upstream_enabled"
-            label={t('keys.security_inspection_upstream', 'Upstream security inspection')}
-            valuePropName="checked"
-            extra={t(
-              'keys.security_inspection_upstream_help',
-              'Check requests before they are sent to the model provider.',
-            )}
-          >
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name="security_inspection_downstream_enabled"
-            label={t('keys.security_inspection_downstream', 'Downstream security inspection')}
-            valuePropName="checked"
-            extra={t(
-              'keys.security_inspection_downstream_help',
-              'Check model responses before they are returned to the client.',
-            )}
-          >
-            <Switch />
-          </Form.Item>
-          <AdvancedFields>
-            <KeyAccessFields
+          {editingKey && (
+            <KeyEditFields
+              record={editingKey}
+              currentUser={currentUser || { id: 0, role: 'org_admin' }}
+              organizations={orgsData || []}
               enabled={editModalVisible}
-              organizationID={Number(editingOrganizationID || editingKey?.organization_id)}
+              organizationID={Number(editingOrganizationID || editingKey.organization_id)}
             />
-            <Form.Item
-              name="expires_at"
-              label={t('common.expires_at')}
-              extra={t('keys.expiration_help')}
-            >
-              <KeyExpiryInput />
-            </Form.Item>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="quota_tokens"
-                  label={t('keys.field_quota_tokens', 'Token Quota (Optional)')}
-                >
-                  <InputNumber
-                    min={0}
-                    style={{ width: '100%' }}
-                    placeholder={t('keys.quota_tokens_placeholder', 'Unlimited')}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="quota_amount"
-                  label={t('keys.field_quota_amount', 'Amount Quota USD (Optional)')}
-                >
-                  <InputNumber
-                    min={0}
-                    style={{ width: '100%' }}
-                    placeholder={t('keys.quota_amount_placeholder', 'Unlimited')}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Divider orientation="left">
-              {t('keys.periodic_quotas', 'Periodic Quotas (Optional)')}
-            </Divider>
-            {(['daily', 'weekly', 'monthly'] as const).map(period => (
-              <Row gutter={16} align="top" key={period}>
-                <Col span={24}>
-                  <Text strong>{t(`keys.period_${period}`, period)}</Text>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name={`${period}_quota_tokens`}
-                    label={t('keys.field_period_tokens', 'Token Limit')}
-                  >
-                    <InputNumber
-                      min={0}
-                      style={{ width: '100%' }}
-                      placeholder={t('keys.quota_tokens_placeholder', 'Unlimited')}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name={`${period}_quota_amount`}
-                    label={t('keys.field_period_amount', 'Amount Limit (USD)')}
-                  >
-                    <InputNumber
-                      min={0}
-                      style={{ width: '100%' }}
-                      placeholder={t('keys.quota_amount_placeholder', 'Unlimited')}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-            ))}
-            <Form.Item
-              name="ip_allowlist"
-              label={t('keys.field_ip_allowlist', 'IP Allowlist (Optional CIDR / IPv4 / IPv6)')}
-            >
-              <Select
-                mode="tags"
-                placeholder={t(
-                  'keys.ip_placeholder',
-                  'Enter allowed IP addresses or CIDR blocks (empty allows any IP)',
-                )}
-              />
-            </Form.Item>
-          </AdvancedFields>
+          )}
         </Form>
       </Modal>
 

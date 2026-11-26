@@ -44,6 +44,7 @@ type APIKey struct {
 	QuotaUsedAmount                                         float64    `json:"quota_used_amount,omitempty"`
 	QuotaUsedTokens                                         int64      `json:"quota_used_tokens,omitempty"`
 	DailyQuotaAmount, WeeklyQuotaAmount, MonthlyQuotaAmount *float64   `json:"-"`
+	QuotaResetStartAt                                       *time.Time `json:"-"`
 	DailyQuotaTokens, WeeklyQuotaTokens, MonthlyQuotaTokens *int64     `json:"-"`
 	DailyUsedAmount, WeeklyUsedAmount, MonthlyUsedAmount    float64    `json:"-"`
 	DailyUsedTokens, WeeklyUsedTokens, MonthlyUsedTokens    int64      `json:"-"`

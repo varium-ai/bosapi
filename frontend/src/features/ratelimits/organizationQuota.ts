@@ -13,6 +13,7 @@ type Metric = 'tokens' | 'amount';
 type Quotas = Partial<Record<`${Period}_${Metric}`, number | null>>;
 export interface OrganizationQuota {
   organization_id: number;
+  quota_reset_start_at?: string | null;
   qps: number;
   quotas: Quotas;
   resets?: Partial<Record<Period, string>>;
@@ -29,10 +30,14 @@ export interface RateLimitSnapshot {
     quota_5h?: number | null;
     quota_1d?: number | null;
     quota_7d?: number | null;
+    quota_5h_amount?: number | null;
+    quota_1d_amount?: number | null;
+    quota_7d_amount?: number | null;
   } | null;
 }
 export type OrganizationQuotaValues = {
   organization_id: number;
+  quota_reset_start_at?: string | null;
   qps: number;
 } & Partial<Record<`${Period}_quota_${Metric}`, number | null>>;
 
@@ -65,7 +70,10 @@ export function positiveId(value: string | null) {
 }
 export function resolveQuotaSelection(user: QuotaUser, params: URLSearchParams, firstOrg?: number) {
   if (user.role !== 'super_admin') {
-    return { organizationId: user.organization_id || undefined, keyId: undefined };
+    return {
+      organizationId: user.organization_id || undefined,
+      keyId: user.role === 'org_admin' ? positiveId(params.get('key_id')) : undefined,
+    };
   }
   return {
     organizationId:
@@ -79,7 +87,7 @@ export function rateLimitQueryOptions(user: QuotaUser, organizationId?: number, 
     (user.role === 'org_admin' &&
       !!organizationId &&
       organizationId === user.organization_id &&
-      !keyId);
+      (!keyId || keyId > 0));
   return queryOptions({
     queryKey: ['organization-rate-limits', ...quotaScope(user), organizationId, keyId],
     enabled: allowed,
@@ -114,6 +122,7 @@ export function organizationQuotaValues(organization: OrganizationQuota): Organi
   const values: OrganizationQuotaValues = {
     organization_id: organization.organization_id,
     qps: organization.qps,
+    quota_reset_start_at: organization.quota_reset_start_at ?? null,
   };
   for (const period of PERIODS) {
     values[`${period}_quota_tokens`] = organization.quotas[`${period}_tokens`] ?? null;
@@ -143,6 +152,7 @@ export function organizationQuotaUpdate(values: OrganizationQuotaValues) {
   const organization: OrganizationQuotaValues = {
     organization_id: values.organization_id,
     qps: values.qps,
+    quota_reset_start_at: values.quota_reset_start_at ?? null,
   };
   for (const period of PERIODS) {
     for (const metric of ['tokens', 'amount'] as const) {
@@ -164,6 +174,10 @@ export function quotaResetAt(period: Period, now = Date.now()) {
   const next =
     period === 'monthly'
       ? Date.UTC(year, month + 1, 1)
-      : Date.UTC(year, month, day + (period === 'weekly' ? 7 - ((current.getUTCDay() + 6) % 7) : 1));
+      : Date.UTC(
+          year,
+          month,
+          day + (period === 'weekly' ? 7 - ((current.getUTCDay() + 6) % 7) : 1),
+        );
   return new Date(next).toISOString();
 }

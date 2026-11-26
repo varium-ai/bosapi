@@ -249,6 +249,7 @@ func TestOrganizationPeriodicUsageBoundariesAndEmptyPeriods(t *testing.T) {
 				}
 				return v
 			}
+			mock.ExpectQuery("SELECT value_text FROM .*setting_key = .*").WithArgs("rate_limit.organization.2", 1).WillReturnRows(sqlmock.NewRows([]string{"value_text"}))
 			rows := organizationPeriodicRows()
 			want := OrganizationPeriodicUsage{OrganizationID: 2}
 			if !test.empty {
@@ -271,6 +272,9 @@ func TestOrganizationPeriodicUsageErrorsAndCancellation(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			repository, mock := quotaRepository(t)
 			ctx := context.Background()
+			if phase == "database error" {
+				mock.ExpectQuery("SELECT value_text FROM .*setting_key = .*").WithArgs("rate_limit.organization.2", 1).WillReturnRows(sqlmock.NewRows([]string{"value_text"}))
+			}
 			want := errors.New("ledger unavailable")
 			switch phase {
 			case "canceled":

@@ -613,6 +613,11 @@ export const zhCN = {
     usage_title: '用量概览',
   },
   keys: {
+    custom_quota_cycle: '自定义额度周期',
+    quota_reset_start_at: '周期起始时间',
+    quota_cycle_help:
+      '默认按 UTC 自然周期；自定义后从起始时间起每 24 小时、7 天、30 天刷新。起始时间之前周期额度不生效。',
+
     import_guide_title: '导入密钥：准备文件',
     import_supported_files:
       '支持 CSV（.csv）、Excel（.xls、.xlsx）；文件不超过 10 MB，每批最多导入 500 把密钥。Excel 只读取第一个工作表。',
@@ -644,9 +649,18 @@ export const zhCN = {
       '按本地时间设置，留空表示长期有效。到期后自动禁用；延长或清空时间后，可手动重新启用。',
     no_expiration: '长期有效',
     field_ip_blocklist: 'IP 黑名单',
-    rate_limit_5h: '5 小时 Token 限额',
-    rate_limit_1d: '1 天 Token 限额',
-    rate_limit_7d: '7 天 Token 限额',
+    partial_save:
+      '滚动限额已保存，但 Key 其他修改未确认成功。正在从服务端刷新表单，请核对后再重试。',
+    partial_save_refresh_failed: '未能刷新已保存配置，请重新打开编辑页面，读取实际配置后再重试。',
+    rolling_quota_help:
+      '首笔已结算用量开启固定时长窗口，仅统计已结算用量；在途请求可能导致超额。这不是始终回看最近一段时间的滑动窗口，也不是硬预算。',
+    rolling_token_limits: '滚动限额',
+    quota_5h: '5 小时 Token 上限',
+    quota_1d: '24 小时 Token 上限',
+    quota_7d: '7 天 Token 上限',
+    quota_5h_amount: '5 小时滚动金额限额（USD）',
+    quota_1d_amount: '24 小时滚动金额限额（USD）',
+    quota_7d_amount: '7 天滚动金额限额（USD）',
 
     usage_column: '用量',
     usage_today: '今日',
@@ -709,7 +723,8 @@ export const zhCN = {
     security_inspection_enabled: '已开启',
     security_inspection_disabled: '已关闭',
     inspection_mode_title: '全局安全检查模式',
-    inspection_mode_note: 'Disabled 表示完全不启用 security_inspection，但不会影响鉴权、配额、限流和访问控制。',
+    inspection_mode_note:
+      'Disabled 表示完全不启用 security_inspection，但不会影响鉴权、配额、限流和访问控制。',
     mode_disabled: '完全不检查',
     col_ip_allowlist: 'IP 白名单',
     col_created: '创建时间',
@@ -1114,10 +1129,11 @@ export const zhCN = {
     org_amount_usage_limit: '金额用量 / 上限 (USD)',
     org_reset_at: '重置时间 (UTC)',
     org_calendar_hint:
-      '用量按 UTC 零点重置：每日、每周一、每月首日。限额为 0 时持续阻塞，需修改限额后恢复。',
+      '自定义周期按所选起始时间刷新：每日每 24 小时、每周每 7 天、每月每 30 天。未设置时按 UTC 自然周期重置。额度为 0 时持续阻塞，需修改额度后恢复。',
     org_limits_link: '限额',
     org_view_limits_link: '查看组织限额',
     save_failed: '保存限额失败，请重试。',
+    key_refresh_failed: '未能读取已保存的实际配置，请点击刷新，核对配置后再重试。',
 
     title: '并发管控与限流策略',
     subtitle:
@@ -1171,6 +1187,8 @@ export const zhCN = {
     no_keys_in_org: '当前组织下暂无 API 密钥',
     key_id_label: 'API 密钥 ID',
     key_qps_label: '密钥并发会话数上限',
+    key_concurrency_title: '并发请求上限',
+    sessions_unit: '个会话',
     quota_5h_label: '5小时滚动 Token 配额（可选）',
     quota_1d_label: '24小时滚动 Token 配额（可选）',
     quota_7d_label: '7日滚动 Token 配额（可选）',
