@@ -1256,6 +1256,12 @@ export const deDE: typeof enUS = {
       'Lokale Zeit; leer bedeutet unbegrenzt. Abgelaufene Schlüssel werden deaktiviert. Nach Verlängerung oder Entfernen des Ablaufs manuell aktivieren.',
     no_expiration: 'Kein Ablaufdatum',
     field_ip_blocklist: 'IP-Sperrliste',
+    partial_save:
+      'Die rollierenden Limits wurden gespeichert, die übrigen Schlüsseländerungen jedoch nicht bestätigt. Das Formular wird vom Server neu geladen. Prüfen Sie es vor einem erneuten Versuch.',
+    partial_save_refresh_failed:
+      'Die gespeicherte Konfiguration konnte nicht neu geladen werden. Öffnen Sie den Editor erneut, um die tatsächlichen Einstellungen zu laden.',
+    rolling_quota_help:
+      'Die erste abgerechnete Nutzung startet ein Zeitfenster fester Dauer. Nur abgerechnete Nutzung zählt; laufende Anfragen können das Limit überschreiten. Dies ist kein gleitendes Zeitfenster und kein hartes Ausgabenlimit.',
     rolling_token_limits: 'Rollierende Nutzungslimits',
     quota_5h: 'Tokenlimit für 5 Stunden',
     quota_1d: 'Tokenlimit für 24 Stunden',

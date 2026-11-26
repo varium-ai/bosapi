@@ -13,6 +13,7 @@ import (
 
 	adminDomain "bosapi/backend/internal/admin/domain"
 	"bosapi/backend/internal/gateway/domain"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -44,7 +45,11 @@ func TestRedisRateLimiterReturnsTokenQuotaPolicyAndTTL(t *testing.T) {
 			if err != nil || decision.Allowed || decision.Degraded || decision.Reason != reason || decision.Limit != 10 || decision.RetryAfter != 1251*time.Millisecond {
 				t.Fatalf("decision=%+v err=%v", decision, err)
 			}
-			wantKeys := []string{"test:rate:{tokens}:quota_5h:3", "test:rate:{tokens}:quota_1d:3", "test:rate:{tokens}:quota_7d:3"}
+			var wantKeys []string
+			for _, name := range []string{"quota_5h", "quota_1d", "quota_7d"} {
+				bucket := "test:rate:{tokens}:" + name + ":3"
+				wantKeys = append(wantKeys, bucket+":v2", bucket+":state", bucket)
+			}
 			wantArgs := []any{int64(10), int64(18000000), int64(10), int64(86400000), int64(10), int64(604800000)}
 			if !reflect.DeepEqual(stub.keys, wantKeys) || len(stub.args) != len(wantArgs)+1 || !reflect.DeepEqual(stub.args[:len(wantArgs)], wantArgs) {
 				t.Fatalf("unexpected script input keys=%v args=%v", stub.keys, stub.args)
@@ -63,7 +68,7 @@ func TestRedisRateLimiterSkipsUnlimitedRules(t *testing.T) {
 	limiter := NewRedisRateLimiter(stub, repository, "test:rate")
 	key := domain.RateLimitKey{OrganizationID: 1, APIKeyID: 3}
 	decision, err := limiter.Decide(t.Context(), key, time.Now())
-	if err != nil || decision.Reason != domain.RateLimitQuota1D || decision.RetryAfter != 24*time.Hour || len(stub.keys) != 1 {
+	if err != nil || decision.Reason != domain.RateLimitQuota1D || decision.RetryAfter != 24*time.Hour || len(stub.keys) != 3 {
 		t.Fatalf("filtered rules: %+v err=%v keys=%v", decision, err, stub.keys)
 	}
 	stub.result = []any{int64(1), int64(1), int64(9), int64(0)}

@@ -1246,6 +1246,12 @@ export const esES: typeof enUS = {
       'Usa la hora local; vacío significa sin caducidad. Las claves se desactivan al caducar. Reactívalas manualmente tras ampliar o quitar la fecha.',
     no_expiration: 'Sin caducidad',
     field_ip_blocklist: 'Lista de bloqueo de IP',
+    partial_save:
+      'Se guardaron los límites de uso, pero no se confirmaron los demás cambios de la clave. El formulario se está actualizando desde el servidor; revíselo antes de reintentar.',
+    partial_save_refresh_failed:
+      'No se pudo actualizar la configuración guardada. Vuelva a abrir el editor para cargar los ajustes reales antes de reintentar.',
+    rolling_quota_help:
+      'El primer uso liquidado inicia una ventana de duración fija. Solo cuenta el uso liquidado; las solicitudes en curso pueden superar el límite. No es una ventana deslizante ni un límite de gasto estricto.',
     rolling_token_limits: 'Límites de uso móviles',
     quota_5h: 'Límite de tokens de 5 horas',
     quota_1d: 'Límite de tokens de 24 horas',

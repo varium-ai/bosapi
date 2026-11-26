@@ -1,3 +1,4 @@
+import { PartialKeySaveError, saveKeyPolicy } from './saveKeyPolicy';
 import { HttpStatusTag } from '../common/HttpStatusTag';
 import { CursorPagination } from '../common/CursorPagination';
 import { useCursorPagination } from '../common/useCursorPagination';
@@ -147,31 +148,31 @@ export const KeyDetailPage: React.FC = () => {
   });
   const keyData = keyQuery.data;
 
-  const openEdit = async () => {
+  const openEdit = async (record = keyData) => {
     try {
       const response = await apiClient.get('/admin/rate-limits', {
-        params: { organization_id: keyData.organization_id, key_id: id },
+        params: { organization_id: record.organization_id, key_id: id },
       });
       const rolling = response.data?.data?.key;
       editForm.setFieldsValue({
-        name: keyData.name,
-        organization_id: keyData.organization_id,
-        expires_at: keyData.expires_at,
-        allowed_provider_ids: keyData.allowed_provider_ids || [],
-        allowed_models: keyData.allowed_models || [],
-        quota_tokens: keyData.quota_tokens,
-        quota_amount: keyData.quota_amount,
-        daily_quota_tokens: keyData.daily_quota_tokens,
-        weekly_quota_tokens: keyData.weekly_quota_tokens,
-        monthly_quota_tokens: keyData.monthly_quota_tokens,
-        quota_reset_start_at: keyData.quota_reset_start_at ?? null,
-        daily_quota_amount: keyData.daily_quota_amount,
-        weekly_quota_amount: keyData.weekly_quota_amount,
-        monthly_quota_amount: keyData.monthly_quota_amount,
-        security_inspection_upstream_enabled: keyData.security_inspection_upstream_enabled ?? true,
+        name: record.name,
+        organization_id: record.organization_id,
+        expires_at: record.expires_at,
+        allowed_provider_ids: record.allowed_provider_ids || [],
+        allowed_models: record.allowed_models || [],
+        quota_tokens: record.quota_tokens,
+        quota_amount: record.quota_amount,
+        daily_quota_tokens: record.daily_quota_tokens,
+        weekly_quota_tokens: record.weekly_quota_tokens,
+        monthly_quota_tokens: record.monthly_quota_tokens,
+        quota_reset_start_at: record.quota_reset_start_at ?? null,
+        daily_quota_amount: record.daily_quota_amount,
+        weekly_quota_amount: record.weekly_quota_amount,
+        monthly_quota_amount: record.monthly_quota_amount,
+        security_inspection_upstream_enabled: record.security_inspection_upstream_enabled ?? true,
         security_inspection_downstream_enabled:
-          keyData.security_inspection_downstream_enabled ?? true,
-        ip_allowlist: keyData.ip_allowlist || [],
+          record.security_inspection_downstream_enabled ?? true,
+        ip_allowlist: record.ip_allowlist || [],
         quota_5h: rolling?.quota_5h ?? null,
         quota_1d: rolling?.quota_1d ?? null,
         quota_7d: rolling?.quota_7d ?? null,
@@ -181,47 +182,62 @@ export const KeyDetailPage: React.FC = () => {
         rate_limit_qps: rolling?.qps ?? 0,
       });
       setEditVisible(true);
+      return true;
     } catch (error: any) {
       message.error(error?.userMessage || t('ratelimits.save_failed'));
+      return false;
     }
   };
   const saveEdit = async (values: any) => {
     setSavingEdit(true);
     try {
-      await apiClient.put('/admin/rate-limits', {
-        keys: [
-          {
-            key_id: id,
-            qps: values.rate_limit_qps ?? 0,
-            quota_5h: values.quota_5h ?? null,
-            quota_1d: values.quota_1d ?? null,
-            quota_7d: values.quota_7d ?? null,
-            quota_5h_amount: values.quota_5h_amount ?? null,
-            quota_1d_amount: values.quota_1d_amount ?? null,
-            quota_7d_amount: values.quota_7d_amount ?? null,
-          },
-        ],
-      });
-      await apiClient.put(`/admin/keys/${id}`, {
-        name: values.name,
-        organization_id: Number(values.organization_id ?? keyData.organization_id),
-        expires_at: values.expires_at || null,
-        allowed_provider_ids: values.allowed_provider_ids || [],
-        allowed_models: values.allowed_models || [],
-        quota_tokens: values.quota_tokens ?? null,
-        quota_amount: values.quota_amount ?? null,
-        daily_quota_tokens: values.daily_quota_tokens ?? null,
-        weekly_quota_tokens: values.weekly_quota_tokens ?? null,
-        monthly_quota_tokens: values.monthly_quota_tokens ?? null,
-        quota_reset_start_at: values.quota_reset_start_at ?? null,
-        daily_quota_amount: values.daily_quota_amount ?? null,
-        weekly_quota_amount: values.weekly_quota_amount ?? null,
-        monthly_quota_amount: values.monthly_quota_amount ?? null,
-        ip_allowlist: values.ip_allowlist || [],
-        security_inspection_upstream_enabled: values.security_inspection_upstream_enabled ?? true,
-        security_inspection_downstream_enabled:
-          values.security_inspection_downstream_enabled ?? true,
-      });
+      await saveKeyPolicy(
+        () =>
+          apiClient.put(
+            '/admin/rate-limits',
+            {
+              keys: [
+                {
+                  key_id: id,
+                  qps: values.rate_limit_qps ?? 0,
+                  quota_5h: values.quota_5h ?? null,
+                  quota_1d: values.quota_1d ?? null,
+                  quota_7d: values.quota_7d ?? null,
+                  quota_5h_amount: values.quota_5h_amount ?? null,
+                  quota_1d_amount: values.quota_1d_amount ?? null,
+                  quota_7d_amount: values.quota_7d_amount ?? null,
+                },
+              ],
+            },
+            { skipGlobalErrorMessage: true },
+          ),
+        () =>
+          apiClient.put(
+            `/admin/keys/${id}`,
+            {
+              name: values.name,
+              organization_id: Number(values.organization_id ?? keyData.organization_id),
+              expires_at: values.expires_at || null,
+              allowed_provider_ids: values.allowed_provider_ids || [],
+              allowed_models: values.allowed_models || [],
+              quota_tokens: values.quota_tokens ?? null,
+              quota_amount: values.quota_amount ?? null,
+              daily_quota_tokens: values.daily_quota_tokens ?? null,
+              weekly_quota_tokens: values.weekly_quota_tokens ?? null,
+              monthly_quota_tokens: values.monthly_quota_tokens ?? null,
+              quota_reset_start_at: values.quota_reset_start_at ?? null,
+              daily_quota_amount: values.daily_quota_amount ?? null,
+              weekly_quota_amount: values.weekly_quota_amount ?? null,
+              monthly_quota_amount: values.monthly_quota_amount ?? null,
+              ip_allowlist: values.ip_allowlist || [],
+              security_inspection_upstream_enabled:
+                values.security_inspection_upstream_enabled ?? true,
+              security_inspection_downstream_enabled:
+                values.security_inspection_downstream_enabled ?? true,
+            },
+            { skipGlobalErrorMessage: true },
+          ),
+      );
       await queryClient.invalidateQueries({ queryKey: ['admin-key-info', id] });
       await queryClient.invalidateQueries({ queryKey: ['admin-keys'] });
       await queryClient.invalidateQueries({
@@ -230,7 +246,26 @@ export const KeyDetailPage: React.FC = () => {
       setEditVisible(false);
       message.success(t('keys.edit_success', 'API key updated'));
     } catch (error: any) {
-      message.error(error?.userMessage || t('ratelimits.save_failed'));
+      if (error instanceof PartialKeySaveError) {
+        message.warning(t('keys.partial_save'));
+        await queryClient.invalidateQueries({ queryKey: ['admin-key-info', id] });
+        await queryClient.invalidateQueries({ queryKey: ['admin-keys'] });
+        await queryClient.invalidateQueries({
+          predicate: query => query.queryKey[0] === 'organization-rate-limits',
+        });
+        try {
+          const response = await apiClient.get(`/admin/keys/${id}`);
+          if (!(await openEdit(response.data.data))) {
+            setEditVisible(false);
+            message.warning(t('keys.partial_save_refresh_failed'));
+          }
+        } catch {
+          setEditVisible(false);
+          message.warning(t('keys.partial_save_refresh_failed'));
+        }
+      } else {
+        message.error(error?.userMessage || t('ratelimits.save_failed'));
+      }
     } finally {
       setSavingEdit(false);
     }
@@ -301,7 +336,7 @@ export const KeyDetailPage: React.FC = () => {
         <Card style={{ marginBottom: 16 }}>
           {section === 'limits' && <PageHelp note="ux.quota_note" />}
           <Space wrap style={{ marginBottom: 16 }}>
-            <Button onClick={openEdit}>{t('ux.edit_key')}</Button>
+            <Button onClick={() => void openEdit()}>{t('ux.edit_key')}</Button>
             <Button
               onClick={() =>
                 navigate(

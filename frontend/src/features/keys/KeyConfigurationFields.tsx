@@ -35,6 +35,12 @@ export const KeyRollingLimitFields: React.FC<{
       {showTokenLimits && (
         <>
           <Divider orientation="left">{t('keys.rolling_token_limits', 'Rolling Quotas')}</Divider>
+          <Alert
+            type="info"
+            showIcon
+            message={t('keys.rolling_quota_help')}
+            style={{ marginBottom: 16 }}
+          />
           {(['5h', '1d', '7d'] as const).map(period => (
             <Row gutter={16} align="top" key={period}>
               <Col span={12}>

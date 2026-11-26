@@ -682,6 +682,12 @@ export const enUS = {
       'Uses local time. Leave empty for no expiration. Keys are disabled on expiry; re-enable manually after extending or clearing the expiration.',
     no_expiration: 'No expiration',
     field_ip_blocklist: 'IP Blocklist',
+    partial_save:
+      'Rolling limits were saved, but the remaining key changes were not confirmed. The form is being refreshed from the server; review it before retrying.',
+    partial_save_refresh_failed:
+      'The saved configuration could not be refreshed. Reopen the editor to load the actual settings before retrying.',
+    rolling_quota_help:
+      'The first settled usage starts a fixed-duration window. Only settled usage counts; requests already in progress may exceed the limit. This is not a sliding lookback window or a hard spending cap.',
     rolling_token_limits: 'Rolling Quotas',
     quota_5h: '5-hour Token limit',
     quota_1d: '24-hour Token limit',

@@ -649,6 +649,11 @@ export const zhCN = {
       '按本地时间设置，留空表示长期有效。到期后自动禁用；延长或清空时间后，可手动重新启用。',
     no_expiration: '长期有效',
     field_ip_blocklist: 'IP 黑名单',
+    partial_save:
+      '滚动限额已保存，但 Key 其他修改未确认成功。正在从服务端刷新表单，请核对后再重试。',
+    partial_save_refresh_failed: '未能刷新已保存配置，请重新打开编辑页面，读取实际配置后再重试。',
+    rolling_quota_help:
+      '首笔已结算用量开启固定时长窗口，仅统计已结算用量；在途请求可能导致超额。这不是始终回看最近一段时间的滑动窗口，也不是硬预算。',
     rolling_token_limits: '滚动限额',
     quota_5h: '5 小时 Token 上限',
     quota_1d: '24 小时 Token 上限',

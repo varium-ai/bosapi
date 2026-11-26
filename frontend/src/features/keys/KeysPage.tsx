@@ -1,3 +1,4 @@
+import { PartialKeySaveError, saveKeyPolicy } from './saveKeyPolicy';
 import { reportConfigurationError } from '../diagnostics/reportConfigurationError';
 import { ConsoleToolbar } from '../common/ConsoleToolbar';
 import { TableAction, TableActionMenu } from '../common/TableAction';
@@ -364,21 +365,50 @@ export const KeysPage: React.FC = () => {
         security_inspection_downstream_enabled:
           values.security_inspection_downstream_enabled ?? true,
       };
-      await apiClient.put('/admin/rate-limits', {
-        keys: [
-          {
-            key_id: editingKey!.id,
-            qps: values.rate_limit_qps ?? 0,
-            quota_5h: values.quota_5h ?? null,
-            quota_1d: values.quota_1d ?? null,
-            quota_7d: values.quota_7d ?? null,
-            quota_5h_amount: values.quota_5h_amount ?? null,
-            quota_1d_amount: values.quota_1d_amount ?? null,
-            quota_7d_amount: values.quota_7d_amount ?? null,
-          },
-        ],
+      return saveKeyPolicy(
+        () =>
+          apiClient.put(
+            '/admin/rate-limits',
+            {
+              keys: [
+                {
+                  key_id: editingKey!.id,
+                  qps: values.rate_limit_qps ?? 0,
+                  quota_5h: values.quota_5h ?? null,
+                  quota_1d: values.quota_1d ?? null,
+                  quota_7d: values.quota_7d ?? null,
+                  quota_5h_amount: values.quota_5h_amount ?? null,
+                  quota_1d_amount: values.quota_1d_amount ?? null,
+                  quota_7d_amount: values.quota_7d_amount ?? null,
+                },
+              ],
+            },
+            { skipGlobalErrorMessage: true },
+          ),
+        () =>
+          apiClient.put(`/admin/keys/${editingKey!.id}`, payload, { skipGlobalErrorMessage: true }),
+      );
+    },
+    onError: async (error: any) => {
+      if (!(error instanceof PartialKeySaveError)) {
+        message.error(error?.userMessage || t('ratelimits.save_failed'));
+        return;
+      }
+      message.warning(t('keys.partial_save'));
+      invalidateKeyQueries();
+      void queryClient.invalidateQueries({
+        predicate: query => query.queryKey[0] === 'organization-rate-limits',
       });
-      return apiClient.put(`/admin/keys/${editingKey!.id}`, payload);
+      try {
+        const response = await apiClient.get(`/admin/keys/${editingKey!.id}`);
+        if (!(await handleOpenEdit(response.data.data))) {
+          setEditModalVisible(false);
+          message.warning(t('keys.partial_save_refresh_failed'));
+        }
+      } catch {
+        setEditModalVisible(false);
+        message.warning(t('keys.partial_save_refresh_failed'));
+      }
     },
     onSuccess: () => {
       setEditModalVisible(false);
@@ -400,7 +430,7 @@ export const KeysPage: React.FC = () => {
       rolling = response.data?.data?.key;
     } catch (error: any) {
       message.error(error?.userMessage || t('ratelimits.save_failed'));
-      return;
+      return false;
     }
     setEditingKey(record);
     editForm.setFieldsValue({
@@ -436,6 +466,7 @@ export const KeysPage: React.FC = () => {
       })),
     );
     setEditModalVisible(true);
+    return true;
   };
 
   const handleOpenCreate = (organizationID?: number) => {

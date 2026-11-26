@@ -12,6 +12,7 @@ try {
     [
       require.resolve('typescript/bin/tsc'),
       'src/features/keys/ccSwitch.ts',
+      'src/features/keys/saveKeyPolicy.ts',
       'src/features/keys/usagePresentation.ts',
       'src/i18n/locales/en-US.ts',
       'src/i18n/locales/zh-CN.ts',
@@ -285,4 +286,57 @@ test('key UI translations stay aligned, concise and describe retained MFA', () =
     assert.ok(english[key].trim());
     assert.ok(chinese[key].trim());
   }
+});
+
+const { saveKeyPolicy, PartialKeySaveError } = require(
+  path.join(temporary, 'features/keys/saveKeyPolicy.js'),
+);
+
+test('key save reports partial success when rolling limits commit but key update fails', async () => {
+  const saved = { limit: 10, name: 'before' };
+  const failure = new Error('key validation failed');
+  await assert.rejects(
+    saveKeyPolicy(
+      async () => {
+        saved.limit = 20;
+      },
+      async () => {
+        throw failure;
+      },
+    ),
+    error => error instanceof PartialKeySaveError && error.originalError === failure,
+  );
+  assert.deepEqual(saved, { limit: 20, name: 'before' });
+});
+
+test('key save stops when rolling configuration fails and preserves the original error', async () => {
+  const failure = new Error('limits rejected');
+  let keyCalls = 0;
+  await assert.rejects(
+    saveKeyPolicy(
+      async () => {
+        throw failure;
+      },
+      async () => {
+        keyCalls++;
+      },
+    ),
+    error => error === failure,
+  );
+  assert.equal(keyCalls, 0);
+});
+
+test('successful key save waits for both requests and returns the confirmed result', async () => {
+  const calls = [];
+  const result = await saveKeyPolicy(
+    async () => {
+      calls.push('limits');
+    },
+    async () => {
+      calls.push('key');
+      return { updated: true };
+    },
+  );
+  assert.deepEqual(calls, ['limits', 'key']);
+  assert.deepEqual(result, { updated: true });
 });

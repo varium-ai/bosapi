@@ -3,7 +3,6 @@ package infrastructure
 import (
 	"context"
 	"errors"
-	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,9 +14,9 @@ import (
 )
 
 type localTokenUsage struct {
-	at           time.Time
-	tokens       int64
-	amountMicros int64
+	at          time.Time
+	tokens      int64
+	amountUnits int64
 }
 
 // LocalRateLimiter enforces persisted limits in a single gateway process.
@@ -26,12 +25,13 @@ type LocalRateLimiter struct {
 	mu         sync.Mutex
 	tokens     map[uint64][]localTokenUsage
 	tokenSeen  map[string]time.Time
+	tokenBase  map[uint64]map[time.Duration]time.Time
 	lastSweep  time.Time
 	active     map[string]int64
 }
 
 func NewLocalRateLimiter(repository adminDomain.RateLimitRepository) *LocalRateLimiter {
-	return &LocalRateLimiter{repository: repository, tokens: make(map[uint64][]localTokenUsage), tokenSeen: make(map[string]time.Time), active: make(map[string]int64)}
+	return &LocalRateLimiter{repository: repository, tokens: make(map[uint64][]localTokenUsage), tokenSeen: make(map[string]time.Time), tokenBase: make(map[uint64]map[time.Duration]time.Time), active: make(map[string]int64)}
 }
 
 func (limiter *LocalRateLimiter) AcquireSession(ctx context.Context, key domain.RateLimitKey) (domain.RateLimitDecision, func(), error) {
@@ -73,6 +73,7 @@ func (limiter *LocalRateLimiter) AcquireSession(ctx context.Context, key domain.
 }
 
 func (limiter *LocalRateLimiter) Decide(ctx context.Context, key domain.RateLimitKey, now time.Time) (domain.RateLimitDecision, error) {
+	now = now.Truncate(time.Millisecond)
 	config, err := readGatewayRateLimits(ctx, limiter.repository, key)
 	if err != nil {
 		return domain.RateLimitDecision{}, err
@@ -80,28 +81,12 @@ func (limiter *LocalRateLimiter) Decide(ctx context.Context, key domain.RateLimi
 	tokenRules := configuredRateLimitRules(config, key)
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
-	if limiter.lastSweep.IsZero() || now.Sub(limiter.lastSweep) >= time.Minute {
-		cutoff := now.Add(-8 * 24 * time.Hour)
-		for id, events := range limiter.tokens {
-			kept := events[:0]
-			for _, event := range events {
-				if event.at.After(cutoff) {
-					kept = append(kept, event)
-				}
-			}
-			limiter.tokens[id] = kept
-		}
-		for id, expires := range limiter.tokenSeen {
-			if !now.Before(expires) {
-				delete(limiter.tokenSeen, id)
-			}
-		}
-		limiter.lastSweep = now
-	}
+	limiter.sweepTokenUsage(now)
 	decision := domain.RateLimitDecision{Allowed: true, Degraded: true}
-	considerDenial := func(reason domain.RateLimitReason, limit, remaining int64, retry time.Duration) {
+	considerDenial := func(rule redisLimitRule, remaining int64, retry time.Duration) {
 		if decision.Allowed || retry > decision.RetryAfter {
-			decision.Allowed, decision.Reason, decision.Limit, decision.Remaining, decision.RetryAfter = false, reason, limit, remaining, retry
+			decision.Allowed, decision.Reason, decision.Limit, decision.Remaining, decision.RetryAfter = false, rule.reason(), rule.limit, remaining, retry
+			decision.Amount = strings.HasSuffix(rule.name, "_amount")
 		}
 	}
 	for _, rule := range tokenRules {
@@ -111,7 +96,7 @@ func (limiter *LocalRateLimiter) Decide(ctx context.Context, key domain.RateLimi
 		events := append([]localTokenUsage(nil), limiter.tokens[key.APIKeyID]...)
 		sort.Slice(events, func(i, j int) bool { return events[i].at.Before(events[j].at) })
 		current := int64(0)
-		var anchor time.Time
+		anchor := limiter.tokenBase[key.APIKeyID][rule.window]
 		for _, event := range events {
 			if event.at.After(now) {
 				continue
@@ -120,19 +105,16 @@ func (limiter *LocalRateLimiter) Decide(ctx context.Context, key domain.RateLimi
 				anchor, current = event.at, 0
 			}
 			if strings.HasSuffix(rule.name, "_amount") {
-				current += event.amountMicros
+				current = saturatingUsageAdd(current, event.amountUnits)
 			} else {
-				current += event.tokens
+				current = saturatingUsageAdd(current, event.tokens)
 			}
 		}
 		if !anchor.IsZero() && !now.Before(anchor.Add(rule.window)) {
 			current = 0
 		}
 		if current >= rule.limit {
-			considerDenial(rule.reason(), rule.limit, 0, anchor.Add(rule.window).Sub(now))
-			if !decision.Allowed && decision.Reason == rule.reason() {
-				decision.Amount = strings.HasSuffix(rule.name, "_amount")
-			}
+			considerDenial(rule, 0, anchor.Add(rule.window).Sub(now))
 		}
 	}
 	if !decision.Allowed {
@@ -143,8 +125,11 @@ func (limiter *LocalRateLimiter) Decide(ctx context.Context, key domain.RateLimi
 
 // RecordTokenUsage adds settled token usage once to the local rolling windows.
 func (limiter *LocalRateLimiter) RecordTokenUsage(ctx context.Context, keyID uint64, usageID string, tokens int64, amount float64, at time.Time) error {
-	if keyID == 0 || usageID == "" || tokens < 0 || amount < 0 {
+	if keyID == 0 || usageID == "" || !validRollingUsage(tokens, amount) {
 		return errors.New("invalid token usage")
+	}
+	if tokens == 0 && amountInt(amount) == 0 {
+		return nil
 	}
 	config, err := readGatewayRateLimits(ctx, limiter.repository, domain.RateLimitKey{APIKeyID: keyID})
 	if err != nil {
@@ -156,20 +141,65 @@ func (limiter *LocalRateLimiter) RecordTokenUsage(ctx context.Context, keyID uin
 	if at.IsZero() {
 		at = time.Now()
 	}
+	at = at.Truncate(time.Millisecond)
+	if !at.After(time.Now().Add(-rollingUsageRetention)) {
+		return nil
+	}
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
+	limiter.sweepTokenUsage(time.Now())
 	seenKey := strconv.FormatUint(keyID, 10) + ":" + usageID
 	if expires, seen := limiter.tokenSeen[seenKey]; seen && at.Before(expires) {
 		return nil
 	}
 	limiter.tokenSeen[seenKey] = at.Add(8 * 24 * time.Hour)
-	limiter.tokens[keyID] = append(limiter.tokens[keyID], localTokenUsage{at: at, tokens: tokens, amountMicros: int64(math.Round(amount * 1_000_000))})
+	limiter.tokens[keyID] = append(limiter.tokens[keyID], localTokenUsage{at: at, tokens: tokens, amountUnits: amountInt(amount)})
 	return nil
 }
 
 func (limiter *LocalRateLimiter) Allow(ctx context.Context, key domain.RateLimitKey, now time.Time) (bool, error) {
 	decision, err := limiter.Decide(ctx, key, now)
 	return decision.Allowed, err
+}
+
+// Preserve the last expired anchor for each duration so pruning old receipts
+// cannot move a later window when out-of-order usage forces a replay.
+func (limiter *LocalRateLimiter) sweepTokenUsage(now time.Time) {
+	if !limiter.lastSweep.IsZero() && now.Sub(limiter.lastSweep) < time.Minute {
+		return
+	}
+	cutoff := now.Add(-rollingUsageRetention)
+	for id, events := range limiter.tokens {
+		sort.Slice(events, func(i, j int) bool { return events[i].at.Before(events[j].at) })
+		if limiter.tokenBase[id] == nil {
+			limiter.tokenBase[id] = make(map[time.Duration]time.Time)
+		}
+		kept := events[:0]
+		for _, event := range events {
+			if event.at.After(cutoff) {
+				kept = append(kept, event)
+				continue
+			}
+			for _, window := range []time.Duration{5 * time.Hour, 24 * time.Hour, 7 * 24 * time.Hour} {
+				anchor := limiter.tokenBase[id][window]
+				if anchor.IsZero() || !event.at.Before(anchor.Add(window)) {
+					limiter.tokenBase[id][window] = event.at
+				}
+			}
+		}
+		if len(kept) == 0 {
+			delete(limiter.tokens, id)
+			delete(limiter.tokenBase, id)
+		} else {
+			limiter.tokens[id] = kept
+		}
+	}
+	for id, expires := range limiter.tokenSeen {
+		if !now.Before(expires) {
+			delete(limiter.tokenSeen, id)
+		}
+	}
+	limiter.lastSweep = now
 }
 
 func (*LocalRateLimiter) Record(context.Context, domain.RateLimitKey, time.Time) error { return nil }

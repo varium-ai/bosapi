@@ -231,7 +231,9 @@ func NewWithBackgroundServices(c Config, services BackgroundServices) (*Gateway,
 			if err := a.redisClient.Ping(context.Background()).Err(); err != nil {
 				return nil, err
 			}
-			services.RateLimiter = gatewayinfra.NewRedisRateLimiter(a.redisClient, rateLimits, "bos:gateway:rate")
+			limiter := gatewayinfra.NewRedisRateLimiter(a.redisClient, rateLimits, "bos:gateway:rate")
+			limiter.StartLegacyCleanup()
+			services.RateLimiter = limiter
 			a.organizationQuota = gatewayinfra.NewOrganizationQuotaCounter(a.redisClient, gatewayinfra.NewGormOrganizationQuotaRepository(a.database), "bos:org:quota")
 			a.portalLoginLock = authinfra.NewLoginLockStore(
 				a.redisClient,
@@ -274,6 +276,9 @@ func (g *Gateway) CallbackHandler() http.Handler { return http.HandlerFunc(g.app
 
 // Close releases the optional database connection.
 func (g *Gateway) Close() error {
+	if limiter, ok := g.app.background.RateLimiter.(interface{ Close() }); ok {
+		limiter.Close()
+	}
 	if g.app.usageReportingWorker != nil {
 		g.app.usageReportingWorker.Close()
 	}
