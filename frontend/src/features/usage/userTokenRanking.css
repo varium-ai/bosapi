@@ -24,6 +24,15 @@
   min-height: 26px;
   font-size: 13px;
 }
+.user-token-ranking-clickable {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.user-token-ranking-clickable:hover,
+.user-token-ranking-clickable:focus-visible {
+  background: var(--fill);
+  outline: none;
+}
 .user-token-ranking-position {
   color: var(--gray);
   text-align: center;

@@ -69,6 +69,7 @@ func TestRateLimitReadOrganizationKeyScope(t *testing.T) {
 				keyQuery.WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(test.keyCount))
 			}
 			if test.keyCount > 0 && test.queryError == nil {
+				mock.ExpectQuery("SELECT .*quota_reset_start_at.*FROM .*api_keys.*").WithArgs(keyID, "deleted", uint64(2), 1).WillReturnRows(sqlmock.NewRows([]string{"quota_reset_start_at"}).AddRow(nil))
 				mock.ExpectQuery("SELECT .* FROM `settings` WHERE setting_key = \\? LIMIT \\?").
 					WithArgs("rate_limit.key.2", 1).WillReturnRows(sqlmock.NewRows([]string{"setting_key", "value_text"}))
 			}
@@ -114,6 +115,13 @@ func (r *httpRateLimitRepository) WriteRateLimits(_ context.Context, update doma
 	r.updatedBy = by
 	return r.err
 }
+func (r *httpRateLimitRepository) WriteRateLimitsForOrganization(_ context.Context, update domain.RateLimitUpdate, organizationID, by uint64) error {
+	r.writes++
+	r.organizationID = organizationID
+	r.update = update
+	r.updatedBy = by
+	return r.err
+}
 func quotaHTTPRouter(handler *RateLimitHandler, claims *httpapi.Claims) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -137,11 +145,11 @@ func TestRateLimitAuthorizationBeforeParsing(t *testing.T) {
 		{"member read", "GET", "?organization_id=2", "", "member", 2, 403},
 		{"org admin without tenant", "GET", "", "", "org_admin", 0, 403},
 		{"foreign organization", "GET", "?organization_id=3", "", "org_admin", 2, 404},
-		{"org admin malformed write", "PUT", "", "{", "org_admin", 2, 403},
-		{"org admin qps write", "PUT", "", `{"organizations":[{"organization_id":2,"qps":10}]}`, "org_admin", 2, 403},
-		{"org admin quota write", "PUT", "", `{"organizations":[{"organization_id":2,"daily_quota_tokens":0}]}`, "org_admin", 2, 403},
-		{"org admin key write", "PUT", "", `{"keys":[{"key_id":2,"qps":10}]}`, "org_admin", 2, 403},
-		{"org admin global write", "PUT", "", `{"global":{"qps":10}}`, "org_admin", 2, 403},
+		{"org admin malformed write", "PUT", "", "{", "org_admin", 2, 400},
+		{"org admin qps write", "PUT", "", `{"organizations":[{"organization_id":2,"qps":10}]}`, "org_admin", 2, 400},
+		{"org admin quota write", "PUT", "", `{"organizations":[{"organization_id":2,"daily_quota_tokens":0}]}`, "org_admin", 2, 400},
+		{"org admin key write", "PUT", "", `{"keys":[{"key_id":2,"qps":10}]}`, "org_admin", 2, 200},
+		{"org admin global write", "PUT", "", `{"global":{"qps":10}}`, "org_admin", 2, 400},
 		{"super invalid organization", "GET", "?organization_id=no", "", "super_admin", 0, 400},
 		{"super invalid key", "GET", "?key_id=no", "", "super_admin", 0, 400},
 		{"super invalid body", "PUT", "", "{", "super_admin", 0, 400},
@@ -155,7 +163,11 @@ func TestRateLimitAuthorizationBeforeParsing(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 			quotaHTTPRouter(handler, claims).ServeHTTP(response, httptest.NewRequest(test.method, "/admin/rate-limits"+test.query, strings.NewReader(test.body)))
-			if response.Code != test.status || repository.reads != 0 || repository.writes != 0 {
+			wantWrites := 0
+			if test.status == http.StatusOK {
+				wantWrites = 1
+			}
+			if response.Code != test.status || repository.reads != 0 || repository.writes != wantWrites {
 				t.Fatalf("status=%d body=%s reads=%d writes=%d", response.Code, response.Body, repository.reads, repository.writes)
 			}
 		})

@@ -14,6 +14,7 @@ type KeyTemplateSettings struct {
 	ExpiresAt          *time.Time `json:"expires_at"`
 	QuotaAmount        *float64   `json:"quota_amount"`
 	QuotaTokens        *int64     `json:"quota_tokens"`
+	QuotaResetStartAt  *time.Time `json:"quota_reset_start_at"`
 	DailyQuotaAmount   *float64   `json:"daily_quota_amount"`
 	WeeklyQuotaAmount  *float64   `json:"weekly_quota_amount"`
 	MonthlyQuotaAmount *float64   `json:"monthly_quota_amount"`

@@ -4,10 +4,23 @@ import { useCursorPagination } from '../common/useCursorPagination';
 import { compactKey } from '../common/display';
 import { ResourceName } from '../common/ResourceName';
 import React, { useState } from 'react';
-import { Card, Tabs, Table, Button, Space, Typography, Descriptions, Skeleton, Alert } from 'antd';
+import {
+  Card,
+  Tabs,
+  Table,
+  Button,
+  Space,
+  Typography,
+  Descriptions,
+  Skeleton,
+  Alert,
+  Form,
+  Modal,
+  message,
+} from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../api/client';
 import { useI18n } from '../../i18n';
 import { RequestIDLink } from '../requestlogs/RequestIDLink';
@@ -20,6 +33,9 @@ import { KeyUsageSummary, type UsagePeriod, type UsagePoint } from './KeyUsageSu
 import { useAdminKeyUsageRecords } from './useAdminKeyUsageRecords';
 import { useKeyIPUsage } from './useKeyIPUsage';
 import { KeyIPTimeRange } from './KeyIPTimeRange';
+import { KeyEditFields } from './KeyEditFields';
+import { organizationOptionsQueryOptions } from '../../api/adminQueries';
+import type { APIKeyRecord } from './types';
 import {
   UsageSnapshotStatus,
   snapshotUsable,
@@ -100,6 +116,16 @@ export const KeyDetailPage: React.FC = () => {
   const { keyId } = useParams();
   const id = Number(keyId);
   const { formatDateTime, t } = useI18n();
+  const queryClient = useQueryClient();
+  const [editVisible, setEditVisible] = useState(false);
+  const [editForm] = Form.useForm();
+  const [savingEdit, setSavingEdit] = useState(false);
+  const outlet = useOutletContext<{
+    user?: { id: number; organization_id?: number; role: string };
+  }>();
+  const currentUser = outlet?.user || { id: 0, role: 'org_admin' };
+  const organizationsQuery = useQuery(organizationOptionsQueryOptions());
+  const editingOrganizationID = Form.useWatch('organization_id', editForm);
   const [pages, setPages] = useState({ id, security: 1 });
   const currentPages = Object.is(pages.id, id) ? pages : { id, security: 1 };
   if (!Object.is(pages.id, id)) setPages(currentPages);
@@ -120,6 +146,95 @@ export const KeyDetailPage: React.FC = () => {
     },
   });
   const keyData = keyQuery.data;
+
+  const openEdit = async () => {
+    try {
+      const response = await apiClient.get('/admin/rate-limits', {
+        params: { organization_id: keyData.organization_id, key_id: id },
+      });
+      const rolling = response.data?.data?.key;
+      editForm.setFieldsValue({
+        name: keyData.name,
+        organization_id: keyData.organization_id,
+        expires_at: keyData.expires_at,
+        allowed_provider_ids: keyData.allowed_provider_ids || [],
+        allowed_models: keyData.allowed_models || [],
+        quota_tokens: keyData.quota_tokens,
+        quota_amount: keyData.quota_amount,
+        daily_quota_tokens: keyData.daily_quota_tokens,
+        weekly_quota_tokens: keyData.weekly_quota_tokens,
+        monthly_quota_tokens: keyData.monthly_quota_tokens,
+        quota_reset_start_at: keyData.quota_reset_start_at ?? null,
+        daily_quota_amount: keyData.daily_quota_amount,
+        weekly_quota_amount: keyData.weekly_quota_amount,
+        monthly_quota_amount: keyData.monthly_quota_amount,
+        security_inspection_upstream_enabled: keyData.security_inspection_upstream_enabled ?? true,
+        security_inspection_downstream_enabled:
+          keyData.security_inspection_downstream_enabled ?? true,
+        ip_allowlist: keyData.ip_allowlist || [],
+        quota_5h: rolling?.quota_5h ?? null,
+        quota_1d: rolling?.quota_1d ?? null,
+        quota_7d: rolling?.quota_7d ?? null,
+        quota_5h_amount: rolling?.quota_5h_amount ?? null,
+        quota_1d_amount: rolling?.quota_1d_amount ?? null,
+        quota_7d_amount: rolling?.quota_7d_amount ?? null,
+        rate_limit_qps: rolling?.qps ?? 0,
+      });
+      setEditVisible(true);
+    } catch (error: any) {
+      message.error(error?.userMessage || t('ratelimits.save_failed'));
+    }
+  };
+  const saveEdit = async (values: any) => {
+    setSavingEdit(true);
+    try {
+      await apiClient.put('/admin/rate-limits', {
+        keys: [
+          {
+            key_id: id,
+            qps: values.rate_limit_qps ?? 0,
+            quota_5h: values.quota_5h ?? null,
+            quota_1d: values.quota_1d ?? null,
+            quota_7d: values.quota_7d ?? null,
+            quota_5h_amount: values.quota_5h_amount ?? null,
+            quota_1d_amount: values.quota_1d_amount ?? null,
+            quota_7d_amount: values.quota_7d_amount ?? null,
+          },
+        ],
+      });
+      await apiClient.put(`/admin/keys/${id}`, {
+        name: values.name,
+        organization_id: Number(values.organization_id ?? keyData.organization_id),
+        expires_at: values.expires_at || null,
+        allowed_provider_ids: values.allowed_provider_ids || [],
+        allowed_models: values.allowed_models || [],
+        quota_tokens: values.quota_tokens ?? null,
+        quota_amount: values.quota_amount ?? null,
+        daily_quota_tokens: values.daily_quota_tokens ?? null,
+        weekly_quota_tokens: values.weekly_quota_tokens ?? null,
+        monthly_quota_tokens: values.monthly_quota_tokens ?? null,
+        quota_reset_start_at: values.quota_reset_start_at ?? null,
+        daily_quota_amount: values.daily_quota_amount ?? null,
+        weekly_quota_amount: values.weekly_quota_amount ?? null,
+        monthly_quota_amount: values.monthly_quota_amount ?? null,
+        ip_allowlist: values.ip_allowlist || [],
+        security_inspection_upstream_enabled: values.security_inspection_upstream_enabled ?? true,
+        security_inspection_downstream_enabled:
+          values.security_inspection_downstream_enabled ?? true,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['admin-key-info', id] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-keys'] });
+      await queryClient.invalidateQueries({
+        predicate: query => query.queryKey[0] === 'organization-rate-limits',
+      });
+      setEditVisible(false);
+      message.success(t('keys.edit_success', 'API key updated'));
+    } catch (error: any) {
+      message.error(error?.userMessage || t('ratelimits.save_failed'));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const query = (path: string, params: any = {}) =>
     apiClient.get(path, { params }).then(r => r.data?.data || { items: [], total: 0 });
@@ -186,7 +301,7 @@ export const KeyDetailPage: React.FC = () => {
         <Card style={{ marginBottom: 16 }}>
           {section === 'limits' && <PageHelp note="ux.quota_note" />}
           <Space wrap style={{ marginBottom: 16 }}>
-            <Button onClick={() => navigate(`/admin/keys?search=${id}`)}>{t('ux.edit_key')}</Button>
+            <Button onClick={openEdit}>{t('ux.edit_key')}</Button>
             <Button
               onClick={() =>
                 navigate(
@@ -514,6 +629,30 @@ export const KeyDetailPage: React.FC = () => {
           />
         </Card>
       )}
+      <Modal
+        className="console-form-modal"
+        title={t('ux.edit_key')}
+        open={editVisible}
+        onCancel={() => setEditVisible(false)}
+        onOk={() => editForm.submit()}
+        confirmLoading={savingEdit}
+        okText={t('common.save', 'Save')}
+        cancelText={t('common.cancel', 'Cancel')}
+        width={640}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical" onFinish={saveEdit}>
+          {keyData && (
+            <KeyEditFields
+              record={keyData as APIKeyRecord}
+              currentUser={currentUser}
+              organizations={organizationsQuery.data || []}
+              enabled={editVisible}
+              organizationID={Number(editingOrganizationID || keyData.organization_id)}
+            />
+          )}
+        </Form>
+      </Modal>
     </div>
   );
 };

@@ -77,6 +77,11 @@ func (r *KeyRepository) populateCachedAdminUsage(ctx context.Context, keys []dom
 		keys[i].UsageTodayAmount = &today
 		keys[i].Usage30dAmount = &recent
 	}
+	if err := r.populateCustomPeriodicUsage(ctx, keys, time.Now()); err != nil {
+		for i := range keys {
+			keys[i].UsageStatsStatus = "unavailable"
+		}
+	}
 }
 
 // Full days use materialized DECIMAL sums plus the unprocessed tail. Only the

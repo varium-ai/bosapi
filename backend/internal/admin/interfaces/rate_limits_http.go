@@ -95,8 +95,9 @@ func (handler *RateLimitHandler) read(ctx *gin.Context) {
 	if len(configured.Organizations) > 0 {
 		config := configured.Organizations[0]
 		organization = map[string]any{
-			"organization_id": config.OrganizationID,
-			"qps":             config.QPS,
+			"organization_id":      config.OrganizationID,
+			"qps":                  config.QPS,
+			"quota_reset_start_at": config.QuotaResetStartAt,
 			"quotas": map[string]any{
 				"daily_tokens":   config.DailyQuotaTokens,
 				"weekly_tokens":  config.WeeklyQuotaTokens,
@@ -116,11 +117,11 @@ func (handler *RateLimitHandler) read(ctx *gin.Context) {
 	}
 	if organizationMap, ok := organization.(map[string]any); ok {
 		now := time.Now()
-		day, week, month := usagetime.PeriodStarts(now)
+		_, resets := usagetime.QuotaPeriods(now, configured.Organizations[0].QuotaResetStartAt)
 		organizationMap["resets"] = map[string]time.Time{
-			"daily":   day.AddDate(0, 0, 1),
-			"weekly":  week.AddDate(0, 0, 7),
-			"monthly": month.In(usagetime.Location()).AddDate(0, 1, 0).UTC(),
+			"daily":   resets[0],
+			"weekly":  resets[1],
+			"monthly": resets[2],
 		}
 		if handler.organizationUsage == nil {
 			httpapi.WriteError(ctx, http.StatusServiceUnavailable, errorcode.QuotaAccountingUnavailable, "organization usage is unavailable")
@@ -147,7 +148,7 @@ func (handler *RateLimitHandler) write(ctx *gin.Context) {
 		httpapi.WriteError(ctx, 401, errorcode.Unauthorized, "authentication is required")
 		return
 	}
-	if claims.Role != "super_admin" {
+	if claims.Role != "super_admin" && (claims.Role != "org_admin" || claims.OrganizationID == 0) {
 		httpapi.WriteError(ctx, 403, errorcode.Forbidden, "role is not allowed")
 		return
 	}
@@ -156,7 +157,12 @@ func (handler *RateLimitHandler) write(ctx *gin.Context) {
 		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "request is invalid")
 		return
 	}
-	err := handler.service.Write(ctx.Request.Context(), request, claims.UserID)
+	var err error
+	if claims.Role == "org_admin" {
+		err = handler.service.WriteOrganizationKeys(ctx.Request.Context(), request, claims.OrganizationID, claims.UserID)
+	} else {
+		err = handler.service.Write(ctx.Request.Context(), request, claims.UserID)
+	}
 	switch {
 	case errors.Is(err, application.ErrInvalidRateLimit):
 		httpapi.WriteError(ctx, 400, errorcode.InvalidRequest, "rate limit configuration is invalid")

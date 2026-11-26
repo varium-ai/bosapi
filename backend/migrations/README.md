@@ -363,3 +363,7 @@ Historical `001_initial_schema.sql` and `023_usage_log_transition.sql` retain
 their deployed community bytes. The community schema has no commercial
 report-job table and does not use the commercial report timezone migration. Do
 not update database checksums to accommodate rewritten historical SQL.
+
+## Custom periodic quota cycles
+
+`035_quota_reset_start.sql` adds an optional UTC cycle start to API keys. Organization cycle starts are stored in their existing settings record. Without a start, quotas continue to use UTC calendar periods. With a start, daily, weekly and monthly periods repeat at fixed 24-hour, 7-day and 30-day intervals; periodic limits are inactive until a future configured start. The `.down.sql` removes the Key column and should only be used with a coordinated application rollback.

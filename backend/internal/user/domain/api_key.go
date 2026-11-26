@@ -31,6 +31,7 @@ type APIKey struct {
 	UsageStatsStatus                                        string
 	UsageStatsAsOf                                          *time.Time
 	DailyQuotaAmount, WeeklyQuotaAmount, MonthlyQuotaAmount *float64
+	QuotaResetStartAt                                       *time.Time `json:"-"`
 	DailyQuotaTokens, WeeklyQuotaTokens, MonthlyQuotaTokens *int64
 	DailyUsedAmount, WeeklyUsedAmount, MonthlyUsedAmount    float64
 	DailyUsedTokens, WeeklyUsedTokens, MonthlyUsedTokens    int64
@@ -70,6 +71,7 @@ type SafeAPIKey struct {
 	QuotaUsedTokens                     int64      `json:"quota_used_tokens"`
 	UsageTodayAmount                    *float64   `json:"usage_today_amount"`
 	Usage30dAmount                      *float64   `json:"usage_30d_amount"`
+	QuotaResetStartAt                   *time.Time `json:"quota_reset_start_at"`
 	DailyQuotaAmount                    *float64   `json:"daily_quota_amount"`
 	WeeklyQuotaAmount                   *float64   `json:"weekly_quota_amount"`
 	MonthlyQuotaAmount                  *float64   `json:"monthly_quota_amount"`
@@ -98,7 +100,7 @@ func (key APIKey) Redacted() SafeAPIKey {
 		SecurityInspectionEnabled: key.SecurityInspectionUpstreamEnabled && key.SecurityInspectionDownstreamEnabled, ExpiresAt: key.ExpiresAt,
 		QuotaAmount: key.QuotaAmount, QuotaTokens: key.QuotaTokens, QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: key.QuotaUsedTokens,
 		UsageTodayAmount: key.UsageTodayAmount, Usage30dAmount: key.Usage30dAmount,
-		DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
+		QuotaResetStartAt: key.QuotaResetStartAt, DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
 		DailyQuotaTokens: key.DailyQuotaTokens, WeeklyQuotaTokens: key.WeeklyQuotaTokens, MonthlyQuotaTokens: key.MonthlyQuotaTokens,
 		DailyUsedAmount: key.DailyUsedAmount, WeeklyUsedAmount: key.WeeklyUsedAmount, MonthlyUsedAmount: key.MonthlyUsedAmount,
 		DailyUsedTokens: key.DailyUsedTokens, WeeklyUsedTokens: key.WeeklyUsedTokens, MonthlyUsedTokens: key.MonthlyUsedTokens,

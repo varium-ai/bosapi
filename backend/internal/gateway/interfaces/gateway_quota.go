@@ -491,10 +491,8 @@ type quotaDenial struct {
 // gatewayQuotaDenial uses the same UTC calendar as persisted usage. When
 // multiple budgets are exhausted, report the one that blocks retries longest.
 func gatewayQuotaDenial(key apiKey, now time.Time) *quotaDenial {
-	day, week, month := usagetime.PeriodStarts(now)
-	dayReset := day.AddDate(0, 0, 1)
-	weekReset := week.AddDate(0, 0, 7)
-	monthReset := month.In(usagetime.Location()).AddDate(0, 1, 0)
+	_, resets := usagetime.QuotaPeriods(now, key.QuotaResetStartAt)
+	dayReset, weekReset, monthReset := resets[0], resets[1], resets[2]
 	var denial *quotaDenial
 	add := func(reason, limit string, reset time.Time) {
 		retry := time.Duration(0)
@@ -524,6 +522,9 @@ func gatewayQuotaDenial(key apiKey, now time.Time) *quotaDenial {
 	}
 	tokens("total_tokens", key.QuotaTokens, key.QuotaUsedTokens, time.Time{})
 	amount("total_amount", key.QuotaAmount, key.QuotaUsedAmount, time.Time{})
+	if key.QuotaResetStartAt != nil && now.Before(*key.QuotaResetStartAt) {
+		return denial
+	}
 	tokens("daily_tokens", key.DailyQuotaTokens, key.DailyUsedTokens, dayReset)
 	amount("daily_amount", key.DailyQuotaAmount, key.DailyUsedAmount, dayReset)
 	tokens("weekly_tokens", key.WeeklyQuotaTokens, key.WeeklyUsedTokens, weekReset)
@@ -572,6 +573,14 @@ func (a *app) settleGatewayQuota(event usageEvent) error {
 			var inserted bool
 			inserted, err = a.keyRepository.RecordGatewayUsageAndQuota(op, record)
 			if err == nil {
+				if recorder, ok := a.background.RateLimiter.(interface {
+					RecordTokenUsage(context.Context, uint64, string, int64, float64, time.Time) error
+				}); ok {
+					usageID := record.RequestID + ":" + record.UsageID
+					if err = recorder.RecordTokenUsage(op, record.APIKeyID, usageID, int64(record.TotalTokens), record.CostAmount, record.CreatedAt); err != nil {
+						return false, err
+					}
+				}
 				return inserted, nil
 			}
 			if op.Err() != nil {

@@ -5,15 +5,13 @@ export interface KeyTemplateSettings {
   expires_at: string | null;
   quota_amount: number | null;
   quota_tokens: number | null;
+  quota_reset_start_at?: string | null;
   daily_quota_amount: number | null;
   weekly_quota_amount: number | null;
   monthly_quota_amount: number | null;
   daily_quota_tokens: number | null;
   weekly_quota_tokens: number | null;
   monthly_quota_tokens: number | null;
-  rate_limit_5h: number | null;
-  rate_limit_1d: number | null;
-  rate_limit_7d: number | null;
   ip_allowlist: string[];
   ip_blocklist: string[];
 }
@@ -38,9 +36,6 @@ export function emptyKeyTemplateSettings(organizationID?: number): KeyTemplateSe
     daily_quota_tokens: null,
     weekly_quota_tokens: null,
     monthly_quota_tokens: null,
-    rate_limit_5h: null,
-    rate_limit_1d: null,
-    rate_limit_7d: null,
     ip_allowlist: [],
     ip_blocklist: [],
   };

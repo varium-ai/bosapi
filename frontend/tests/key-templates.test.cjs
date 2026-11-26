@@ -39,7 +39,6 @@ test('template settings preserve organization, expiration, zero limits and IP po
     expires_at: '2030-01-01T00:00:00Z',
     quota_tokens: 0,
     daily_quota_amount: 0,
-    rate_limit_5h: 1000,
     ip_allowlist: ['192.0.2.0/24'],
     ip_blocklist: ['::1'],
     name: 'Application credential',
@@ -52,7 +51,7 @@ test('template settings preserve organization, expiration, zero limits and IP po
   assert.equal(settings.quota_tokens, 0);
   assert.equal(settings.daily_quota_amount, 0);
   assert.equal(settings.expires_at, '2030-01-01T00:00:00Z');
-  assert.equal(settings.rate_limit_5h, 1000);
+  assert.equal('rate_limit_5h' in settings, false);
   for (const field of ['name', 'api_key', 'key_hash', 'created_by'])
     assert.equal(field in settings, false);
 });

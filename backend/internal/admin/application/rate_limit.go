@@ -31,6 +31,34 @@ func (service *RateLimitService) Read(ctx context.Context, organizationID, keyID
 
 // Write validates and persists a complete rate limit update.
 func (service *RateLimitService) Write(ctx context.Context, update domain.RateLimitUpdate, updatedBy uint64) error {
+	return service.write(ctx, update, updatedBy)
+}
+
+// WriteOrganizationKeys persists only key limits owned by an organization.
+func (service *RateLimitService) WriteOrganizationKeys(ctx context.Context, update domain.RateLimitUpdate, organizationID, updatedBy uint64) error {
+	if organizationID == 0 || update.Global != nil || len(update.Organizations) != 0 || len(update.Keys) == 0 {
+		return ErrInvalidRateLimit
+	}
+	repository, ok := service.repository.(interface {
+		WriteRateLimitsForOrganization(context.Context, domain.RateLimitUpdate, uint64, uint64) error
+	})
+	if !ok {
+		return ErrInvalidRateLimit
+	}
+	if err := service.validate(update); err != nil {
+		return err
+	}
+	return repository.WriteRateLimitsForOrganization(ctx, update, organizationID, updatedBy)
+}
+
+func (service *RateLimitService) write(ctx context.Context, update domain.RateLimitUpdate, updatedBy uint64) error {
+	if err := service.validate(update); err != nil {
+		return err
+	}
+	return service.repository.WriteRateLimits(ctx, update, updatedBy)
+}
+
+func (service *RateLimitService) validate(update domain.RateLimitUpdate) error {
 	if update.Global != nil && !validRateLimit(*update.Global, true) {
 		return ErrInvalidRateLimit
 	}
@@ -61,7 +89,7 @@ func (service *RateLimitService) Write(ctx context.Context, update domain.RateLi
 		return ErrInvalidRateLimit
 	}
 
-	return service.repository.WriteRateLimits(ctx, update, updatedBy)
+	return nil
 }
 
 func validRateLimit(value domain.RateLimitConfig, allowQPSZero bool) bool {
@@ -70,6 +98,11 @@ func validRateLimit(value domain.RateLimitConfig, allowQPSZero bool) bool {
 	}
 	for _, quota := range []*int64{value.Quota5H, value.Quota1D, value.Quota7D} {
 		if quota != nil && *quota < 0 {
+			return false
+		}
+	}
+	for _, amount := range []*float64{value.Quota5HAmount, value.Quota1DAmount, value.Quota7DAmount} {
+		if amount != nil && (*amount < 0 || !isFiniteFloat(*amount)) {
 			return false
 		}
 	}

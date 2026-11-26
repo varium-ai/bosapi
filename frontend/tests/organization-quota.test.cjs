@@ -214,6 +214,8 @@ function harness(user = admin, search = 'organization_id=10') {
           if (name.endsWith('/common/display')) return { compactKey: () => 'key' };
           if (name.endsWith('/common/RefreshButton'))
             return { RefreshButton: function RefreshButton() {} };
+          if (name.endsWith('/keys/QuotaResetStartField'))
+            return { QuotaResetStartField: function QuotaResetStartField() {} };
           if (name.endsWith('/common/ConsoleUX'))
             return { LoadError: 'LoadError', PageHelp: 'PageHelp' };
           if (name.endsWith('/onboarding/setupQueries'))
@@ -280,11 +282,11 @@ function harness(user = admin, search = 'organization_id=10') {
 
 const form = (ui, name) => nodes(ui.editor.tree, node => node.props.name === name)[0];
 
-test('selection ignores foreign org/key URL parameters for org admins and validates numeric IDs', () => {
+test('selection locks organization scope and accepts only numeric key URL parameters', () => {
   const { model } = harness();
   assert.deepEqual(
     plain(model.resolveQuotaSelection(tenant, new URLSearchParams('organization_id=20&key_id=99'))),
-    { organizationId: 10 },
+    { organizationId: 10, keyId: 99 },
   );
   for (const bad of ['-1', '1.5', 'Infinity', 'NaN', '9007199254740992', '0', ''])
     assert.equal(model.positiveId(bad), undefined);
@@ -330,13 +332,13 @@ test('scoped query forbids foreign reads, validates response identity and propag
   const h = harness(tenant);
   for (const [user, org, key] of [
     [tenant, 20],
-    [tenant, 10, 7],
     [{ ...tenant, role: 'key_viewer' }, 10],
   ]) {
     const options = h.model.rateLimitQueryOptions(user, org, key);
     assert.equal(options.enabled, false);
     await assert.rejects(options.queryFn({ signal: new AbortController().signal }), /scope/);
   }
+  assert.equal(h.model.rateLimitQueryOptions(tenant, 10, 7).enabled, true);
   assert.equal(h.state.gets.length, 0);
   const options = h.model.rateLimitQueryOptions(tenant, 10);
   for (const data of [undefined, {}, snapshot(20), { organization: { organization_id: 10 } }]) {
@@ -362,7 +364,8 @@ test('all six quota fields round-trip null, zero and positive values without amo
   };
   const values = model.organizationQuotaValues(snapshot(10, quotas).organization);
   const update = model.organizationQuotaUpdate(values).organizations[0];
-  assert.equal(Object.keys(update).length, 8);
+  assert.equal(Object.keys(update).length, 9);
+  assert.equal(update.quota_reset_start_at, null);
   for (const period of model.PERIODS)
     for (const metric of ['tokens', 'amount'])
       assert.equal(update[`${period}_quota_${metric}`], quotas[`${period}_${metric}`]);
@@ -385,6 +388,23 @@ test('all six quota fields round-trip null, zero and positive values without amo
       () => model.organizationQuotaUpdate({ ...values, monthly_quota_tokens: bad }),
       /quota/,
     );
+});
+
+test('custom quota cycle start round-trips and clearing restores calendar periods', () => {
+  const { model } = harness();
+  const organization = snapshot().organization;
+  organization.quota_reset_start_at = '2026-11-26T03:15:00.000Z';
+  const values = model.organizationQuotaValues(organization);
+  assert.equal(values.quota_reset_start_at, organization.quota_reset_start_at);
+  assert.equal(
+    model.organizationQuotaUpdate(values).organizations[0].quota_reset_start_at,
+    organization.quota_reset_start_at,
+  );
+  assert.equal(
+    model.organizationQuotaUpdate({ ...values, quota_reset_start_at: null }).organizations[0]
+      .quota_reset_start_at,
+    null,
+  );
 });
 
 test('million-token presentation and input preserve raw token limits', () => {
@@ -530,13 +550,13 @@ test('unmounted save completion only invalidates its original scope and never ch
   assert.equal(form({ editor }, 'organization-limit').props.form.values.organization_id, undefined);
 });
 
-test('org admin exposes only its organization read and no editing, key or global forms', async () => {
+test('org admin can edit owned API keys while organization and global limits stay read-only', async () => {
   const h = harness(tenant, 'organization_id=20&key_id=77');
   const ui = h.page();
   assert.equal(ui.selection.props.selectedOrgId, 10);
-  assert.equal(ui.selection.props.selectedKeyId, undefined);
-  assert.equal(nodes(ui.editor.tree, node => node.type === h.Form).length, 0);
-  assert.equal(nodes(ui.editor.tree, node => node.props.htmlType === 'submit').length, 0);
+  assert.equal(ui.selection.props.selectedKeyId, 77);
+  assert.equal(nodes(ui.editor.tree, node => node.type === h.Form).length, 1);
+  assert.equal(nodes(ui.editor.tree, node => node.props.htmlType === 'submit').length, 1);
   const selector = nodes(ui.editor.tree, node => node.type === 'Select')[0];
   assert.equal(selector.props.disabled, true);
   assert.deepEqual(plain(selector.props.options.map(option => option.value)), [10]);
@@ -551,11 +571,7 @@ test('org admin exposes only its organization read and no editing, key or global
     { id: 10, name: 'Own organization' },
   ]);
   assert.equal(h.state.gets[0][0], '/admin/organizations/10');
-  assert.ok(
-    h.state.options
-      .filter(option => option.queryKey[0] === 'rate-limit-keys')
-      .every(option => !option.enabled),
-  );
+  assert.ok(h.state.options.find(option => option.queryKey[0] === 'rate-limit-keys').enabled);
 });
 
 test('key reads wait for membership and never replace the separate organization usage query', () => {
@@ -572,6 +588,9 @@ test('key reads wait for membership and never replace the separate organization 
     ...snapshot(),
     key: { key_id: 7, qps: 30 },
   });
+  ui.editor.render();
+  assert.equal(form(ui, 'key-limit').props.disabled, true);
+  h.respond({ queryKey: ['rate-limit-key-details', 7] }, { id: 7, organization_id: 10 });
   ui.editor.render();
   keyReads = h.state.options.filter(
     option => option.queryKey[0] === 'organization-rate-limits' && option.queryKey.at(-1) === 7,
@@ -679,7 +698,7 @@ test('home summary preserves usage for unlimited and blocked quotas; no request 
   assert.equal(h.state.options.at(-1).enabled, false);
 });
 
-test('a refreshed organization replaces all six form values, including fields cleared on the server', () => {
+test('a refreshed organization replaces quota values, including fields cleared on the server', () => {
   const h = harness();
   const ui = h.page(
     snapshot(10, {
@@ -706,7 +725,7 @@ test('a refreshed organization replaces all six form values, including fields cl
   ])
     assert.equal(values[field], null);
   const fields = nodes(
-    ui.editor.tree,
+    form(ui, 'organization-limit'),
     node => typeof node.props.name === 'string' && /_(tokens|amount)$/.test(node.props.name),
   );
   assert.equal(fields.length, 6);

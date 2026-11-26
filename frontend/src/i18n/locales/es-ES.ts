@@ -1208,6 +1208,11 @@ export const esES: typeof enUS = {
     usage_title: 'Resumen de uso',
   },
   keys: {
+    custom_quota_cycle: 'Ciclo de cuota personalizado',
+    quota_reset_start_at: 'Hora de inicio del ciclo',
+    quota_cycle_help:
+      'Predeterminado: calendario UTC. Los ciclos personalizados se repiten cada 24 horas, 7 días y 30 días desde esta hora. Los límites periódicos no se aplican antes del inicio.',
+
     import_guide_title: 'Importar claves API: preparar archivo',
     import_supported_files:
       'Admite CSV (.csv) y Excel (.xls, .xlsx): máximo 10 MB y 500 claves. Solo se lee la primera hoja.',
@@ -1241,9 +1246,13 @@ export const esES: typeof enUS = {
       'Usa la hora local; vacío significa sin caducidad. Las claves se desactivan al caducar. Reactívalas manualmente tras ampliar o quitar la fecha.',
     no_expiration: 'Sin caducidad',
     field_ip_blocklist: 'Lista de bloqueo de IP',
-    rate_limit_5h: 'Límite de tokens de 5 horas',
-    rate_limit_1d: 'Límite de tokens de 1 día',
-    rate_limit_7d: 'Límite de tokens de 7 días',
+    rolling_token_limits: 'Límites de uso móviles',
+    quota_5h: 'Límite de tokens de 5 horas',
+    quota_1d: 'Límite de tokens de 24 horas',
+    quota_7d: 'Límite de tokens de 7 días',
+    quota_5h_amount: 'Límite de importe móvil de 5 horas (USD)',
+    quota_1d_amount: 'Límite de importe móvil de 24 horas (USD)',
+    quota_7d_amount: 'Límite de importe móvil de 7 días (USD)',
     usage_column: 'Uso',
     usage_today: 'Hoy',
     usage_30d: 'Últimos 30 días',
@@ -1310,7 +1319,8 @@ export const esES: typeof enUS = {
     security_inspection_enabled: 'Activada',
     security_inspection_disabled: 'Desactivada',
     inspection_mode_title: 'Modo global de inspección de seguridad',
-    inspection_mode_note: 'Disabled omite la inspección de seguridad por completo sin afectar autenticación, cuotas, límites de tasa ni control de acceso.',
+    inspection_mode_note:
+      'Disabled omite la inspección de seguridad por completo sin afectar autenticación, cuotas, límites de tasa ni control de acceso.',
     mode_disabled: 'Desactivada',
     col_ip_allowlist: 'Lista de IP permitidas',
     col_created: 'Fecha de creación',
@@ -1464,7 +1474,8 @@ export const esES: typeof enUS = {
     all_published_models: 'Todos los modelos publicados',
     security_inspection_upstream: 'Inspección de seguridad upstream',
     security_inspection_downstream: 'Inspección de seguridad downstream',
-    security_inspection_help: 'Desactiva para omitir la inspección de seguridad de contenido en la dirección correspondiente.',
+    security_inspection_help:
+      'Desactiva para omitir la inspección de seguridad de contenido en la dirección correspondiente.',
     btn_bindings: 'Vinculaciones',
     disable_confirm: '¿Desactivar organización?',
     disable_confirm_desc: 'Todas las claves API de esta organización se rechazarán de inmediato.',
@@ -1788,6 +1799,8 @@ export const esES: typeof enUS = {
     no_keys_in_org: 'No hay claves API en esta organización',
     key_id_label: 'ID de clave API',
     key_qps_label: 'Límite QPS de clave',
+    key_concurrency_title: 'Solicitudes simultáneas',
+    sessions_unit: 'sesiones',
     quota_5h_label: 'Cuota móvil de tokens de 5 horas (opcional)',
     quota_1d_label: 'Cuota móvil de tokens de 24 horas (opcional)',
     quota_7d_label: 'Cuota móvil de tokens de 7 días (opcional)',

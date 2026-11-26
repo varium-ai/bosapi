@@ -129,6 +129,9 @@ func TestLocalRateLimiterReportsLongestExhaustedWindow(t *testing.T) {
 	if err != nil || !first.Allowed {
 		t.Fatalf("first request: %+v err=%v", first, err)
 	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "usage-1", 1, 0, now); err != nil {
+		t.Fatal(err)
+	}
 	denied, err := limiter.Decide(t.Context(), key, now.Add(time.Millisecond))
 	if err != nil || denied.Allowed || denied.Reason != domain.RateLimitQuota7D || denied.RetryAfter != 7*24*time.Hour-time.Millisecond {
 		t.Fatalf("exhausted windows: %+v err=%v", denied, err)
@@ -140,5 +143,31 @@ func TestLocalRateLimiterReportsLongestExhaustedWindow(t *testing.T) {
 	reset, err := limiter.Decide(t.Context(), key, now.Add(7*24*time.Hour))
 	if err != nil || !reset.Allowed {
 		t.Fatalf("request after all resets: %+v err=%v", reset, err)
+	}
+}
+
+func TestLocalRateLimiterEnforcesRollingAmountFromFirstUsage(t *testing.T) {
+	limit := 1.0
+	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{
+		Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota5HAmount: &limit}}},
+	}}
+	limiter := NewLocalRateLimiter(repository)
+	now := time.Unix(1_800_000_000, 0)
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "first", 1, .75, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "second", 1, .30, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	blocked, err := limiter.Decide(t.Context(), domain.RateLimitKey{APIKeyID: 3}, now.Add(2*time.Hour))
+	if err != nil || blocked.Allowed || blocked.Reason != domain.RateLimitQuota5H {
+		t.Fatalf("amount quota decision=%+v err=%v", blocked, err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "third", 1, .4, now.Add(5*time.Hour+time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	allowed, err := limiter.Decide(t.Context(), domain.RateLimitKey{APIKeyID: 3}, now.Add(5*time.Hour+2*time.Second))
+	if err != nil || !allowed.Allowed {
+		t.Fatalf("new rolling window decision=%+v err=%v", allowed, err)
 	}
 }

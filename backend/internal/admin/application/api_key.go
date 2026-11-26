@@ -61,6 +61,7 @@ type AdminKeyInput struct {
 	QuotaAmount                                             *float64
 	QuotaTokens                                             *int64
 	DailyQuotaAmount, WeeklyQuotaAmount, MonthlyQuotaAmount *float64
+	QuotaResetStartAt                                       *time.Time
 	DailyQuotaTokens, WeeklyQuotaTokens, MonthlyQuotaTokens *int64
 	RateLimit5H                                             *int64
 	RateLimit1D                                             *int64
@@ -294,7 +295,7 @@ func (service *AdminKeyService) Duplicate(ctx context.Context, id, organizationI
 	raw, key, err := service.prepare(AdminKeyInput{
 		Name: source.Name + " - Copy", OrganizationID: source.OrganizationID, AllowedProviderIDs: source.AllowedProviderIDs, AllowedModels: source.AllowedModels,
 		ExpiresAt: source.ExpiresAt, QuotaAmount: source.QuotaAmount, QuotaTokens: source.QuotaTokens,
-		DailyQuotaAmount: source.DailyQuotaAmount, WeeklyQuotaAmount: source.WeeklyQuotaAmount, MonthlyQuotaAmount: source.MonthlyQuotaAmount,
+		QuotaResetStartAt: source.QuotaResetStartAt, DailyQuotaAmount: source.DailyQuotaAmount, WeeklyQuotaAmount: source.WeeklyQuotaAmount, MonthlyQuotaAmount: source.MonthlyQuotaAmount,
 		DailyQuotaTokens: source.DailyQuotaTokens, WeeklyQuotaTokens: source.WeeklyQuotaTokens, MonthlyQuotaTokens: source.MonthlyQuotaTokens,
 		RateLimit5H: source.RateLimit5H, RateLimit1D: source.RateLimit1D, RateLimit7D: source.RateLimit7D,
 		IPAllowlist: source.IPAllowlist, IPBlocklist: source.IPBlocklist,
@@ -389,7 +390,7 @@ func (service *AdminKeyService) prepare(input AdminKeyInput) (string, *userdomai
 		prefix = prefix[:24]
 	}
 	digest := sha256.Sum256([]byte(raw))
-	key := &userdomain.APIKey{UserID: input.UserID, OrganizationID: input.OrganizationID, Name: name, KeyHash: hex.EncodeToString(digest[:]), KeyPrefix: prefix, Status: status, SecurityInspectionUpstreamEnabled: true, SecurityInspectionDownstreamEnabled: true, ExpiresAt: input.ExpiresAt, QuotaAmount: input.QuotaAmount, QuotaTokens: input.QuotaTokens, DailyQuotaAmount: input.DailyQuotaAmount, WeeklyQuotaAmount: input.WeeklyQuotaAmount, MonthlyQuotaAmount: input.MonthlyQuotaAmount, DailyQuotaTokens: input.DailyQuotaTokens, WeeklyQuotaTokens: input.WeeklyQuotaTokens, MonthlyQuotaTokens: input.MonthlyQuotaTokens, RateLimit5H: input.RateLimit5H, RateLimit1D: input.RateLimit1D, RateLimit7D: input.RateLimit7D, IPAllowlist: input.IPAllowlist, IPBlocklist: input.IPBlocklist}
+	key := &userdomain.APIKey{UserID: input.UserID, OrganizationID: input.OrganizationID, Name: name, KeyHash: hex.EncodeToString(digest[:]), KeyPrefix: prefix, Status: status, SecurityInspectionUpstreamEnabled: true, SecurityInspectionDownstreamEnabled: true, ExpiresAt: input.ExpiresAt, QuotaAmount: input.QuotaAmount, QuotaTokens: input.QuotaTokens, QuotaResetStartAt: input.QuotaResetStartAt, DailyQuotaAmount: input.DailyQuotaAmount, WeeklyQuotaAmount: input.WeeklyQuotaAmount, MonthlyQuotaAmount: input.MonthlyQuotaAmount, DailyQuotaTokens: input.DailyQuotaTokens, WeeklyQuotaTokens: input.WeeklyQuotaTokens, MonthlyQuotaTokens: input.MonthlyQuotaTokens, RateLimit5H: input.RateLimit5H, RateLimit1D: input.RateLimit1D, RateLimit7D: input.RateLimit7D, IPAllowlist: input.IPAllowlist, IPBlocklist: input.IPBlocklist}
 	key.KeySuffix = userdomain.SafeKeySuffix(raw, prefix)
 	key.UserID = 0
 	key.AllowedProviderIDs, key.AllowedModels = input.AllowedProviderIDs, input.AllowedModels

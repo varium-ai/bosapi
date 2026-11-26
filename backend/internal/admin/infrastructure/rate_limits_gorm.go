@@ -56,9 +56,19 @@ func (repository *RateLimitRepository) ReadRateLimits(ctx context.Context, organ
 			}
 		}
 		var config domain.RateLimitConfig
+		var record userinfra.APIKeyRecord
+		query := repository.database.WithContext(ctx).Select("quota_reset_start_at").Where("id = ? AND status <> ?", keyID, "deleted")
+		if organizationID > 0 {
+			query = query.Where("organization_id = ?", organizationID)
+		}
+		if err := query.First(&record).Error; err != nil {
+			return result, err
+		}
+		config.QuotaResetStartAt = record.QuotaResetStartAt
 		if err := repository.readSetting(ctx, fmt.Sprintf("rate_limit.key.%d", keyID), &config); err != nil {
 			return result, err
 		}
+		config.QuotaResetStartAt = record.QuotaResetStartAt
 		result.Keys = append(result.Keys, domain.KeyRateLimit{KeyID: keyID, RateLimitConfig: config})
 	}
 	return result, nil
@@ -66,6 +76,18 @@ func (repository *RateLimitRepository) ReadRateLimits(ctx context.Context, organ
 
 // WriteRateLimits atomically upserts configuration and verifies referenced resources.
 func (repository *RateLimitRepository) WriteRateLimits(ctx context.Context, update domain.RateLimitUpdate, updatedBy uint64) error {
+	return repository.writeRateLimits(ctx, update, updatedBy, 0)
+}
+
+// WriteRateLimitsForOrganization verifies every key belongs to the caller's organization.
+func (repository *RateLimitRepository) WriteRateLimitsForOrganization(ctx context.Context, update domain.RateLimitUpdate, organizationID, updatedBy uint64) error {
+	if organizationID == 0 || update.Global != nil || len(update.Organizations) != 0 || len(update.Keys) == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return repository.writeRateLimits(ctx, update, updatedBy, organizationID)
+}
+
+func (repository *RateLimitRepository) writeRateLimits(ctx context.Context, update domain.RateLimitUpdate, updatedBy, organizationID uint64) error {
 	return repository.database.WithContext(ctx).Transaction(func(transaction *gorm.DB) error {
 		for _, value := range update.Organizations {
 			var count int64
@@ -78,7 +100,11 @@ func (repository *RateLimitRepository) WriteRateLimits(ctx context.Context, upda
 		}
 		for _, value := range update.Keys {
 			var count int64
-			if err := transaction.Model(&userinfra.APIKeyRecord{}).Where("id = ? AND status <> ?", value.KeyID, "deleted").Count(&count).Error; err != nil {
+			query := transaction.Model(&userinfra.APIKeyRecord{}).Where("id = ? AND status <> ?", value.KeyID, "deleted")
+			if organizationID > 0 {
+				query = query.Where("organization_id = ?", organizationID)
+			}
+			if err := query.Count(&count).Error; err != nil {
 				return err
 			}
 			if count == 0 {

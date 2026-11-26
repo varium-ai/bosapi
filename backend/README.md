@@ -20,6 +20,13 @@ Tests needing MySQL, Redis or live upstream access require explicit test
 configuration and otherwise skip those integrations. Use disposable services and
 synthetic credentials. Unit and protocol tests use local fixtures.
 
+Periodic quotas default to UTC calendar periods, with daily resets at midnight,
+weekly resets on Monday, and monthly resets on the first day of the month.
+Organizations and API keys can configure a custom UTC cycle start; these quotas
+then repeat every 24 hours, 7 days, and 30 days. Periodic limits are inactive before
+a future start. Rolling Token and USD quotas for API keys use separate 5-hour,
+24-hour, and 7-day windows anchored to the first settled usage in each window.
+
 ChatGPT/Codex OAuth channels support a bounded Chat Completions bridge for text,
 images, and function tools in JSON/SSE. Unsupported controls and output return
 conversion errors. Use Responses for full Codex capabilities; see the

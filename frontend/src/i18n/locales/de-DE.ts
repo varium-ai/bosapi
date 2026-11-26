@@ -1218,6 +1218,11 @@ export const deDE: typeof enUS = {
     usage_title: 'Nutzungsübersicht',
   },
   keys: {
+    custom_quota_cycle: 'Benutzerdefinierter Quotenzyklus',
+    quota_reset_start_at: 'Startzeit des Zyklus',
+    quota_cycle_help:
+      'Standard: UTC-Kalender. Benutzerdefinierte Zyklen beginnen zu dieser Zeit und wiederholen sich alle 24 Stunden, 7 Tage und 30 Tage. Vor der Startzeit gelten keine periodischen Limits.',
+
     import_guide_title: 'API-Schlüssel importieren: Datei vorbereiten',
     import_supported_files:
       'CSV (.csv) und Excel (.xls, .xlsx): maximal 10 MB und 500 Schlüssel. Nur das erste Tabellenblatt wird gelesen.',
@@ -1251,9 +1256,13 @@ export const deDE: typeof enUS = {
       'Lokale Zeit; leer bedeutet unbegrenzt. Abgelaufene Schlüssel werden deaktiviert. Nach Verlängerung oder Entfernen des Ablaufs manuell aktivieren.',
     no_expiration: 'Kein Ablaufdatum',
     field_ip_blocklist: 'IP-Sperrliste',
-    rate_limit_5h: 'Tokenlimit für 5 Stunden',
-    rate_limit_1d: 'Tokenlimit für 1 Tag',
-    rate_limit_7d: 'Tokenlimit für 7 Tage',
+    rolling_token_limits: 'Rollierende Nutzungslimits',
+    quota_5h: 'Tokenlimit für 5 Stunden',
+    quota_1d: 'Tokenlimit für 24 Stunden',
+    quota_7d: 'Tokenlimit für 7 Tage',
+    quota_5h_amount: 'Rollierendes Betragslimit für 5 Stunden (USD)',
+    quota_1d_amount: 'Rollierendes Betragslimit für 24 Stunden (USD)',
+    quota_7d_amount: 'Rollierendes Betragslimit für 7 Tage (USD)',
     usage_column: 'Nutzung',
     usage_today: 'Heute',
     usage_30d: 'Letzte 30 Tage',
@@ -1321,7 +1330,8 @@ export const deDE: typeof enUS = {
     security_inspection_enabled: 'Aktiviert',
     security_inspection_disabled: 'Deaktiviert',
     inspection_mode_title: 'Globale Sicherheitsprüfung',
-    inspection_mode_note: 'Disabled überspringt die Sicherheitsprüfung vollständig, ohne Authentifizierung, Quoten, Ratenlimits oder Zugriffsrechte zu beeinträchtigen.',
+    inspection_mode_note:
+      'Disabled überspringt die Sicherheitsprüfung vollständig, ohne Authentifizierung, Quoten, Ratenlimits oder Zugriffsrechte zu beeinträchtigen.',
     mode_disabled: 'Deaktiviert',
     col_ip_allowlist: 'IP-Freigabeliste',
     col_created: 'Erstellt am',
@@ -1476,7 +1486,8 @@ export const deDE: typeof enUS = {
     all_published_models: 'Alle veröffentlichten Modelle',
     security_inspection_upstream: 'Upstream-Sicherheitsprüfung',
     security_inspection_downstream: 'Downstream-Sicherheitsprüfung',
-    security_inspection_help: 'Deaktivieren, um die inhaltsbasierte Sicherheitsprüfung der entsprechenden Richtung zu überspringen.',
+    security_inspection_help:
+      'Deaktivieren, um die inhaltsbasierte Sicherheitsprüfung der entsprechenden Richtung zu überspringen.',
     btn_bindings: 'Zuordnungen',
     disable_confirm: 'Organisation deaktivieren?',
     disable_confirm_desc: 'Alle API-Schlüssel dieser Organisation werden sofort abgewiesen.',
@@ -1798,6 +1809,8 @@ export const deDE: typeof enUS = {
     no_keys_in_org: 'Keine API-Schlüssel in dieser Organisation',
     key_id_label: 'API-Schlüssel-ID',
     key_qps_label: 'Schlüssel-QPS-Limit',
+    key_concurrency_title: 'Gleichzeitige Anfragen',
+    sessions_unit: 'Sitzungen',
     quota_5h_label: 'Rollendes 5-Stunden-Tokenkontingent (optional)',
     quota_1d_label: 'Rollendes 24-Stunden-Tokenkontingent (optional)',
     quota_7d_label: 'Rollendes 7-Tage-Tokenkontingent (optional)',

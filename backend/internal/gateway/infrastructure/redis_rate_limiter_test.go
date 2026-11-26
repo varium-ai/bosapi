@@ -44,9 +44,9 @@ func TestRedisRateLimiterReturnsTokenQuotaPolicyAndTTL(t *testing.T) {
 			if err != nil || decision.Allowed || decision.Degraded || decision.Reason != reason || decision.Limit != 10 || decision.RetryAfter != 1251*time.Millisecond {
 				t.Fatalf("decision=%+v err=%v", decision, err)
 			}
-			wantKeys := []string{"test:rate:quota_5h:3", "test:rate:quota_1d:3", "test:rate:quota_7d:3"}
+			wantKeys := []string{"test:rate:{tokens}:quota_5h:3", "test:rate:{tokens}:quota_1d:3", "test:rate:{tokens}:quota_7d:3"}
 			wantArgs := []any{int64(10), int64(18000000), int64(10), int64(86400000), int64(10), int64(604800000)}
-			if !reflect.DeepEqual(stub.keys, wantKeys) || !reflect.DeepEqual(stub.args, wantArgs) {
+			if !reflect.DeepEqual(stub.keys, wantKeys) || len(stub.args) != len(wantArgs)+1 || !reflect.DeepEqual(stub.args[:len(wantArgs)], wantArgs) {
 				t.Fatalf("unexpected script input keys=%v args=%v", stub.keys, stub.args)
 			}
 		})
@@ -70,6 +70,67 @@ func TestRedisRateLimiterSkipsUnlimitedRules(t *testing.T) {
 	decision, err = limiter.Decide(t.Context(), key, time.Now())
 	if err != nil || !decision.Allowed || decision.Limit != 10 || decision.Remaining != 9 || decision.Reason != "" {
 		t.Fatalf("allowed request: %+v err=%v", decision, err)
+	}
+}
+
+func TestRedisRateLimiterCountsSettledTokensInRollingWindowsOnce(t *testing.T) {
+	client := startSessionRenewRedis(t)
+	limit := int64(100)
+	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota5H: &limit}}}}}
+	limiter := NewRedisRateLimiter(client, repository, "test:tokens")
+	key := domain.RateLimitKey{APIKeyID: 3}
+	if _, err := limiter.Decide(t.Context(), key, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "request-a:usage-a", 60, 0, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "request-a:usage-a", 60, 0, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "request-b:usage-b", 50, 0, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	decision, err := limiter.Decide(t.Context(), key, time.Now())
+	if err != nil || decision.Allowed || decision.Reason != domain.RateLimitQuota5H || decision.RetryAfter <= 0 {
+		t.Fatalf("decision=%+v err=%v", decision, err)
+	}
+	if err := client.FlushDB(t.Context()).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "expired:usage", 100, 0, time.Now().Add(-5*time.Hour-time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	decision, err = limiter.Decide(t.Context(), key, time.Now())
+	if err != nil || !decision.Allowed {
+		t.Fatalf("expired rolling usage remained charged: decision=%+v err=%v", decision, err)
+	}
+}
+
+func TestRedisRateLimiterEnforcesRollingAmountFromFirstUsage(t *testing.T) {
+	client := startSessionRenewRedis(t)
+	limit := 1.0
+	repository := &rateLimitTestRepository{config: adminDomain.RateLimitUpdate{
+		Keys: []adminDomain.KeyRateLimit{{KeyID: 3, RateLimitConfig: adminDomain.RateLimitConfig{Quota5HAmount: &limit}}},
+	}}
+	limiter := NewRedisRateLimiter(client, repository, "test:amount")
+	now := time.Now().Truncate(time.Millisecond)
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "first", 0, .75, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "second", 0, .30, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	decision, err := limiter.Decide(t.Context(), domain.RateLimitKey{APIKeyID: 3}, now.Add(2*time.Hour))
+	if err != nil || decision.Allowed || decision.Reason != domain.RateLimitQuota5H {
+		t.Fatalf("amount quota decision=%+v err=%v", decision, err)
+	}
+	if err := limiter.RecordTokenUsage(t.Context(), 3, "third", 0, .4, now.Add(5*time.Hour+time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	decision, err = limiter.Decide(t.Context(), domain.RateLimitKey{APIKeyID: 3}, now.Add(5*time.Hour+2*time.Second))
+	if err != nil || !decision.Allowed {
+		t.Fatalf("new rolling window decision=%+v err=%v", decision, err)
 	}
 }
 

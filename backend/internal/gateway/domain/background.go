@@ -28,6 +28,7 @@ type RateLimitDecision struct {
 	Allowed    bool
 	Reason     RateLimitReason
 	Limit      int64
+	Amount     bool
 	Remaining  int64
 	RetryAfter time.Duration
 	Degraded   bool

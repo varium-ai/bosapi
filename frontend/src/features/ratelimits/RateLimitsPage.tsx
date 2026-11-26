@@ -1,3 +1,4 @@
+import { QuotaResetStartField } from '../keys/QuotaResetStartField';
 import { compactKey } from '../common/display';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -148,14 +149,21 @@ const RateLimitsEditor: React.FC<{
     queryKey: ['rate-limit-keys', ...quotaScope(user), selectedOrgId],
     queryFn: ({ signal }) =>
       loadSetupPages<KeyOptionItem>('/admin/keys', signal, { organization_id: selectedOrgId }),
-    enabled: superAdmin && !!selectedOrgId,
+    enabled: !!selectedOrgId && (superAdmin || user.organization_id === selectedOrgId),
     retry: false,
   });
   const keys = keysQuery.data ?? [];
   const validKey = !!selectedKeyId && keys.some(key => key.id === selectedKeyId);
   const keyQuery = useQuery({
     ...rateLimitQueryOptions(user, selectedOrgId, selectedKeyId),
-    enabled: superAdmin && !!selectedOrgId && validKey,
+    enabled: !!selectedOrgId && validKey,
+  });
+  const keyDetailsQuery = useQuery({
+    queryKey: ['rate-limit-key-details', selectedKeyId],
+    enabled: validKey,
+    retry: false,
+    queryFn: async ({ signal }) =>
+      (await client.get(`/admin/keys/${selectedKeyId}`, { signal })).data?.data,
   });
   const keysLoading = keysQuery.isFetching;
   const keysError = keysQuery.isError;
@@ -168,7 +176,16 @@ const RateLimitsEditor: React.FC<{
   const snapshot = organizationQuery.data;
   const editable = superAdmin && !loading && !loadError && !!snapshot && !saving;
   const keyEditable =
-    editable && validKey && !keysError && keyQuery.isSuccess && !keyQuery.isFetching;
+    !loading &&
+    !loadError &&
+    !!snapshot &&
+    !saving &&
+    validKey &&
+    !keysError &&
+    keyDetailsQuery.isSuccess &&
+    !keyDetailsQuery.isFetching &&
+    keyQuery.isSuccess &&
+    !keyQuery.isFetching;
   const [formReady, setFormReady] = useState(false);
   const [keyFormReady, setKeyFormReady] = useState(false);
 
@@ -180,26 +197,49 @@ const RateLimitsEditor: React.FC<{
     setFormReady(true);
   }, [superAdmin, snapshot, organizationQuery.dataUpdatedAt, globalForm, orgForm]);
   useEffect(() => {
-    if (!keyQuery.data?.key) return;
+    if (!keyQuery.data?.key || !keyDetailsQuery.data) return;
     keyForm.setFieldsValue({
+      ...keyDetailsQuery.data,
       ...keyQuery.data.key,
       quota_5h: keyQuery.data.key.quota_5h ?? null,
       quota_1d: keyQuery.data.key.quota_1d ?? null,
       quota_7d: keyQuery.data.key.quota_7d ?? null,
+      quota_5h_amount: keyQuery.data.key.quota_5h_amount ?? null,
+      quota_1d_amount: keyQuery.data.key.quota_1d_amount ?? null,
+      quota_7d_amount: keyQuery.data.key.quota_7d_amount ?? null,
     });
     setKeyFormReady(true);
-  }, [keyQuery.data, keyQuery.dataUpdatedAt, keyForm]);
+  }, [keyQuery.data, keyQuery.dataUpdatedAt, keyDetailsQuery.data, keyForm]);
 
   const fetchRateLimits = () => {
     void organizationQuery.refetch();
     if (validKey) void keyQuery.refetch();
   };
   const save = async (scope: 'global' | 'org' | 'key', payload: unknown, success: string) => {
-    if (!superAdmin || saveInFlight.current || !mounted.current) return;
+    if ((!superAdmin && scope !== 'key') || saveInFlight.current || !mounted.current) return;
     saveInFlight.current = true;
     setSavingScope(scope);
     try {
       await client.put('/admin/rate-limits', payload);
+      if (scope === 'key') {
+        const values = keyForm.getFieldsValue();
+        await client.put(`/admin/keys/${selectedKeyId}`, {
+          quota_reset_start_at: values.quota_reset_start_at ?? null,
+          ...Object.fromEntries(
+            PERIODS.flatMap(period =>
+              ['tokens', 'amount'].map(metric => {
+                const field = `${period}_quota_${metric}`;
+                return [field, values[field] ?? null];
+              }),
+            ),
+          ),
+        });
+        await queryClient.invalidateQueries({
+          queryKey: ['rate-limit-key-details', selectedKeyId],
+        });
+        await queryClient.invalidateQueries({ queryKey: ['admin-keys'] });
+        await queryClient.invalidateQueries({ queryKey: ['admin-key-info', selectedKeyId] });
+      }
       // Invalidate the organization snapshot shared with the home summary as well.
       await queryClient.invalidateQueries({
         queryKey:
@@ -249,9 +289,11 @@ const RateLimitsEditor: React.FC<{
     quota_5h?: number | null;
     quota_1d?: number | null;
     quota_7d?: number | null;
+    quota_5h_amount?: number | null;
+    quota_1d_amount?: number | null;
+    quota_7d_amount?: number | null;
   }) => {
-    if (!superAdmin || !keyEditable || !keyFormReady || Number(values.key_id) !== selectedKeyId)
-      return;
+    if (!keyEditable || !keyFormReady || Number(values.key_id) !== selectedKeyId) return;
     await save(
       'key',
       {
@@ -262,6 +304,9 @@ const RateLimitsEditor: React.FC<{
             quota_5h: values.quota_5h ?? null,
             quota_1d: values.quota_1d ?? null,
             quota_7d: values.quota_7d ?? null,
+            quota_5h_amount: values.quota_5h_amount ?? null,
+            quota_1d_amount: values.quota_1d_amount ?? null,
+            quota_7d_amount: values.quota_7d_amount ?? null,
           },
         ],
       },
@@ -279,7 +324,7 @@ const RateLimitsEditor: React.FC<{
         <RefreshButton
           onClick={() => {
             fetchLookups();
-            if (superAdmin && selectedOrgId) void keysQuery.refetch();
+            if (selectedOrgId) void keysQuery.refetch();
             fetchRateLimits();
           }}
           loading={loading || organizationsLoading || keysLoading}
@@ -358,7 +403,9 @@ const RateLimitsEditor: React.FC<{
                   >
                     <Tag color="blue">{`${snapshot?.global?.qps ?? 0} sessions`}</Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label={t('ratelimits.current_live_qps', 'Current Active Sessions')}>
+                  <Descriptions.Item
+                    label={t('ratelimits.current_live_qps', 'Current Active Sessions')}
+                  >
                     {snapshot?.global?.current_qps ??
                       t('ratelimits.persisted_mode', 'N/A (Persisted Mode)')}
                   </Descriptions.Item>
@@ -376,7 +423,10 @@ const RateLimitsEditor: React.FC<{
                 >
                   <Form.Item
                     name="qps"
-                    label={t('ratelimits.global_qps_label', 'Global concurrent sessions (0 = unlimited)')}
+                    label={t(
+                      'ratelimits.global_qps_label',
+                      'Global concurrent sessions (0 = unlimited)',
+                    )}
                     rules={[
                       {
                         required: true,
@@ -419,7 +469,9 @@ const RateLimitsEditor: React.FC<{
             title={
               <Space>
                 <ApartmentOutlined />
-                <span>{t('ratelimits.org_card_title', 'Organization Concurrency & Period Quotas')}</span>
+                <span>
+                  {t('ratelimits.org_card_title', 'Organization Concurrency & Period Quotas')}
+                </span>
               </Space>
             }
             style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
@@ -541,6 +593,7 @@ const RateLimitsEditor: React.FC<{
                     />
                   </Form.Item>
                   <Text type="secondary">{t('ratelimits.org_quota_hint')}</Text>
+                  <QuotaResetStartField />
                   <Row gutter={[16, 16]}>
                     {PERIODS.flatMap(period =>
                       (['tokens', 'amount'] as const).map(metric => (
@@ -607,7 +660,7 @@ const RateLimitsEditor: React.FC<{
         </Col>
       </Row>
 
-      {superAdmin && (
+      {(superAdmin || user.role === 'org_admin') && (
         <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
           <Col span={24}>
             <Card
@@ -615,7 +668,9 @@ const RateLimitsEditor: React.FC<{
               title={
                 <Space>
                   <KeyOutlined />
-                  <span>{t('ratelimits.key_card_title', 'API Key Concurrency & Token Quotas')}</span>
+                  <span>
+                    {t('ratelimits.key_card_title', 'API Key Concurrency & Token Quotas')}
+                  </span>
                 </Space>
               }
             >
@@ -747,7 +802,7 @@ const RateLimitsEditor: React.FC<{
                   <div style={{ marginTop: 8 }}>
                     <LoadError
                       retry={() => {
-                        if (superAdmin && selectedOrgId) void keysQuery.refetch();
+                        if (selectedOrgId) void keysQuery.refetch();
                       }}
                     />
                   </div>
@@ -781,13 +836,37 @@ const RateLimitsEditor: React.FC<{
                   <InputNumber />
                 </Form.Item>
 
+                <QuotaResetStartField />
+                <Row gutter={[16, 16]}>
+                  {PERIODS.flatMap(period =>
+                    (['tokens', 'amount'] as const).map(metric => (
+                      <Col xs={24} sm={12} lg={8} key={`${period}_${metric}`}>
+                        <Form.Item
+                          name={`${period}_quota_${metric}`}
+                          label={`${t(`keys.period_${period}`)} · ${t(`keys.field_period_${metric}`)}`}
+                        >
+                          <InputNumber
+                            min={0}
+                            precision={metric === 'tokens' ? 0 : undefined}
+                            style={{ width: '100%' }}
+                            placeholder={t('keys.unlimited')}
+                            addonAfter={metric === 'tokens' ? 'tokens' : 'USD'}
+                          />
+                        </Form.Item>
+                      </Col>
+                    )),
+                  )}
+                </Row>
                 <Row gutter={[20, 16]}>
                   <Col xs={24} sm={12} lg={6}>
                     <Form.Item
                       name="qps"
                       label={t('ratelimits.key_qps_label', 'Key concurrent sessions')}
                       rules={[
-                        { required: true, message: t('ratelimits.enter_global_qps', 'Enter concurrency limit') },
+                        {
+                          required: true,
+                          message: t('ratelimits.enter_global_qps', 'Enter concurrency limit'),
+                        },
                         qpsRangeRule,
                       ]}
                       extra={qpsRangeMessage}
@@ -844,6 +923,48 @@ const RateLimitsEditor: React.FC<{
                         style={{ width: '100%' }}
                         placeholder={t('keys.unlimited', 'No limit')}
                         addonAfter="tokens"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12} lg={6}>
+                    <Form.Item
+                      name="quota_5h_amount"
+                      label={t('keys.quota_5h_amount', '5-Hour Rolling Amount Limit (USD)')}
+                    >
+                      <InputNumber
+                        min={0}
+                        precision={2}
+                        style={{ width: '100%' }}
+                        placeholder={t('keys.unlimited', 'No limit')}
+                        addonAfter="USD"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12} lg={6}>
+                    <Form.Item
+                      name="quota_1d_amount"
+                      label={t('keys.quota_1d_amount', '24-Hour Rolling Amount Limit (USD)')}
+                    >
+                      <InputNumber
+                        min={0}
+                        precision={2}
+                        style={{ width: '100%' }}
+                        placeholder={t('keys.unlimited', 'No limit')}
+                        addonAfter="USD"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12} lg={6}>
+                    <Form.Item
+                      name="quota_7d_amount"
+                      label={t('keys.quota_7d_amount', '7-Day Rolling Amount Limit (USD)')}
+                    >
+                      <InputNumber
+                        min={0}
+                        precision={2}
+                        style={{ width: '100%' }}
+                        placeholder={t('keys.unlimited', 'No limit')}
+                        addonAfter="USD"
                       />
                     </Form.Item>
                   </Col>

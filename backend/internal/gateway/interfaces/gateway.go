@@ -873,7 +873,7 @@ func (a *app) databaseKey(r *http.Request) (apiKey, bool) {
 		OrgSecurityInspectionUpstreamEnabled: key.OrgSecurityInspectionUpstreamEnabled, OrgSecurityInspectionDownstreamEnabled: key.OrgSecurityInspectionDownstreamEnabled,
 		ExpiresAt:   key.ExpiresAt,
 		QuotaAmount: key.QuotaAmount, QuotaTokens: key.QuotaTokens, QuotaUsedAmount: key.QuotaUsedAmount, QuotaUsedTokens: key.QuotaUsedTokens,
-		DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
+		QuotaResetStartAt: key.QuotaResetStartAt, DailyQuotaAmount: key.DailyQuotaAmount, WeeklyQuotaAmount: key.WeeklyQuotaAmount, MonthlyQuotaAmount: key.MonthlyQuotaAmount,
 		DailyQuotaTokens: key.DailyQuotaTokens, WeeklyQuotaTokens: key.WeeklyQuotaTokens, MonthlyQuotaTokens: key.MonthlyQuotaTokens,
 		DailyUsedAmount: key.DailyUsedAmount, WeeklyUsedAmount: key.WeeklyUsedAmount, MonthlyUsedAmount: key.MonthlyUsedAmount,
 		DailyUsedTokens: key.DailyUsedTokens, WeeklyUsedTokens: key.WeeklyUsedTokens, MonthlyUsedTokens: key.MonthlyUsedTokens,

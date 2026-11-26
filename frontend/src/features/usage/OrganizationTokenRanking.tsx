@@ -1,4 +1,5 @@
 import { Card, Empty, Tabs, Tooltip } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n';
 import {
   formatUsageCount,
@@ -33,6 +34,7 @@ export function OrganizationTokenRanking({
   to: string;
 }) {
   const { t } = useI18n();
+  const navigate = useNavigate();
   return (
     <Card size="small" title={t('usage.ranking_dashboard_title')} className="user-token-ranking">
       <p className="user-token-ranking-caption">
@@ -51,6 +53,7 @@ export function OrganizationTokenRanking({
                 items={organizationRankingItems(items, t('usage.unknown_user'))}
                 totalTokens={totalTokens}
                 title={t('usage.ranking_title')}
+                onItemClick={item => navigate(`/admin/organizations?search=${item.id}`)}
               />
             ),
           },
@@ -66,6 +69,7 @@ export function OrganizationTokenRanking({
                 })}
                 totalTokens={totalTokens}
                 title={t('usage.ranking_keys_title')}
+                onItemClick={item => navigate(`/admin/keys/${item.id}`)}
               />
             ),
           },
@@ -90,10 +94,12 @@ function RankingBars({
   items,
   totalTokens,
   title,
+  onItemClick,
 }: {
   items?: TokenRankingItem[];
   totalTokens: number;
   title: string;
+  onItemClick?: (item: TokenRankingItem) => void;
 }) {
   const { t, formatNumber, language } = useI18n();
   const maximum = Math.max(0, ...(items || []).map(item => item.total_tokens));
@@ -108,7 +114,19 @@ function RankingBars({
           {items.map((item, index) => {
             const share = tokenPercentage(item.total_tokens, totalTokens);
             return (
-              <li key={item.id} className="user-token-ranking-row">
+              <li
+                key={item.id}
+                className={`user-token-ranking-row${onItemClick ? ' user-token-ranking-clickable' : ''}`}
+                onClick={() => onItemClick?.(item)}
+                onKeyDown={event => {
+                  if (onItemClick && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
+                    onItemClick(item);
+                  }
+                }}
+                role={onItemClick ? 'link' : undefined}
+                tabIndex={onItemClick ? 0 : undefined}
+              >
                 <span className="user-token-ranking-position">{index + 1}</span>
                 <Tooltip title={item.tooltipLabel || item.label}>
                   <span className="user-token-ranking-person">{item.label}</span>

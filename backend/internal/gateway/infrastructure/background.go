@@ -3,8 +3,11 @@ package infrastructure
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -389,6 +392,9 @@ func (limiter *RedisRateLimiter) Decide(ctx context.Context, key domain.RateLimi
 	if err != nil {
 		return domain.RateLimitDecision{Allowed: true, Degraded: true}, nil
 	}
+	if !decision.Allowed {
+		return decision, nil
+	}
 	return decision, nil
 }
 
@@ -545,16 +551,22 @@ func configuredConcurrencyRules(config adminDomain.RateLimitUpdate, key domain.R
 var rateLimitScript = redis.NewScript(`
 local deniedIndex = 0
 local retryAfter = 0
+local now = tonumber(ARGV[#ARGV])
 for index, key in ipairs(KEYS) do
   local limit = tonumber(ARGV[(index - 1) * 2 + 1])
   local window = tonumber(ARGV[(index - 1) * 2 + 2])
-  local current = tonumber(redis.call('GET', key) or '0')
-  if current + 1 > limit then
-    local ttl = redis.call('PTTL', key)
-    if ttl < 0 then
-      redis.call('PEXPIRE', key, window)
-      ttl = window
+  local anchor = tonumber(redis.call('GET', key .. ':anchor'))
+  local current = 0
+  local amountMetric = string.find(key, '_amount:') ~= nil
+  if anchor ~= nil and now < anchor + window then
+    local entries = redis.call('ZRANGEBYSCORE', key, anchor, anchor + window, 'WITHSCORES')
+    for i = 1, #entries, 2 do
+      local tokens, amount = string.match(entries[i], ':(%d+):(%d+)$')
+      current = current + (amountMetric and tonumber(amount) or tonumber(tokens) or 0)
     end
+  end
+  if current >= limit then
+    local ttl = math.max(1, anchor + window - now)
     if deniedIndex == 0 or ttl > retryAfter then
       deniedIndex = index
       retryAfter = ttl
@@ -567,8 +579,16 @@ local remaining = 0
 for index, key in ipairs(KEYS) do
   local limit = tonumber(ARGV[(index - 1) * 2 + 1])
   local window = tonumber(ARGV[(index - 1) * 2 + 2])
-  local current = redis.call('INCR', key)
-  if current == 1 then redis.call('PEXPIRE', key, window) end
+  local anchor = tonumber(redis.call('GET', key .. ':anchor'))
+  local current = 0
+  local amountMetric = string.find(key, '_amount:') ~= nil
+  if anchor ~= nil and now < anchor + window then
+    local entries = redis.call('ZRANGEBYSCORE', key, anchor, anchor + window, 'WITHSCORES')
+    for i = 1, #entries, 2 do
+      local tokens, amount = string.match(entries[i], ':(%d+):(%d+)$')
+      current = current + (amountMetric and tonumber(amount) or tonumber(tokens) or 0)
+    end
+  end
   if tightestIndex == 0 or limit - current < remaining then
     tightestIndex = index
     remaining = limit - current
@@ -576,6 +596,59 @@ for index, key in ipairs(KEYS) do
 end
 return {1, tightestIndex, remaining, 0}
 `)
+
+var recordTokenWindowUsageScript = redis.NewScript(`
+if redis.call('SET', KEYS[13], '1', 'NX', 'PX', ARGV[3]) == false then return 0 end
+local tokens = tonumber(ARGV[1])
+local amount = tonumber(ARGV[2])
+if tokens <= 0 and amount <= 0 then return 1 end
+local member = ARGV[4] .. ':' .. ARGV[1] .. ':' .. ARGV[2]
+local now = tonumber(ARGV[5])
+for index = 1, 6 do
+  local anchorKey = KEYS[index + 6]
+  local windowIndex = index > 3 and index - 3 or index
+  local anchor = tonumber(redis.call('GET', anchorKey))
+  if anchor == nil or now >= anchor + tonumber(ARGV[5 + windowIndex]) then
+    redis.call('DEL', KEYS[index])
+    redis.call('SET', anchorKey, now, 'PX', tonumber(ARGV[3]))
+  end
+  redis.call('ZADD', KEYS[index], now, member)
+end
+return 1
+`)
+
+// RecordTokenUsage adds a settled request's actual tokens once across windows.
+func (limiter *RedisRateLimiter) RecordTokenUsage(ctx context.Context, keyID uint64, usageID string, tokens int64, amount float64, at time.Time) error {
+	if limiter.client == nil || limiter.repository == nil || keyID == 0 || usageID == "" || tokens < 0 || amount < 0 {
+		return errors.New("invalid token usage")
+	}
+	config, err := limiter.repository.ReadRateLimits(ctx, 0, keyID)
+	if err != nil {
+		return err
+	}
+	if len(configuredRateLimitRules(config, domain.RateLimitKey{APIKeyID: keyID})) == 0 {
+		return nil
+	}
+	digest := sha256.Sum256([]byte(usageID))
+	keys := []string{
+		limiter.prefix + ":{tokens}:quota_5h:" + strconv.FormatUint(keyID, 10),
+		limiter.prefix + ":{tokens}:quota_1d:" + strconv.FormatUint(keyID, 10),
+		limiter.prefix + ":{tokens}:quota_7d:" + strconv.FormatUint(keyID, 10),
+		limiter.prefix + ":{tokens}:quota_5h_amount:" + strconv.FormatUint(keyID, 10),
+		limiter.prefix + ":{tokens}:quota_1d_amount:" + strconv.FormatUint(keyID, 10),
+		limiter.prefix + ":{tokens}:quota_7d_amount:" + strconv.FormatUint(keyID, 10),
+	}
+	for _, usageKey := range append([]string(nil), keys...) {
+		keys = append(keys, usageKey+":anchor")
+	}
+	keys = append(keys, limiter.prefix+":{tokens}:seen:"+strconv.FormatUint(keyID, 10)+":"+hex.EncodeToString(digest[:]))
+	if at.IsZero() {
+		at = time.Now()
+	}
+	amountMicros := int64(math.Round(amount * 1_000_000))
+	_, err = recordTokenWindowUsageScript.Run(ctx, limiter.client, keys, tokens, amountMicros, int64(8*24*time.Hour/time.Millisecond), usageID, at.UnixMilli(), (5 * time.Hour).Milliseconds(), (24 * time.Hour).Milliseconds(), (7 * 24 * time.Hour).Milliseconds()).Result()
+	return err
+}
 
 func (limiter *RedisRateLimiter) Allow(ctx context.Context, key domain.RateLimitKey, now time.Time) (bool, error) {
 	decision, err := limiter.Decide(ctx, key, now)
@@ -592,7 +665,7 @@ func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.Rat
 	}
 	limits := limiter.rules(config, key)
 	keys := make([]string, 0, len(limits))
-	args := make([]any, 0, len(limits)*2)
+	args := make([]any, 0, len(limits)*2+1)
 	activeRules := make([]redisLimitRule, 0, len(limits))
 	for _, rule := range limits {
 		if rule.limit <= 0 {
@@ -602,6 +675,7 @@ func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.Rat
 		args = append(args, rule.limit, rule.window.Milliseconds())
 		activeRules = append(activeRules, rule)
 	}
+	args = append(args, time.Now().UnixMilli())
 	if len(keys) == 0 {
 		return domain.RateLimitDecision{Allowed: true}, nil
 	}
@@ -613,7 +687,7 @@ func (limiter *RedisRateLimiter) decideRedis(ctx context.Context, key domain.Rat
 		return domain.RateLimitDecision{}, errors.New("invalid redis rate limit decision")
 	}
 	rule := activeRules[result[1]-1]
-	decision := domain.RateLimitDecision{Allowed: result[0] == 1, Limit: rule.limit, Remaining: result[2], RetryAfter: time.Duration(result[3]) * time.Millisecond}
+	decision := domain.RateLimitDecision{Allowed: result[0] == 1, Limit: rule.limit, Amount: strings.HasSuffix(rule.name, "_amount"), Remaining: result[2], RetryAfter: time.Duration(result[3]) * time.Millisecond}
 	if !decision.Allowed {
 		decision.Reason = rule.reason()
 	}
@@ -631,7 +705,13 @@ type redisLimitRule struct {
 }
 
 func (rule redisLimitRule) reason() domain.RateLimitReason {
-	switch rule.name {
+	switch strings.TrimSuffix(rule.name, "_amount") {
+	case "quota_5h":
+		return domain.RateLimitQuota5H
+	case "quota_1d":
+		return domain.RateLimitQuota1D
+	case "quota_7d":
+		return domain.RateLimitQuota7D
 	case "global":
 		return domain.RateLimitGlobalConcurrency
 	case "organization":
@@ -662,7 +742,18 @@ func configuredRateLimitRules(config adminDomain.RateLimitUpdate, key domain.Rat
 	// Legacy QPS fields are now enforced as active-session caps in AcquireSession.
 	for _, item := range config.Keys {
 		if item.KeyID == key.APIKeyID {
-			rules = append(rules, redisLimitRule{"quota_5h", pointerOrZero(item.Quota5H), 5 * time.Hour}, redisLimitRule{"quota_1d", pointerOrZero(item.Quota1D), 24 * time.Hour}, redisLimitRule{"quota_7d", pointerOrZero(item.Quota7D), 7 * 24 * time.Hour})
+			appendQuotaRules := func(name string, tokens *int64, amount *float64, window time.Duration) {
+				if tokens != nil {
+					rules = append(rules, redisLimitRule{name, *tokens, window})
+				}
+				if amount != nil {
+					amountName := name + "_amount"
+					rules = append(rules, redisLimitRule{amountName, int64(math.Round(*amount * 1_000_000)), window})
+				}
+			}
+			appendQuotaRules("quota_5h", item.Quota5H, item.Quota5HAmount, 5*time.Hour)
+			appendQuotaRules("quota_1d", item.Quota1D, item.Quota1DAmount, 24*time.Hour)
+			appendQuotaRules("quota_7d", item.Quota7D, item.Quota7DAmount, 7*24*time.Hour)
 		}
 	}
 	return rules

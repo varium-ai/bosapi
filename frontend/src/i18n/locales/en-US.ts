@@ -487,7 +487,7 @@ export const enUS = {
     mode_block: 'block · Enforce checks',
     mode_disabled: 'disabled · Skip content inspection',
     mode_note:
-      "Applies to every organization. Observe logs malformed tools and undeclared tools while forwarding original tool data. Block rejects malformed and undeclared tools. Disabled skips content inspection but does not affect authentication, quotas, rate limits, or access control. Defaults to observe. Changes apply to new requests and connections.",
+      'Applies to every organization. Observe logs malformed tools and undeclared tools while forwarding original tool data. Block rejects malformed and undeclared tools. Disabled skips content inspection but does not affect authentication, quotas, rate limits, or access control. Defaults to observe. Changes apply to new requests and connections.',
     mode_saved: 'Tool security mode saved. Applies to new requests and connections.',
     mode_save_error: 'Could not save mode. Refresh to confirm the current setting.',
     mode_load_error: 'Could not load mode. Refresh and retry.',
@@ -643,6 +643,11 @@ export const enUS = {
     usage_title: 'Usage at a glance',
   },
   keys: {
+    custom_quota_cycle: 'Custom quota cycle',
+    quota_reset_start_at: 'Cycle start time',
+    quota_cycle_help:
+      'Default: UTC calendar. Custom cycles reset every 24 hours, 7 days and 30 days from this time. Periodic limits do not apply before the start time.',
+
     import_guide_title: 'Import API Keys: Prepare Your File',
     import_supported_files:
       'Supports CSV (.csv) and Excel (.xls, .xlsx). Maximum file size: 10 MB; maximum batch: 500 keys. Only the first Excel worksheet is read.',
@@ -677,9 +682,13 @@ export const enUS = {
       'Uses local time. Leave empty for no expiration. Keys are disabled on expiry; re-enable manually after extending or clearing the expiration.',
     no_expiration: 'No expiration',
     field_ip_blocklist: 'IP Blocklist',
-    rate_limit_5h: '5-hour token limit',
-    rate_limit_1d: '1-day token limit',
-    rate_limit_7d: '7-day token limit',
+    rolling_token_limits: 'Rolling Quotas',
+    quota_5h: '5-hour Token limit',
+    quota_1d: '24-hour Token limit',
+    quota_7d: '7-day Token limit',
+    quota_5h_amount: '5-hour rolling amount limit (USD)',
+    quota_1d_amount: '24-hour rolling amount limit (USD)',
+    quota_7d_amount: '7-day rolling amount limit (USD)',
 
     usage_column: 'Usage',
     usage_today: 'Today',
@@ -745,7 +754,8 @@ export const enUS = {
     security_inspection_enabled: 'Enabled',
     security_inspection_disabled: 'Disabled',
     inspection_mode_title: 'Global security inspection mode',
-    inspection_mode_note: 'Disabled skips security inspection entirely but does not affect authentication, quotas, rate limits, or access control.',
+    inspection_mode_note:
+      'Disabled skips security inspection entirely but does not affect authentication, quotas, rate limits, or access control.',
     mode_disabled: 'Disabled',
     col_ip_allowlist: 'IP Allowlist',
     col_created: 'Created At',
@@ -899,7 +909,8 @@ export const enUS = {
     all_published_models: 'All Published Models',
     security_inspection_upstream: 'Upstream security inspection',
     security_inspection_downstream: 'Downstream security inspection',
-    security_inspection_help: 'Disable to skip content security inspection for the corresponding direction.',
+    security_inspection_help:
+      'Disable to skip content security inspection for the corresponding direction.',
     btn_bindings: 'Bindings',
     disable_confirm: 'Disable organization?',
     disable_confirm_desc:
@@ -1167,7 +1178,7 @@ export const enUS = {
     org_amount_usage_limit: 'Amount used / limit (USD)',
     org_reset_at: 'Resets at (UTC)',
     org_calendar_hint:
-      'Usage resets at midnight UTC: daily, Monday weekly, and the first day of each month. A zero quota stays blocked until changed.',
+      'Custom cycles reset every 24 hours, 7 days, and 30 days from the selected start. Without a custom start, UTC calendar periods apply. A zero quota stays blocked until changed.',
     org_limits_link: 'Limits',
     org_view_limits_link: 'View organization limits',
     save_failed: 'Failed to save rate limits. Please retry.',
@@ -1225,6 +1236,8 @@ export const enUS = {
     no_keys_in_org: 'No API keys in current organization',
     key_id_label: 'API Key ID',
     key_qps_label: 'Key concurrent sessions',
+    key_concurrency_title: 'Concurrent Requests',
+    sessions_unit: 'sessions',
     quota_5h_label: '5-Hour Rolling Token Quota (optional)',
     quota_1d_label: '24-Hour Rolling Token Quota (optional)',
     quota_7d_label: '7-Day Rolling Token Quota (optional)',
