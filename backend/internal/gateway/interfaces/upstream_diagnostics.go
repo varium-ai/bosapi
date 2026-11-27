@@ -178,6 +178,16 @@ func observeUpstreamResult(ctx context.Context, p provider, res *http.Response, 
 		summary = fmt.Sprintf("upstream_failure_reason=%s upstream_error=%q", upstreamFailureReason(ctx, err), safeUpstreamDiagnostic(err.Error(), p))
 	} else if res != nil {
 		summary = fmt.Sprintf("upstream_status=%d upstream_request_id=%q", res.StatusCode, safeUpstreamDiagnostic(upstreamResponseRequestID(res), p))
+		if res.StatusCode == http.StatusTooManyRequests {
+			rateHeaders := false
+			for name := range res.Header {
+				lower := strings.ToLower(name)
+				rateHeaders = rateHeaders || strings.HasPrefix(lower, "anthropic-ratelimit-") || strings.HasPrefix(lower, "x-ratelimit-") || strings.HasPrefix(lower, "ratelimit-")
+			}
+			// Inspect the upstream response before client Retry-After fallbacks.
+			// Presence flags avoid logging arbitrary credential-bearing headers.
+			summary += fmt.Sprintf(" upstream_retry_after_present=%t upstream_rate_limit_headers_present=%t", res.Header.Get("Retry-After") != "", rateHeaders)
+		}
 		if res.StatusCode >= http.StatusBadRequest {
 			message := http.StatusText(res.StatusCode)
 			if res.Body != nil {

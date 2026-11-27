@@ -42,7 +42,7 @@ func TestSubscriptionNativeAuthenticationAndGeminiEnvelope(t *testing.T) {
 						t.Fatal("wrong upstream credential")
 					}
 					if platform == "anthropic" {
-						if r.Header.Get("User-Agent") != "claude-code/test" || r.Header.Get("X-App") != "cli" || r.Header.Get("X-Stainless-Runtime") != "node" || r.Header.Get("Cookie") != "" || r.Header.Get("Proxy-Authorization") != "" {
+						if !strings.HasPrefix(r.Header.Get("User-Agent"), "claude-cli/") || r.Header.Get("X-App") != "cli" || r.Header.Get("X-Stainless-Runtime") != "node" || r.Header.Get("Cookie") != "" || r.Header.Get("Proxy-Authorization") != "" {
 							t.Fatal("CLI metadata or credential isolation was lost")
 						}
 						if !strings.Contains(r.Header.Get("anthropic-beta"), "oauth-2025-04-20") || !strings.Contains(r.Header.Get("anthropic-beta"), "custom-beta") {

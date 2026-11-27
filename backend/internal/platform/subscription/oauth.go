@@ -151,11 +151,18 @@ func (c Client) token(ctx context.Context, platform string, values url.Values) (
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int64  `json:"expires_in"`
+		Account      struct {
+			UUID string `json:"uuid"`
+		} `json:"account"`
 	}
 	if json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&result) != nil || result.AccessToken == "" || result.ExpiresIn <= 0 || result.ExpiresIn > 366*24*3600 {
 		return Credentials{}, ErrToken
 	}
-	return Credentials{AccessToken: result.AccessToken, RefreshToken: result.RefreshToken, AccountID: accountID(result.AccessToken), ExpiresAt: time.Now().Add(time.Duration(result.ExpiresIn) * time.Second)}, nil
+	id := accountID(result.AccessToken)
+	if platform == "anthropic" {
+		id = result.Account.UUID
+	}
+	return Credentials{AccessToken: result.AccessToken, RefreshToken: result.RefreshToken, AccountID: id, ExpiresAt: time.Now().Add(time.Duration(result.ExpiresIn) * time.Second)}, nil
 }
 
 func (c Client) Exchange(ctx context.Context, platform, code, verifier, state, project string) (Credentials, error) {

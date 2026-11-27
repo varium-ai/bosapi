@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -264,8 +265,22 @@ func (a *app) nativeRoundTrip(r *http.Request, p provider, path string, payload 
 	if geminiOAuth {
 		endpoint, payload, err = geminiSubscriptionRequest(p, path, payload)
 	}
+	claudeOAuth := anthropicOAuthMessages(p, path)
+	claudeNative := false
+	if err == nil && claudeOAuth {
+		if path == "messages/count_tokens" {
+			// CountTokens has its own public schema and does not accept the
+			// Messages metadata/system compatibility envelope.
+			claudeNative = true
+		} else {
+			payload, claudeNative, err = prepareAnthropicOAuth(r, p, payload)
+		}
+	}
 	if err != nil {
-		observeUpstreamResult(r.Context(), p, nil, err)
+		var requestErr anthropicRequestError
+		if errors.As(err, &requestErr) {
+			recordGatewayFailure(r, "request_validation", errorcode.InvalidRequest, "body", requestErr.reason)
+		}
 		return nil, func() {}, err
 	}
 	parsed, _ := url.Parse(endpoint)
@@ -274,7 +289,7 @@ func (a *app) nativeRoundTrip(r *http.Request, p provider, path string, payload 
 	if p.APIFormat == "gemini" && (codeAssist || r.URL.Query().Get("alt") == "sse" || strings.HasSuffix(path, ":streamGenerateContent")) {
 		query.Set("alt", "sse")
 	}
-	if p.APIFormat == "anthropic_messages" && r.URL.Query().Get("beta") == "true" {
+	if p.APIFormat == "anthropic_messages" && (claudeOAuth || r.URL.Query().Get("beta") == "true") {
 		query.Set("beta", "true")
 	}
 	parsed.RawQuery = query.Encode()
@@ -298,6 +313,11 @@ func (a *app) nativeRoundTrip(r *http.Request, p provider, path string, payload 
 	}
 	if accept := r.Header.Get("Accept"); accept != "" {
 		req.Header.Set("Accept", accept)
+	}
+	if claudeOAuth {
+		if err := applyAnthropicOAuthHeaders(req, r, p, claudeNative, streaming); err != nil {
+			return nil, func() {}, err
+		}
 	}
 	// For streaming, bound time to response headers rather than the whole turn.
 	client := *a.client

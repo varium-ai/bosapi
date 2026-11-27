@@ -131,16 +131,26 @@ func TestOAuthExchangeAndRefreshProtocols(t *testing.T) {
 				if requests == 2 {
 					refresh = "rotated-refresh"
 				}
-				raw, _ := json.Marshal(map[string]any{"access_token": token, "refresh_token": refresh, "expires_in": 3600})
+				result := map[string]any{"access_token": token, "refresh_token": refresh, "expires_in": 3600}
+				if requests == 1 {
+					result["account"] = map[string]string{"uuid": "claude-account-uuid"}
+				}
+				raw, _ := json.Marshal(result)
 				return response(string(raw)), nil
 			})}}
 			credentials, err := client.Exchange(context.Background(), platform, "code", "verifier", "state", "")
 			if err != nil || !credentials.Valid(platform) {
 				t.Fatalf("exchange: %v", err)
 			}
+			if platform == "anthropic" && credentials.AccountID != "claude-account-uuid" {
+				t.Fatal("Claude token account identity was not retained")
+			}
 			next, err := client.Refresh(context.Background(), platform, credentials)
 			if err != nil || next.RefreshToken != "rotated-refresh" || next.ProjectID != credentials.ProjectID {
 				t.Fatalf("refresh: %v", err)
+			}
+			if next.AccountID != credentials.AccountID {
+				t.Fatal("refresh lost the account identity when the token response omitted it")
 			}
 		})
 	}
