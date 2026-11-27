@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"bosapi/backend/internal/platform/errorcode"
 )
 
 func claudeOAuthTestProvider() provider {
@@ -17,13 +19,20 @@ func claudeOAuthTestProvider() provider {
 
 func TestAnthropicOAuthWireCompatibility(t *testing.T) {
 	for _, path := range []string{"messages", "messages/count_tokens"} {
-		for _, stream := range []bool{false, true} {
+		streams := []bool{false, true}
+		if path == "messages/count_tokens" {
+			streams = []bool{false}
+		}
+		for _, stream := range streams {
 			t.Run(path+map[bool]string{false: "/json", true: "/sse"}[stream], func(t *testing.T) {
 				logs := captureUpstreamLogs(t)
 				a := testApp(t)
 				payload := strings.Replace(claudeCodeHistory, `"stream":true`, `"stream":false`, 1)
 				if stream {
 					payload = claudeCodeHistory
+				}
+				if path == "messages/count_tokens" {
+					payload = `{"model":"claude-test","messages":[{"role":"user","content":"hello"}]}`
 				}
 				a.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 					if r.URL.RequestURI() != "/v1/"+path+"?beta=true" {
@@ -32,18 +41,25 @@ func TestAnthropicOAuthWireCompatibility(t *testing.T) {
 					if r.Header.Get("Authorization") != "Bearer PRIVATE_ACCESS_TOKEN" || r.Header.Get("X-Api-Key") != "" || r.Header.Get("Cookie") != "" || r.Header.Get("Proxy-Authorization") != "" {
 						t.Fatal("credential isolation failed")
 					}
-					if r.Header.Get("User-Agent") != "claude-cli/"+claudeOAuthVersion+" (external, cli)" || r.Header.Get("X-Stainless-Runtime") != "node" || r.Header.Get("X-Stainless-Package-Version") != "0.94.0" || r.Header.Get("Accept") != "application/json" {
+					if path == "messages/count_tokens" {
+						if r.Header.Get("User-Agent") != "python-sdk/old" || r.Header.Get("Accept") != "text/event-stream" {
+							t.Fatal("count_tokens client headers unexpectedly rewritten")
+						}
+					} else if r.Header.Get("User-Agent") != "claude-cli/"+claudeOAuthVersion+" (external, cli)" || r.Header.Get("X-Stainless-Runtime") != "node" || r.Header.Get("X-Stainless-Package-Version") != "0.94.0" || r.Header.Get("Accept") != "application/json" {
 						t.Fatal("inconsistent client identity")
 					}
 					if r.Header.Get("X-Client-Request-Id") == "" || (r.Header.Get("X-Stainless-Helper-Method") == "stream") != stream {
 						t.Fatal("missing request/stream identity")
 					}
-					for _, beta := range []string{"custom-beta", "second-beta", "oauth-2025-04-20", "claude-code-20250219", "interleaved-thinking-2025-05-14"} {
+					for _, beta := range []string{"custom-beta", "second-beta", "oauth-2025-04-20", "claude-code-20250219"} {
 						if !strings.Contains(r.Header.Get("Anthropic-Beta"), beta) {
 							t.Fatalf("missing beta: %s", beta)
 						}
 					}
-					if path == "messages/count_tokens" && !strings.Contains(r.Header.Get("Anthropic-Beta"), "token-counting-2024-11-01") {
+					if path == "messages" && strings.Contains(r.Header.Get("Anthropic-Beta"), "interleaved-thinking-2025-05-14") {
+						t.Fatal("unrequested optional beta was forced on the account")
+					}
+					if path == "messages/count_tokens" && (!strings.Contains(r.Header.Get("Anthropic-Beta"), "token-counting-2024-11-01") || r.Header.Get("X-Stainless-Helper-Method") != "") {
 						t.Fatal("missing token counting capability")
 					}
 					raw, _ := io.ReadAll(r.Body)
@@ -56,6 +72,12 @@ func TestAnthropicOAuthWireCompatibility(t *testing.T) {
 						if name != "system" && !bytes.Equal(after[name], value) {
 							t.Fatalf("changed opaque field %s", name)
 						}
+					}
+					if path == "messages/count_tokens" {
+						if !bytes.Equal(raw, []byte(payload)) || after["metadata"] != nil {
+							t.Fatal("count_tokens payload was adapted")
+						}
+						return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"input_tokens":1}`))}, nil
 					}
 					var blocks []json.RawMessage
 					_ = json.Unmarshal(after["system"], &blocks)
@@ -75,6 +97,9 @@ func TestAnthropicOAuthWireCompatibility(t *testing.T) {
 					id := readClaudeIdentity(t, raw)
 					if id["account_uuid"] != "account-test" || len(id["device_id"]) != 64 || len(id["session_id"]) != 36 {
 						t.Fatal("invalid metadata identity")
+					}
+					if path == "messages/count_tokens" {
+						return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"input_tokens":1}`))}, nil
 					}
 					return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader("data: PRIVATE_RESPONSE\n\n"))}, nil
 				})}
@@ -96,10 +121,18 @@ func TestAnthropicOAuthWireCompatibility(t *testing.T) {
 				defer cancel()
 				defer res.Body.Close()
 				raw, _ := io.ReadAll(res.Body)
-				if string(raw) != "data: PRIVATE_RESPONSE\n\n" {
+				if path == "messages/count_tokens" {
+					if string(raw) != `{"input_tokens":1}` {
+						t.Fatalf("invalid count_tokens JSON response: %s", raw)
+					}
+				} else if string(raw) != "data: PRIVATE_RESPONSE\n\n" {
 					t.Fatal("response stream changed")
 				}
-				if !strings.Contains(logs.String(), "mode=adapted") {
+				wantMode := "mode=adapted"
+				if path == "messages/count_tokens" {
+					wantMode = "mode=count_tokens"
+				}
+				if !strings.Contains(logs.String(), wantMode) {
 					t.Fatal("missing compatibility diagnostics")
 				}
 				for _, secret := range []string{"PRIVATE_", "signed-history", "opaque-history", "previous reasoning", "account-test"} {
@@ -173,8 +206,8 @@ func TestAnthropicOAuthNativeBodyAndProxyIdentity(t *testing.T) {
 				if string(raw) != payload {
 					t.Fatal("native payload/cache prefix changed")
 				}
-				if r.Header.Get("User-Agent") != "claude-cli/2.1.321 (external, cli)" {
-					t.Fatal("UA inconsistent with native attribution")
+				if r.Header.Get("User-Agent") != ua {
+					t.Fatal("native client headers changed")
 				}
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{}`))}, nil
 			})}
@@ -196,6 +229,27 @@ func TestAnthropicOAuthRejectsMalformedCompatibilityFields(t *testing.T) {
 		if _, _, err := prepareAnthropicOAuth(r, claudeOAuthTestProvider(), []byte(raw)); err == nil {
 			t.Fatal("accepted malformed request")
 		}
+	}
+}
+
+func TestAnthropicOAuthValidationFailureIsClientErrorAndNeverTransport(t *testing.T) {
+	logs := captureUpstreamLogs(t)
+	a := testApp(t)
+	called := false
+	a.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		called = true
+		return nil, nil
+	})}
+	r := httptest.NewRequest("POST", "/v1/messages", nil)
+	_, _, err := a.nativeRoundTrip(r, claudeOAuthTestProvider(), "messages", []byte(`{"model":"claude-test","metadata":[],"messages":[]}`))
+	if err == nil || upstreamErrorStatus(r.Context(), err) != http.StatusBadRequest || upstreamErrorCode(r.Context(), err) != errorcode.InvalidRequest {
+		t.Fatalf("validation error mapping: err=%v status=%d", err, upstreamErrorStatus(r.Context(), err))
+	}
+	if called {
+		t.Fatal("invalid request reached upstream")
+	}
+	if strings.Contains(logs.String(), "gateway.upstream.request_started") || strings.Contains(logs.String(), "gateway.upstream.failed") || strings.Contains(logs.String(), "transport_error") {
+		t.Fatalf("client validation was diagnosed as an upstream failure: %s", logs.String())
 	}
 }
 

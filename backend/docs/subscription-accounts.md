@@ -107,12 +107,14 @@ gateway update. They do not establish model access or guarantee inference succes
 
 Claude OAuth Messages, streaming Messages, token counting and Chat-to-Messages
 conversion use the CLI-compatible request path with `beta=true`. For ordinary
-SDK clients, BOS supplies a consistent CLI/SDK identity, OAuth capability betas,
-billing attribution and `metadata.user_id`. The bundled compatibility version is
+SDK clients, BOS supplies a consistent CLI/SDK identity, the required OAuth
+capability betas, billing attribution and `metadata.user_id`. It does not force
+unrelated optional feature betas. The bundled compatibility version is
 `2.1.321`; this declares the implemented wire behavior, not an installed CLI.
 The generated device/session identity is scoped to the provider and BOS API key;
 session identity stays stable when turns are appended and tokens rotate.
-Original system instructions remain system blocks. Tool history, thinking
+`count_tokens` receives the original public request body unchanged and gets only
+its token-counting capability beta. Original system instructions remain system blocks. Tool history, thinking
 signatures, large integer arguments, cache controls and unknown fields are retained.
 Caller `metadata.user_id` is replaced on this adapted path, while other metadata
 fields are retained. Identical opening turns without distinct caller metadata

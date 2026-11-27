@@ -381,6 +381,10 @@ func appendUsageTail(current, chunk []byte) []byte {
 }
 
 func upstreamErrorStatus(ctx context.Context, err error) int {
+	var requestErr anthropicRequestError
+	if errors.As(err, &requestErr) {
+		return http.StatusBadRequest
+	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return http.StatusGatewayTimeout
 	}
@@ -392,6 +396,10 @@ func upstreamErrorStatus(ctx context.Context, err error) int {
 }
 
 func upstreamErrorCode(ctx context.Context, err error) errorcode.Code {
+	var requestErr anthropicRequestError
+	if errors.As(err, &requestErr) {
+		return errorcode.InvalidRequest
+	}
 	if upstreamErrorStatus(ctx, err) == http.StatusGatewayTimeout {
 		return errorcode.UpstreamTimeout
 	}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -267,10 +268,19 @@ func (a *app) nativeRoundTrip(r *http.Request, p provider, path string, payload 
 	claudeOAuth := anthropicOAuthMessages(p, path)
 	claudeNative := false
 	if err == nil && claudeOAuth {
-		payload, claudeNative, err = prepareAnthropicOAuth(r, p, payload)
+		if path == "messages/count_tokens" {
+			// CountTokens has its own public schema and does not accept the
+			// Messages metadata/system compatibility envelope.
+			claudeNative = true
+		} else {
+			payload, claudeNative, err = prepareAnthropicOAuth(r, p, payload)
+		}
 	}
 	if err != nil {
-		observeUpstreamResult(r.Context(), p, nil, err)
+		var requestErr anthropicRequestError
+		if errors.As(err, &requestErr) {
+			recordGatewayFailure(r, "request_validation", errorcode.InvalidRequest, "body", requestErr.reason)
+		}
 		return nil, func() {}, err
 	}
 	parsed, _ := url.Parse(endpoint)
@@ -305,7 +315,7 @@ func (a *app) nativeRoundTrip(r *http.Request, p provider, path string, payload 
 		req.Header.Set("Accept", accept)
 	}
 	if claudeOAuth {
-		if err := applyAnthropicOAuthHeaders(req, r, p, payload, claudeNative, streaming); err != nil {
+		if err := applyAnthropicOAuthHeaders(req, r, p, claudeNative, streaming); err != nil {
 			return nil, func() {}, err
 		}
 	}

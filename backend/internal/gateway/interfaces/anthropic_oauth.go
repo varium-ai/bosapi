@@ -4,10 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"unicode/utf16"
 
@@ -17,7 +15,9 @@ import (
 // Keep the body attribution and HTTP identity on the same tested CLI version.
 const claudeOAuthVersion = "2.1.321"
 
-var claudeBillingVersion = regexp.MustCompile(`cc_version=(\d{1,6}\.\d{1,6}\.\d{1,6})(?:[.; ])`)
+type anthropicRequestError struct{ reason string }
+
+func (e anthropicRequestError) Error() string { return e.reason }
 
 func anthropicOAuthMessages(p provider, path string) bool {
 	return p.Type == "oauth" && p.Platform == "anthropic" && p.APIFormat == "anthropic_messages" && (path == "messages" || path == "messages/count_tokens")
@@ -28,12 +28,12 @@ func anthropicOAuthMessages(p provider, path string) bool {
 func prepareAnthropicOAuth(r *http.Request, p provider, payload []byte) ([]byte, bool, error) {
 	var body map[string]json.RawMessage
 	if json.Unmarshal(payload, &body) != nil || body == nil {
-		return nil, false, errors.New("invalid Anthropic OAuth request")
+		return nil, false, anthropicRequestError{reason: "invalid Anthropic OAuth request"}
 	}
 	metadata := map[string]json.RawMessage{}
 	if raw := body["metadata"]; len(raw) > 0 && string(raw) != "null" {
 		if json.Unmarshal(raw, &metadata) != nil || metadata == nil {
-			return nil, false, errors.New("invalid Anthropic OAuth metadata")
+			return nil, false, anthropicRequestError{reason: "metadata must be an object"}
 		}
 	}
 	var callerID string
@@ -45,7 +45,7 @@ func prepareAnthropicOAuth(r *http.Request, p provider, payload []byte) ([]byte,
 			block, _ := json.Marshal(map[string]string{"type": "text", "text": system})
 			blocks = append(blocks, block)
 		} else if json.Unmarshal(raw, &blocks) != nil {
-			return nil, false, errors.New("invalid Anthropic OAuth system instruction")
+			return nil, false, anthropicRequestError{reason: "system must be text or an array of content blocks"}
 		}
 	}
 	billing := false
@@ -99,27 +99,8 @@ func claudeUUID(raw []byte) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", id[:4], id[4:6], id[6:8], id[8:10], id[10:])
 }
 
-func applyAnthropicOAuthHeaders(req, incoming *http.Request, p provider, payload []byte, native, streaming bool) error {
-	version := claudeOAuthVersion
-	ua := req.Header.Get("User-Agent")
-	if !native || !(strings.HasPrefix(ua, "claude-cli/") || strings.HasPrefix(ua, "claude-code/")) {
-		if native {
-			// A proxy may replace the CLI UA. Recover its declared version from
-			// the billing block without rewriting the native body/cache prefix.
-			var body struct {
-				System []struct {
-					Text string `json:"text"`
-				} `json:"system"`
-			}
-			_ = json.Unmarshal(payload, &body)
-			for _, block := range body.System {
-				if strings.HasPrefix(block.Text, "x-anthropic-billing-header:") {
-					if match := claudeBillingVersion.FindStringSubmatch(block.Text); len(match) > 1 {
-						version = match[1]
-					}
-				}
-			}
-		}
+func applyAnthropicOAuthHeaders(req, incoming *http.Request, p provider, native, streaming bool) error {
+	if !native {
 		// An arbitrary SDK's version/runtime must not contradict CLI attribution.
 		for name := range req.Header {
 			if strings.HasPrefix(strings.ToLower(name), "x-stainless-") {
@@ -127,7 +108,7 @@ func applyAnthropicOAuthHeaders(req, incoming *http.Request, p provider, payload
 			}
 		}
 		for name, value := range map[string]string{
-			"User-Agent": "claude-cli/" + version + " (external, cli)",
+			"User-Agent": "claude-cli/" + claudeOAuthVersion + " (external, cli)",
 			"X-App":      "cli", "X-Stainless-Lang": "js", "X-Stainless-Package-Version": "0.94.0",
 			"X-Stainless-OS": "Linux", "X-Stainless-Arch": "arm64", "X-Stainless-Runtime": "node",
 			"X-Stainless-Runtime-Version": "v24.3.0", "X-Stainless-Retry-Count": "0", "X-Stainless-Timeout": "600",
@@ -137,15 +118,12 @@ func applyAnthropicOAuthHeaders(req, incoming *http.Request, p provider, payload
 		}
 	}
 	if !native {
-		for _, beta := range []string{"interleaved-thinking-2025-05-14", "prompt-caching-scope-2026-01-05", "effort-2025-11-24", "context-management-2025-06-27", "thinking-binding-controls-2026-08-01", "mid-conversation-output-config-2026-07-01", "extended-cache-ttl-2025-04-11"} {
-			appendAnthropicBeta(req.Header, beta)
-		}
 		req.Header.Set("Accept", "application/json")
 	}
 	if strings.HasSuffix(req.URL.Path, "/count_tokens") {
 		appendAnthropicBeta(req.Header, "token-counting-2024-11-01")
 	}
-	if streaming {
+	if streaming && !strings.HasSuffix(req.URL.Path, "/count_tokens") {
 		req.Header.Set("X-Stainless-Helper-Method", "stream")
 	}
 	var id [16]byte
@@ -156,6 +134,9 @@ func applyAnthropicOAuthHeaders(req, incoming *http.Request, p provider, payload
 	mode := "adapted"
 	if native {
 		mode = "native"
+	}
+	if strings.HasSuffix(req.URL.Path, "/count_tokens") {
+		mode = "count_tokens"
 	}
 	logging.Printf(incoming.Context(), "INFO", "gateway.anthropic_oauth.compatibility", "provider_id=%d mode=%s compatibility_version=%s beta_query=%t account_identity_present=%t stream=%t", p.ID, mode, claudeOAuthVersion, req.URL.Query().Get("beta") == "true", p.AccountID != "", streaming)
 	return nil
