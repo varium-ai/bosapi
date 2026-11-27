@@ -103,6 +103,41 @@ gateway update. They do not establish model access or guarantee inference succes
 | Gemini CLI / Code Assist | Google Code Assist with its managed/project ID | Gemini generateContent JSON, streamGenerateContent SSE; existing Chat/Messages conversion |
 | Antigravity | Google Antigravity with its own OAuth client and managed/project ID | Gemini generateContent JSON, streamGenerateContent SSE; existing Chat/Messages conversion |
 
+### Claude OAuth request compatibility
+
+Claude OAuth Messages, streaming Messages, token counting and Chat-to-Messages
+conversion use the CLI-compatible request path with `beta=true`. For ordinary
+SDK clients, BOS supplies a consistent CLI/SDK identity, OAuth capability betas,
+billing attribution and `metadata.user_id`. The bundled compatibility version is
+`2.1.321`; this declares the implemented wire behavior, not an installed CLI.
+The generated device/session identity is scoped to the provider and BOS API key;
+session identity stays stable when turns are appended and tokens rotate.
+Original system instructions remain system blocks. Tool history, thinking
+signatures, large integer arguments, cache controls and unknown fields are retained.
+Caller `metadata.user_id` is replaced on this adapted path, while other metadata
+fields are retained. Identical opening turns without distinct caller metadata
+share the same derived session identity within one provider/key pair.
+
+Requests carrying CLI metadata together with a CLI User-Agent or billing block
+retain their original body bytes. If a proxy replaced the CLI User-Agent, BOS
+recovers the version from its billing block. API-key channels use their existing
+request path. Token exchange retains Anthropic's `account.uuid` inside encrypted
+credentials, and refresh preserves it if omitted in the response. Older saved
+credentials can still be used without that optional identity; reauthorizing the
+channel captures it when Anthropic returns it. No schema migration is needed.
+
+After deploying a rebuilt backend, retry the same model with the same BOS key
+in both JSON and streaming mode. Look for
+`gateway.anthropic_oauth.compatibility` (`mode=adapted` or `mode=native`) and
+`gateway.upstream.response_received` / `gateway.upstream.failed`.
+On upstream HTTP 429, `upstream_retry_after_present` and
+`upstream_rate_limit_headers_present` describe the actual upstream headers,
+before any client-facing Retry-After fallback. These flags distinguish missing
+rate-limit evidence from supplied headers; they do not prove remaining quota or
+the cause of a rejection. Compatibility logs contain no tokens, prompts,
+account UUIDs, session IDs or arbitrary header values. Upstream eligibility and
+live inference success still require verification after deployment.
+
 OpenAI OAuth Chat accepts text, user images, function tools and matched textual
 tool history in JSON or streaming mode. User image URLs and Base64 data URLs
 preserve Chat `image_url.detail` (`auto`, `low`, or `high`) as Responses
